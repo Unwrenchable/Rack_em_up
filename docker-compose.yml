@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rackup
+    ports:
+      - '5432:5432'
+    volumes:
+      - rackup_pg:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+
+  # Optional: point REALAI_BASE_URL at your own RealAI container / host.
+  # Do not vendor the realai monorepo here — keep it external.
+
+volumes:
+  rackup_pg:
