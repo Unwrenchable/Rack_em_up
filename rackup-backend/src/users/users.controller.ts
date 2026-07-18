@@ -1,12 +1,19 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Request } from 'express';
+import { StatsService } from './stats.service';
 
 @Controller('users')
 export class UsersController {
+  constructor(private readonly statsService: StatsService) {}
+
   @UseGuards(AuthGuard('jwt'))
   @Get('me')
-  getMe(@Req() req: Request & { user?: unknown }) {
+  getMe(@Req() req: any) {
     return req.user;
+  }
+
+  @Get(':id/stats')
+  async stats(@Param('id') id: string) {
+    return this.statsService.getPlayerStats(id);
   }
 }

@@ -1,258 +1,170 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
+import { Tournament } from './tournament.entity';
+import { TournamentMatch } from './tournament-match.entity';
 import { CreateTournamentDto } from './dto/create-tournament.dto';
 import { RegisterTournamentDto } from './dto/register-tournament.dto';
-import { ReportTournamentMatchDto } from './dto/report-tournament-match.dto';
-import { TournamentMatch } from './tournament_matches.entity';
-import { Tournament } from './tournaments.entity';
-import { MemoriesService } from '../memories/memories.service';
-import { RatingService } from '../users/rating.service';
+import { ReportMatchDto } from './dto/report-match.dto';
 
 @Injectable()
 export class TournamentsService {
   constructor(
     @InjectRepository(Tournament)
-    private readonly tournamentsRepo: Repository<Tournament>,
+    private tournamentRepo: Repository<Tournament>,
+
     @InjectRepository(TournamentMatch)
-    private readonly tournamentMatchesRepo: Repository<TournamentMatch>,
-    private readonly memoriesService: MemoriesService,
-    private readonly ratingService: RatingService,
+    private matchRepo: Repository<TournamentMatch>,
   ) {}
 
-  async listTournaments(): Promise<Tournament[]> {
-    return this.tournamentsRepo.find({
-      order: { startsAt: 'DESC' },
-      take: 40,
-    });
-  }
-
-  async createTournament(dto: CreateTournamentDto): Promise<Tournament> {
-    const entrants = Array.from(new Set(dto.entrants));
-    if (entrants.length < 2) {
-      throw new BadRequestException('At least 2 entrants are required');
-    }
-
-    const bracketSeed = this.buildSingleEliminationSeed(entrants);
-
-    const tournament = this.tournamentsRepo.create({
-      organizerId: dto.organizer_id,
-      hallId: dto.hall_id ?? null,
+  // -------------------------------------------------------
+  // CREATE TOURNAMENT
+  // -------------------------------------------------------
+  async createTournament(dto: CreateTournamentDto) {
+    const tournament = this.tournamentRepo.create({
       name: dto.name,
-      format: dto.format,
       game: dto.game,
-      startsAt: new Date(dto.starts_at),
-      status: 'ACTIVE',
+      format: 'single-elimination',
       configJson: {
-        raceTo: dto.race_to ?? 7,
-        entrants,
-        bracket: bracketSeed.map((m) => ({
-          round: m.round,
-          matchIndex: m.matchIndex,
-          nextRound: m.nextRound,
-          nextMatchIndex: m.nextMatchIndex,
-        })),
+        entrants: dto.entrants,
       },
     });
 
-    const savedTournament = await this.tournamentsRepo.save(
-      tournament as Tournament,
-    );
+    await this.tournamentRepo.save(tournament);
 
-    const matchEntities = bracketSeed.map((m) =>
-      this.tournamentMatchesRepo.create({
-        tournamentId: savedTournament.id,
-        round: m.round,
-        matchIndex: m.matchIndex,
-        playerAId: m.playerAId,
-        playerBId: m.playerBId,
-        status: 'PENDING',
-        nextMatchId: null,
-      }),
-    );
+    await this.seedSingleElimination(tournament);
 
-    const savedMatches = await this.tournamentMatchesRepo.save(matchEntities);
-
-    const roundMap = new Map<string, TournamentMatch>();
-    for (const match of savedMatches) {
-      roundMap.set(`${match.round}-${match.matchIndex}`, match);
-    }
-
-    for (const match of savedMatches) {
-      const seed = bracketSeed.find(
-        (m) => m.round === match.round && m.matchIndex === match.matchIndex,
-      );
-      if (!seed || seed.nextRound === null || seed.nextMatchIndex === null) continue;
-
-      const next = roundMap.get(`${seed.nextRound}-${seed.nextMatchIndex}`);
-      if (next) {
-        match.nextMatchId = next.id;
-      }
-    }
-
-    await this.tournamentMatchesRepo.save(savedMatches);
-    await this.tournamentMatchesRepo.save(savedMatches);
-    return savedTournament;
+    return tournament;
   }
 
-  async getTournament(id: string): Promise<{
-    tournament: Tournament;
-    matches: TournamentMatch[];
-  }> {
-    const tournament = await this.tournamentsRepo.findOne({ where: { id } });
-    if (!tournament) {
-      throw new NotFoundException('Tournament not found');
+  // -------------------------------------------------------
+  // SEED SINGLE ELIMINATION BRACKET
+  // -------------------------------------------------------
+  private async seedSingleElimination(tournament: Tournament) {
+    const entrants = tournament.configJson.entrants;
+    const size = this.nextPowerOfTwo(entrants.length);
+    const seeded = [...entrants, ...new Array(size - entrants.length).fill(null)];
+
+    const matches = [];
+
+    for (let i = 0; i < seeded.length; i += 2) {
+      const match = this.matchRepo.create({
+        tournamentId: tournament.id,
+        round: 1,
+        matchIndex: i / 2 + 1,
+        playerAId: seeded[i],
+        playerBId: seeded[i + 1],
+        status: 'ACTIVE',
+        bracket: 'WINNERS',
+        aScore: null,
+        bScore: null,
+      });
+
+      matches.push(await this.matchRepo.save(match));
     }
 
-    const matches = await this.tournamentMatchesRepo.find({
+    return matches;
+  }
+
+  private nextPowerOfTwo(n: number) {
+    let p = 1;
+    while (p < n) p *= 2;
+    return p;
+  }
+
+  // -------------------------------------------------------
+  // REGISTER PLAYER
+  // -------------------------------------------------------
+  async register(dto: RegisterTournamentDto) {
+    const tournament = await this.tournamentRepo.findOneBy({
+      id: dto.tournament_id,
+    });
+
+    if (!tournament) throw new NotFoundException('Tournament not found');
+
+    tournament.configJson.entrants.push(dto.user_id);
+
+    await this.tournamentRepo.save(tournament);
+
+    return { success: true };
+  }
+
+  // -------------------------------------------------------
+  // GET BRACKET
+  // -------------------------------------------------------
+  async getBracket(id: string) {
+    const tournament = await this.tournamentRepo.findOneBy({ id });
+    if (!tournament) throw new NotFoundException('Tournament not found');
+
+    const matches = await this.matchRepo.find({
       where: { tournamentId: id },
       order: { round: 'ASC', matchIndex: 'ASC' },
     });
 
-    return { tournament, matches };
+    return {
+      tournament,
+      matches,
+    };
   }
 
-  async registerToTournament(
-    id: string,
-    dto: RegisterTournamentDto,
-  ): Promise<Tournament> {
-    const tournament = await this.tournamentsRepo.findOne({ where: { id } });
-    if (!tournament) {
-      throw new NotFoundException('Tournament not found');
-    }
-
-    const entrants = Array.from(new Set([...(tournament.configJson?.entrants ?? []), dto.user_id]));
-    tournament.configJson = { ...(tournament.configJson ?? {}), entrants };
-
-    return this.tournamentsRepo.save(tournament as Tournament);
-  }
-
-  async reportTournamentMatch(
-    tournamentId: string,
-    dto: ReportTournamentMatchDto,
-  ): Promise<{
-    updatedMatch: TournamentMatch;
-    nextMatch?: TournamentMatch | null;
-    tournamentStatus: Tournament['status'];
-  }> {
-    const tournament = await this.tournamentsRepo.findOne({ where: { id: tournamentId } });
-    if (!tournament) {
-      throw new NotFoundException('Tournament not found');
-    }
-
-    const match = await this.tournamentMatchesRepo.findOne({
-      where: { id: dto.match_id, tournamentId },
-    });
-    if (!match) {
-      throw new NotFoundException('Tournament match not found');
-    }
-
-    if (dto.a_score === dto.b_score) {
-      throw new BadRequestException('Tie scores are not allowed');
-    }
+  // -------------------------------------------------------
+  // REPORT MATCH RESULT
+  // -------------------------------------------------------
+  async reportMatch(dto: ReportMatchDto) {
+    const match = await this.matchRepo.findOneBy({ id: dto.match_id });
+    if (!match) throw new NotFoundException('Match not found');
 
     match.aScore = dto.a_score;
     match.bScore = dto.b_score;
     match.status = 'COMPLETED';
-    const updatedMatch = await this.tournamentMatchesRepo.save(match);
 
-    if (match.playerAId && match.playerBId) {
-      const aWins = dto.a_score > dto.b_score;
-      await this.memoriesService.createForMatchParticipants({
-        matchId: match.id,
-        matchType: 'TOURNAMENT',
-        participantAId: match.playerAId,
-        participantBId: match.playerBId,
-        aIsWinner: aWins,
-        bIsWinner: !aWins,
-        game: tournament.game,
-        raceTo: tournament.configJson?.raceTo ?? null,
-        scorelineA: { a: dto.a_score, b: dto.b_score },
-        scorelineB: { a: dto.a_score, b: dto.b_score },
-      });
-      await this.ratingService.applyMatchResult(
-        aWins ? match.playerAId : match.playerBId,
-        aWins ? match.playerBId : match.playerAId,
-      );
-    }
+    await this.matchRepo.save(match);
 
-    const winnerId = dto.a_score > dto.b_score ? match.playerAId : match.playerBId;
-    let nextMatch: TournamentMatch | null = null;
+    return { success: true };
+  }
 
-    if (winnerId && match.nextMatchId) {
-      nextMatch = await this.tournamentMatchesRepo.findOne({ where: { id: match.nextMatchId } });
-      if (nextMatch) {
-        if (!nextMatch.playerAId) {
-          nextMatch.playerAId = winnerId;
-        } else if (!nextMatch.playerBId) {
-          nextMatch.playerBId = winnerId;
-        }
-        nextMatch = await this.tournamentMatchesRepo.save(nextMatch);
-      }
-    }
-
-    const remaining = await this.tournamentMatchesRepo.count({
-      where: { tournamentId, status: In(['PENDING']) },
+  // -------------------------------------------------------
+  // ADVANCE ROUND
+  // -------------------------------------------------------
+  async advanceRound(tournamentId: string) {
+    const matches = await this.matchRepo.find({
+      where: { tournamentId },
+      order: { round: 'ASC', matchIndex: 'ASC' },
     });
 
-    if (remaining === 0) {
-      tournament.status = 'COMPLETED';
-      await this.tournamentsRepo.save(tournament);
+    const lastRound = Math.max(...matches.map((m) => m.round));
+    const completed = matches.filter((m) => m.round === lastRound);
+
+    if (completed.some((m) => m.status !== 'COMPLETED')) {
+      throw new BadRequestException('Not all matches completed');
     }
 
-    return {
-      updatedMatch,
-      nextMatch,
-      tournamentStatus: tournament.status,
-    };
-  }
+    const winners = completed.map((m) =>
+      m.aScore > m.bScore ? m.playerAId : m.playerBId,
+    );
 
-  private buildSingleEliminationSeed(entrants: string[]): Array<{
-    round: number;
-    matchIndex: number;
-    playerAId: string | null;
-    playerBId: string | null;
-    nextRound: number | null;
-    nextMatchIndex: number | null;
-  }> {
-    const size = this.nextPowerOfTwo(entrants.length);
-    const seeded = [...entrants, ...new Array(size - entrants.length).fill(null)];
-    const rounds = Math.log2(size);
+    const nextRound = lastRound + 1;
 
-    const output: Array<{
-      round: number;
-      matchIndex: number;
-      playerAId: string | null;
-      playerBId: string | null;
-      nextRound: number | null;
-      nextMatchIndex: number | null;
-    }> = [];
+    for (let i = 0; i < winners.length; i += 2) {
+      const match = this.matchRepo.create({
+        tournamentId,
+        round: nextRound,
+        matchIndex: i / 2 + 1,
+        playerAId: winners[i],
+        playerBId: winners[i + 1] ?? null,
+        status: 'ACTIVE',
+        bracket: 'WINNERS',
+        aScore: null,
+        bScore: null,
+      });
 
-    let currentRoundParticipants = seeded;
-    for (let round = 1; round <= rounds; round++) {
-      const matchesInRound = currentRoundParticipants.length / 2;
-      for (let i = 0; i < matchesInRound; i++) {
-        const playerAId = round === 1 ? currentRoundParticipants[i * 2] : null;
-        const playerBId = round === 1 ? currentRoundParticipants[i * 2 + 1] : null;
-
-        output.push({
-          round,
-          matchIndex: i + 1,
-          playerAId,
-          playerBId,
-          nextRound: round < rounds ? round + 1 : null,
-          nextMatchIndex: round < rounds ? Math.floor(i / 2) + 1 : null,
-        });
-      }
-      currentRoundParticipants = new Array(matchesInRound).fill(null);
+      await this.matchRepo.save(match);
     }
 
-    return output;
-  }
-
-  private nextPowerOfTwo(value: number): number {
-    let p = 1;
-    while (p < value) p <<= 1;
-    return p;
+    return { success: true };
   }
 }

@@ -14,6 +14,8 @@ import { HallsPage } from './pages/HallsPage';
 import { CoachPage } from './pages/CoachPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { TournamentsListPage } from './pages/TournamentsListPage';
+import { TournamentsPage } from './pages/TournamentsPage';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -25,6 +27,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
+
       <Route
         element={
           <Protected>
@@ -44,7 +47,12 @@ function AppRoutes() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
+
+        {/* ⭐ NEW — Tournament Routes */}
+        <Route path="tournaments" element={<TournamentsListPage />} />
+        <Route path="tournaments/:id" element={<TournamentsPage />} />
       </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

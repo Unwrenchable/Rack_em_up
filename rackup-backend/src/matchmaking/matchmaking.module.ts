@@ -1,14 +1,21 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from '../users/users.entity';
-import { MatchmakingController } from './matchmaking.controller';
 import { MatchmakingRequest } from './matchmaking.entity';
 import { MatchmakingService } from './matchmaking.service';
+import { MatchmakingController } from './matchmaking.controller';
+import { MatchesModule } from '../matches/matches.module';
+import { MatchmakingGateway } from './matchmaking.gateway';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MatchmakingRequest, User])],
+  imports: [
+    TypeOrmModule.forFeature([MatchmakingRequest]),
+    MatchesModule,
+  ],
   controllers: [MatchmakingController],
-  providers: [MatchmakingService],
+  providers: [
+    MatchmakingService,
+    MatchmakingGateway,
+  ],
   exports: [MatchmakingService],
 })
 export class MatchmakingModule {}

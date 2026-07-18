@@ -1,25 +1,37 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { CreateMatchmakingRequestDto } from './dto/create-matchmaking-request.dto';
 import { SearchMatchmakingDto } from './dto/search-matchmaking.dto';
 import { MatchmakingRequest } from './matchmaking.entity';
+import { MatchesService } from '../matches/matches.service';
+import { MatchmakingGateway } from './matchmaking.gateway';
 
 @Injectable()
 export class MatchmakingService {
   constructor(
     @InjectRepository(MatchmakingRequest)
     private readonly matchmakingRepo: Repository<MatchmakingRequest>,
+    private readonly matchesService: MatchesService,
+    private readonly matchmakingGateway: MatchmakingGateway,
   ) {}
 
   async createRequest(
     dto: CreateMatchmakingRequestDto,
     userId: number,
   ): Promise<MatchmakingRequest> {
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    const now = Date.now();
+    const expiresAt = new Date(now + 30 * 60 * 1000);
 
-    // MatchmakingRequest.userId is stored as UUID, so cast the caller ID to string.
-    // (If your JWT user.id is already UUID, keep it as-is; otherwise adjust to your actual schema.)
+    const existing = await this.matchmakingRepo.findOne({
+      where: {
+        userId: String(userId),
+        expiresAt: LessThan(new Date(now + 30 * 60 * 1000)),
+      },
+    });
+
+    if (existing) return existing;
+
     const entity = this.matchmakingRepo.create({
       userId: String(userId),
       lat: dto.lat,
@@ -31,13 +43,14 @@ export class MatchmakingService {
       expiresAt,
     });
 
-    return this.matchmakingRepo.save(entity);
+    const saved = await this.matchmakingRepo.save(entity);
+
+    this.matchmakingGateway.emitRequestCreated(String(userId), saved);
+
+    return saved;
   }
 
-  async cancelRequest(
-    id: string,
-    userId: number,
-  ): Promise<{ deleted: boolean }> {
+  async cancelRequest(id: string, userId: number) {
     const result = await this.matchmakingRepo.delete({
       id,
       userId: String(userId),
@@ -47,26 +60,19 @@ export class MatchmakingService {
       throw new NotFoundException('Matchmaking request not found');
     }
 
+    this.matchmakingGateway.emitRequestCancelled(String(userId), { id });
+
     return { deleted: true };
   }
 
-  async search(
-    dto: SearchMatchmakingDto,
-  ): Promise<
-    Array<{
-      id: string;
-      user_id: string;
-      game: string;
-      stakes: string;
-      min_rating: number;
-      max_rating: number;
-      distance_meters: number;
-      rating_proximity: number;
-      rank_score: number;
-      created_at: Date;
-      expires_at: Date;
-    }>
-  > {
+  async cleanupExpired(): Promise<number> {
+    const result = await this.matchmakingRepo.delete({
+      expiresAt: LessThan(new Date()),
+    });
+    return result.affected ?? 0;
+  }
+
+  async search(dto: SearchMatchmakingDto) {
     const desiredRatingCenter = this.avg(
       dto.min_rating ?? 0,
       dto.max_rating ?? 1000,
@@ -75,7 +81,7 @@ export class MatchmakingService {
     const qb = this.matchmakingRepo
       .createQueryBuilder('lfm')
       .leftJoinAndSelect('lfm.user', 'user')
-      .where('lfm.expiresAt > NOW()')
+      .where('lfm.expires_at > NOW()')
       .andWhere(
         `
         ST_DWithin(
@@ -104,13 +110,8 @@ export class MatchmakingService {
         lat: dto.lat,
       });
 
-    if (dto.game) {
-      qb.andWhere('lfm.game = :game', { game: dto.game });
-    }
-
-    if (dto.stakes) {
-      qb.andWhere('lfm.stakes = :stakes', { stakes: dto.stakes });
-    }
+    if (dto.game) qb.andWhere('lfm.game = :game', { game: dto.game });
+    if (dto.stakes) qb.andWhere('lfm.stakes = :stakes', { stakes: dto.stakes });
 
     if (dto.min_rating !== undefined) {
       qb.andWhere('lfm.maxRating >= :minRatingFilter', {
@@ -131,6 +132,7 @@ export class MatchmakingService {
     return entities
       .map((entity, index) => {
         const distanceMeters = Number(raw[index]?.distance_meters ?? 0);
+
         const candidateRatingCenter = this.avg(
           entity.minRating,
           entity.maxRating,
@@ -139,7 +141,13 @@ export class MatchmakingService {
           candidateRatingCenter - desiredRatingCenter,
         );
 
-        const rankScore = distanceMeters * 0.7 + ratingProximity * 0.3;
+        const stakesWeight =
+          dto.stakes && entity.stakes === dto.stakes ? 0 : 1000;
+
+        const rankScore =
+          distanceMeters * 0.5 +
+          ratingProximity * 0.3 +
+          stakesWeight * 0.2;
 
         return {
           id: entity.id,
@@ -149,13 +157,46 @@ export class MatchmakingService {
           min_rating: entity.minRating,
           max_rating: entity.maxRating,
           distance_meters: distanceMeters,
-          rating_proximity: ratingProximity,
+          rating_proximity,
+          stakes_weight: stakesWeight,
           rank_score: rankScore,
           created_at: entity.createdAt,
           expires_at: entity.expiresAt,
         };
       })
       .sort((a, b) => a.rank_score - b.rank_score);
+  }
+
+  async findBestMatch(dto: SearchMatchmakingDto) {
+    const results = await this.search(dto);
+    return results[0] ?? null;
+  }
+
+  async autoCreateMatch(
+    requestingUserId: string,
+    dto: SearchMatchmakingDto,
+    raceTo: number,
+    hallId?: string,
+  ) {
+    const best = await this.findBestMatch(dto);
+    if (!best) {
+      throw new NotFoundException('No suitable opponent found');
+    }
+
+    const match = await this.matchesService.create({
+      playerAId: requestingUserId,
+      playerBId: best.user_id,
+      hallId: hallId ?? null,
+      game: dto.game ?? best.game,
+      raceTo,
+    });
+
+    this.matchmakingGateway.emitMatchFound(String(requestingUserId), {
+      opponent: best,
+      match,
+    });
+
+    return { opponent: best, match };
   }
 
   private avg(a: number, b: number): number {

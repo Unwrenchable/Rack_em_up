@@ -3,9 +3,14 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../users/users.entity';
+import { TournamentMatch } from '../matches/tournament-match.entity';
+
+export type TournamentFormat = 'SINGLE_ELIM' | 'DOUBLE_ELIM';
+export type TournamentStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED';
 
 @Entity({ name: 'tournaments' })
 export class Tournament {
@@ -22,11 +27,11 @@ export class Tournament {
   @Column({ name: 'hall_id', type: 'uuid', nullable: true })
   hallId!: string | null;
 
-  @Column({ type: 'text' })
-  name!: string;
+  @Column({ type: 'text', default: 'SINGLE_ELIM' })
+  format!: TournamentFormat;
 
   @Column({ type: 'text' })
-  format!: 'SINGLE_ELIM' | 'DOUBLE_ELIM';
+  name!: string;
 
   @Column({ type: 'text' })
   game!: string;
@@ -35,7 +40,7 @@ export class Tournament {
   startsAt!: Date;
 
   @Column({ type: 'text', default: 'DRAFT' })
-  status!: 'DRAFT' | 'ACTIVE' | 'COMPLETED';
+  status!: TournamentStatus;
 
   @Column({ name: 'config_json', type: 'jsonb', default: {} })
   configJson!: {
@@ -48,4 +53,7 @@ export class Tournament {
       nextRound?: number | null;
     }>;
   };
+
+  @OneToMany(() => TournamentMatch, (match) => match.tournament)
+  matches!: TournamentMatch[];
 }
