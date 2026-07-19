@@ -4,11 +4,36 @@ import { api } from '../lib/api';
 import { Bracket } from '../components/Bracket';
 import { io } from 'socket.io-client';
 
-export default function TournamentsPage() {
+export function TournamentsPage() {
+  type TournamentRow = {
+    id: string;
+    name: string;
+    organizerId: string;
+    configJson?: { entrants?: string[] };
+  };
+
+type TournamentMatchRow = {
+    id: string;
+    round: number;
+    matchIndex: number;
+    playerAId: string | null;
+    playerBId: string | null;
+    aScore: number | null;
+    bScore: number | null;
+    status: string;
+  };
+
+
+  type TournamentDetails = {
+    tournament: TournamentRow;
+    matches: TournamentMatchRow[];
+  };
+
   const { id } = useParams();
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<TournamentDetails | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+
 
   // -----------------------------
   // Load tournament + live updates
@@ -17,16 +42,17 @@ export default function TournamentsPage() {
     if (!id) return;
 
     api
-      .get(`/tournaments/${id}/bracket`)
-      .then((res) => {
+      .getTournament(id)
+      .then((res: any) => {
         setData(res);
         setLoading(false);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error(err);
         setError('Failed to load tournament');
         setLoading(false);
       });
+
 
     // Live WebSocket updates
     const socket = io('http://localhost:3000');
@@ -134,6 +160,7 @@ export default function TournamentsPage() {
             {match.status !== 'COMPLETED' &&
               match.playerAId &&
               match.playerBId && (
+
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();

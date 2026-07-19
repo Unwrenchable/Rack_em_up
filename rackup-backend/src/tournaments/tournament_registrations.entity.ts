@@ -18,7 +18,8 @@ export class TournamentRegistration {
   @Column({ name: 'player_id', type: 'uuid' })
   playerId!: string;
 
-  @ManyToOne(() => Tournament, t => t.registrations)
+  @ManyToOne(() => Tournament, (t) => t.registrations, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tournament_id' })
   tournament!: Tournament;
 }
+

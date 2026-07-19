@@ -478,6 +478,25 @@ export function initials(name: string): string {
     .toUpperCase();
 }
 
-export function wsUrl(): string {
-  return import.meta.env.VITE_WS_URL ?? 'http://localhost:3000';
-}
+export const api = {
+  getTournaments: async () => {
+    return fetch('/api/tournaments').then((r) => r.json());
+  },
+  getTournament: async (id: string) => {
+    return fetch(`/api/tournaments/${id}`).then((r) => r.json());
+  },
+  post: async (path: string, body: unknown) => {
+    const res = await fetch(`${API}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+};
+
+

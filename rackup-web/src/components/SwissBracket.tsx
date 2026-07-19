@@ -1,5 +1,20 @@
-export function SwissBracket({ rounds, standings }) {
+type SwissMatch = {
+  id: string;
+  playerAId: string | null;
+  playerBId: string | null;
+  aScore: number | null;
+  bScore: number | null;
+  status: string;
+};
+
+type SwissStanding = {
+  player: string;
+  score: number;
+};
+
+export function SwissBracket({ rounds, standings }: { rounds: Record<number, SwissMatch[]>; standings: SwissStanding[] }) {
   return (
+
     <div style={{ display: 'flex', gap: '40px' }}>
       <div>
         <h2>Swiss Rounds</h2>

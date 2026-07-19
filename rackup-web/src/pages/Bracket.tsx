@@ -1,6 +1,5 @@
-import React from 'react';
+export function Bracket({ matches }: { matches: Array<{id: string; round: number; playerAId: string | null; playerBId: string | null; aScore: number | null; bScore: number | null; status: string;}> }) {
 
-export function Bracket({ matches }) {
   // Group matches by round
   const rounds: Record<number, any[]> = {};
   for (const m of matches) {
@@ -13,7 +12,8 @@ export function Bracket({ matches }) {
       {Object.entries(rounds).map(([round, ms]) => (
         <div key={round}>
           <h2 style={{ marginBottom: '10px' }}>Round {round}</h2>
-          {ms.map(match => (
+          {ms.map((match) => (
+
             <div
               key={match.id}
               style={{

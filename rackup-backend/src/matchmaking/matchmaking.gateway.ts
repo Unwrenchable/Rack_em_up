@@ -14,7 +14,8 @@ import { Server, Socket } from 'socket.io';
 })
 export class MatchmakingGateway {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
+
 
   emitMatchFound(userId: string, payload: any) {
     this.server.to(userId).emit('match_found', payload);

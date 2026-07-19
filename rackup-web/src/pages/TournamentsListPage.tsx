@@ -2,24 +2,34 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Link } from 'react-router-dom';
 
-export default function TournamentsListPage() {
-  const [tournaments, setTournaments] = useState([]);
+export function TournamentsListPage() {
+  type TournamentRow = {
+    id: string;
+    name: string;
+    game: string;
+    startsAt: string | Date;
+  };
+
+  const [tournaments, setTournaments] = useState<TournamentRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+
+
 
   useEffect(() => {
     api
-      .get('/tournaments')
-      .then((res) => {
+      .getTournaments()
+      .then((res: any) => {
         setTournaments(res);
         setLoading(false);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error(err);
         setError('Failed to load tournaments');
         setLoading(false);
       });
   }, []);
+
 
   if (loading) return <div>Loading tournaments...</div>;
   if (error) return <div>{error}</div>;

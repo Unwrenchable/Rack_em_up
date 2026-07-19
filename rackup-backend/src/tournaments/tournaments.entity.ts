@@ -7,10 +7,20 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../users/users.entity';
-import { TournamentMatch } from '../matches/tournament-match.entity';
+import { TournamentMatch } from './tournament_matches.entity';
+import { TournamentRegistration } from './tournament_registrations.entity';
 
-export type TournamentFormat = 'SINGLE_ELIM' | 'DOUBLE_ELIM';
-export type TournamentStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED';
+export enum TournamentFormat {
+  SINGLE_ELIM = 'SINGLE_ELIM',
+  DOUBLE_ELIM = 'DOUBLE_ELIM',
+  SWISS = 'SWISS',
+}
+
+export enum TournamentStatus {
+  DRAFT = 'DRAFT',
+  ACTIVE = 'ACTIVE',
+  COMPLETED = 'COMPLETED',
+}
 
 @Entity({ name: 'tournaments' })
 export class Tournament {
@@ -27,7 +37,7 @@ export class Tournament {
   @Column({ name: 'hall_id', type: 'uuid', nullable: true })
   hallId!: string | null;
 
-  @Column({ type: 'text', default: 'SINGLE_ELIM' })
+  @Column({ type: 'text', default: TournamentFormat.SINGLE_ELIM })
   format!: TournamentFormat;
 
   @Column({ type: 'text' })
@@ -39,7 +49,7 @@ export class Tournament {
   @Column({ name: 'starts_at', type: 'timestamp' })
   startsAt!: Date;
 
-  @Column({ type: 'text', default: 'DRAFT' })
+  @Column({ type: 'text', default: TournamentStatus.DRAFT })
   status!: TournamentStatus;
 
   @Column({ name: 'config_json', type: 'jsonb', default: {} })
@@ -56,4 +66,11 @@ export class Tournament {
 
   @OneToMany(() => TournamentMatch, (match) => match.tournament)
   matches!: TournamentMatch[];
+
+  @OneToMany(
+    () => TournamentRegistration,
+    (registration) => registration.tournament,
+  )
+  registrations!: TournamentRegistration[];
 }
+

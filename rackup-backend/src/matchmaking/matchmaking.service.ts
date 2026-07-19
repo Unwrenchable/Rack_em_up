@@ -157,7 +157,8 @@ export class MatchmakingService {
           min_rating: entity.minRating,
           max_rating: entity.maxRating,
           distance_meters: distanceMeters,
-          rating_proximity,
+          ratingProximity,
+
           stakes_weight: stakesWeight,
           rank_score: rankScore,
           created_at: entity.createdAt,
@@ -186,7 +187,8 @@ export class MatchmakingService {
     const match = await this.matchesService.create({
       playerAId: requestingUserId,
       playerBId: best.user_id,
-      hallId: hallId ?? null,
+      hallId,
+
       game: dto.game ?? best.game,
       raceTo,
     });

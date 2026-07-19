@@ -8,7 +8,7 @@ import { Server } from 'socket.io';
 })
 export class MatchesGateway {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   emitMatchCreated(match: any) {
     this.server

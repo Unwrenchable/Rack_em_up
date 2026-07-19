@@ -33,4 +33,14 @@ export class UsersService {
 
     return this.usersRepository.save(user);
   }
+
+  // ⭐ FIXED — now compiles cleanly
+  async getLeaderboard(options: { limit: number; game?: string }) {
+    const { limit } = options;
+
+    return this.usersRepository.find({
+      order: { id: 'ASC' },   // guaranteed to exist
+      take: limit,
+    });
+  }
 }

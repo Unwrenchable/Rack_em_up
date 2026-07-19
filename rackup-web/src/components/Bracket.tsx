@@ -1,7 +1,17 @@
-import React from 'react';
+type MatchRow = {
+  id: string;
+  round: number;
+  playerAId: string | null;
+  playerBId: string | null;
+  aScore: number | null;
+  bScore: number | null;
+  status: string;
+};
 
-export function Bracket({ matches }) {
-  const rounds = {};
+export function Bracket({ matches }: { matches: MatchRow[] }) {
+  const rounds: Record<number, MatchRow[]> = {};
+
+
 
   for (const m of matches) {
     if (!rounds[m.round]) rounds[m.round] = [];

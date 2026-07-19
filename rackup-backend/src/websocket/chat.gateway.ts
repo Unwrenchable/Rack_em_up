@@ -12,10 +12,10 @@ import { getRedisClient } from '../config/redis.config';
 import { sanitizeChatText } from './chat-sanitize';
 
 @WebSocketGateway({
-  cors: {
-    origin: '*',
-  },
+  cors: { origin: '*' },
+  path: '/socket.io',
 })
+
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;

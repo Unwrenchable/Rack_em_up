@@ -14,12 +14,13 @@ import { Friendship } from '../friends/friendship.entity';
 import { ActionPost } from '../action-board/action-post.entity';
 import { AppNotification } from '../notifications/notification.entity';
 import { PlayerReport } from '../reports/report.entity';
+import { TournamentRegistration } from '../tournaments/tournament_registrations.entity';
 
 export const ormConfig: TypeOrmModuleOptions = {
   type: 'postgres',
   host: process.env.DB_HOST ?? 'localhost',
   port: parseInt(process.env.DB_PORT ?? '5432', 10),
-  username: process.env.DB_USER ?? 'postgres',
+  username: process.env.DB_USERNAME ?? 'postgres',
   password: process.env.DB_PASSWORD ?? 'postgres',
   database: process.env.DB_NAME ?? 'rackup',
   entities: [
@@ -30,6 +31,7 @@ export const ormConfig: TypeOrmModuleOptions = {
     LeagueTeam,
     Tournament,
     TournamentMatch,
+    TournamentRegistration,
     MatchMemory,
     Hall,
     HallCheckin,

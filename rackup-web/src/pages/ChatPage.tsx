@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { wsUrl } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import type { ChatMessage } from '../lib/types';
 
 export function ChatPage() {
   const { user, demo } = useAuth();
+
   const [online, setOnline] = useState(0);
   const [connected, setConnected] = useState(false);
   const [text, setText] = useState('');
@@ -27,13 +27,27 @@ export function ChatPage() {
       return;
     }
 
-    const socket = io(wsUrl(), {
-      transports: ['websocket'],
+    const WS_URL = "wss://potential-parakeet-4rw9gxrgvxpcq579-3000.app.github.dev/socket.io";
+
+    const socket = io(WS_URL, {
+      transports: ['websocket', 'polling'],
       reconnection: true,
+      withCredentials: false,
     });
+
+
+
+
+
+
+
+
     socketRef.current = socket;
 
+
+
     socket.on('connect', () => setConnected(true));
+
     socket.on('disconnect', () => setConnected(false));
     socket.on('presence', (payload: { onlineCount?: number }) => {
       if (typeof payload?.onlineCount === 'number') setOnline(payload.onlineCount);
