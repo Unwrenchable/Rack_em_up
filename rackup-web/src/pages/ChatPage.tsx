@@ -27,43 +27,43 @@ export function ChatPage() {
       return;
     }
 
-    const WS_URL = "wss://potential-parakeet-4rw9gxrgvxpcq579-3000.app.github.dev/socket.io";
+    // Production-ready socket URL
+    const SOCKET_URL = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
+      : 'http://localhost:3000';
 
-    const socket = io(WS_URL, {
+    const socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       withCredentials: false,
     });
 
-
-
-
-
-
-
-
     socketRef.current = socket;
 
-
-
     socket.on('connect', () => setConnected(true));
-
     socket.on('disconnect', () => setConnected(false));
+
     socket.on('presence', (payload: { onlineCount?: number }) => {
-      if (typeof payload?.onlineCount === 'number') setOnline(payload.onlineCount);
+      if (typeof payload?.onlineCount === 'number') {
+        setOnline(payload.onlineCount);
+      }
     });
-    socket.on('message', (payload: { sender?: string; text?: string; createdAt?: string }) => {
-      setMessages((m) => [
-        ...m,
-        {
-          id: `${Date.now()}-${Math.random()}`,
-          sender: payload.sender ?? 'anon',
-          text: payload.text ?? '',
-          createdAt: payload.createdAt ?? new Date().toISOString(),
-          mine: payload.sender === socket.id,
-        },
-      ]);
-    });
+
+    socket.on(
+      'message',
+      (payload: { sender?: string; text?: string; createdAt?: string }) => {
+        setMessages((m) => [
+          ...m,
+          {
+            id: `${Date.now()}-${Math.random()}`,
+            sender: payload.sender ?? 'anon',
+            text: payload.text ?? '',
+            createdAt: payload.createdAt ?? new Date().toISOString(),
+            mine: payload.sender === socket.id,
+          },
+        ]);
+      },
+    );
 
     return () => {
       socket.disconnect();
@@ -118,7 +118,12 @@ export function ChatPage() {
 
       <div className="chat-log card">
         {messages.map((m) => (
-          <div key={m.id} className={`chat-bubble${m.mine ? ' mine' : ''}${m.sender === 'system' ? ' system' : ''}`}>
+          <div
+            key={m.id}
+            className={`chat-bubble${m.mine ? ' mine' : ''}${
+              m.sender === 'system' ? ' system' : ''
+            }`}
+          >
             {m.sender !== 'system' && !m.mine && (
               <div className="chat-meta">{m.sender.slice(0, 8)}</div>
             )}
