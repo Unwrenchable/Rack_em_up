@@ -34,6 +34,18 @@ export function HallsPage() {
     }
   }
 
+  function openDirections(h: Hall) {
+    const query = h.address
+      ? encodeURIComponent(h.address)
+      : `${h.lat},${h.lon}`;
+
+    window.open(
+      `https://www.google.com/maps/search/?api=1&query=${query}`,
+      '_blank',
+      'noopener,noreferrer',
+    );
+  }
+
   const liveMap = new Map(live.map((l) => [l.hallId, l]));
 
   return (
@@ -73,7 +85,11 @@ export function HallsPage() {
                 <div>
                   <h3 style={{ fontWeight: 600 }}>
                     {h.name}{' '}
-                    {h.isVerified && <span className="chip chip-gold" style={{ marginLeft: 6 }}>Verified</span>}
+                    {h.isVerified && (
+                      <span className="chip chip-gold" style={{ marginLeft: 6 }}>
+                        Verified
+                      </span>
+                    )}
                   </h3>
                   <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
                     {h.address ?? 'Address TBD'}
@@ -81,15 +97,25 @@ export function HallsPage() {
                   </p>
                 </div>
               </div>
+
               {pulse && (
                 <div className="row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
                   <span className="chip chip-live">{pulse.activePlayerCount} in</span>
                   <span className="chip">{pulse.activeMatchCount} matches</span>
-                  <span className={`chip chip-${pulse.pulseStatus === 'BUSY' ? 'busy' : pulse.pulseStatus === 'MODERATE' ? 'moderate' : 'quiet'}`}>
+                  <span
+                    className={`chip chip-${
+                      pulse.pulseStatus === 'BUSY'
+                        ? 'busy'
+                        : pulse.pulseStatus === 'MODERATE'
+                          ? 'moderate'
+                          : 'quiet'
+                    }`}
+                  >
                     {pulse.pulseStatus}
                   </span>
                 </div>
               )}
+
               <div className="row" style={{ marginTop: 12 }}>
                 <button
                   type="button"
@@ -102,7 +128,7 @@ export function HallsPage() {
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  onClick={() => push('Directions open in maps (demo)', 'info')}
+                  onClick={() => openDirections(h)}
                 >
                   Directions
                 </button>
