@@ -4,7 +4,7 @@
       "id": "hall-griffs-vegas",
       "name": "Griff's Bar & Billiards",
       "address": "3650 S Decatur Blvd, Las Vegas, NV 89103",
-      "location": { "lat": 36.12194, "lng": -115.20962 },
+      "location": { "lat": 36.12371, "lng": -115.20735 },
       "tables": 36,
       "amenities": ["Pro tables", "Food", "Full bar", "Weekly tournaments"],
       "admins": [
@@ -39,12 +39,11 @@
         { "type": "shotOfTheDay", "refId": "sotd-2026-07-18" }
       ]
     },
-
     {
       "id": "hall-cueclub-vegas",
       "name": "Las Vegas Cue Club",
       "address": "953 E Sahara Ave, Las Vegas, NV 89104",
-      "location": { "lat": 36.14452, "lng": -115.13678 },
+      "location": { "lat": 36.14203, "lng": -115.14223 },
       "tables": 28,
       "amenities": ["Pro tables", "Snacks", "APA leagues"],
       "admins": [{ "userId": "admin-cueclub-001" }],
@@ -56,22 +55,17 @@
           "description": "Weekly APA league matches."
         }
       ],
-      "photos": [
-        { "url": "https://example.com/cueclub/photo1.jpg" }
-      ],
+      "photos": [{ "url": "https://example.com/cueclub/photo1.jpg" }],
       "leaderboard": [
         { "userId": "player-003", "elo": 1680, "wins": 7, "activityScore": 29 }
       ],
-      "feed": [
-        { "type": "event", "refId": "event-cueclub-001" }
-      ]
+      "feed": [{ "type": "event", "refId": "event-cueclub-001" }]
     },
-
     {
       "id": "hall-goodtimez-vegas",
       "name": "Good Timez Billiards",
-      "address": "7380 S Eastern Ave #102, Las Vegas, NV 89123",
-      "location": { "lat": 36.05691, "lng": -115.11872 },
+      "address": "5740 W Charleston Blvd, Las Vegas, NV 89146",
+      "location": { "lat": 36.15941, "lng": -115.22038 },
       "tables": 24,
       "amenities": ["Food", "Bar", "Leagues", "Tournaments"],
       "admins": [{ "userId": "admin-goodtimez-001" }],
@@ -83,22 +77,17 @@
           "description": "Thursday night 8-ball tournament."
         }
       ],
-      "photos": [
-        { "url": "https://example.com/goodtimez/photo1.jpg" }
-      ],
+      "photos": [{ "url": "https://example.com/goodtimez/photo1.jpg" }],
       "leaderboard": [
         { "userId": "player-004", "elo": 1600, "wins": 5, "activityScore": 21 }
       ],
-      "feed": [
-        { "type": "event", "refId": "event-goodtimez-001" }
-      ]
+      "feed": [{ "type": "event", "refId": "event-goodtimez-001" }]
     },
-
     {
       "id": "hall-walters-vegas",
       "name": "Walter's Billiards",
       "address": "3930 E Sunset Rd, Las Vegas, NV 89120",
-      "location": { "lat": 36.07111, "lng": -115.08944 },
+      "location": { "lat": 36.07150, "lng": -115.08950 },
       "tables": 20,
       "amenities": ["Food", "Bar", "APA leagues"],
       "admins": [{ "userId": "admin-walters-001" }],
@@ -107,12 +96,11 @@
       "leaderboard": [],
       "feed": []
     },
-
     {
       "id": "hall-backstage-vegas",
       "name": "Backstage Bar & Billiards",
       "address": "601 Fremont St, Las Vegas, NV 89101",
-      "location": { "lat": 36.16994, "lng": -115.13983 },
+      "location": { "lat": 36.16990, "lng": -115.14000 },
       "tables": 12,
       "amenities": ["Live music", "Bar", "Pool tables"],
       "admins": [{ "userId": "admin-backstage-001" }],
@@ -121,7 +109,6 @@
       "leaderboard": [],
       "feed": []
     },
-
     {
       "id": "hall-cued-vegas",
       "name": "Cue D’s",
@@ -135,7 +122,6 @@
       "leaderboard": [],
       "feed": []
     },
-
     {
       "id": "hall-banginballz-vegas",
       "name": "Bangin Ballz Billiards Bar",
@@ -150,7 +136,6 @@
       "feed": []
     }
   ],
-
   "tournaments": [
     {
       "id": "tourney-vegas-open-2026",
@@ -169,7 +154,6 @@
       "startsAt": "2026-08-15T18:00:00.000Z"
     }
   ],
-
   "leagues": [
     {
       "id": "league-vegas-apa-2026",
@@ -186,7 +170,6 @@
       "halls": ["hall-griffs-vegas", "hall-goodtimez-vegas"]
     }
   ],
-
   "shotOfTheDay": [
     {
       "id": "sotd-2026-07-18",
