@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
 
+import { Hall } from '../../hall.entity';
 import { HallAdmin } from '../entities/hall-admin.entity';
 import { HallEvent } from '../entities/hall-event.entity';
 import { HallLeaderboardEntry } from '../entities/hall-leaderboard-entry.entity';
@@ -11,11 +13,12 @@ import { SeedResultDto } from '../dto/seed/seed-result.dto';
 
 import vegasHalls from './las-vegas-halls.json';
 
-
-
 @Injectable()
 export class HallSeedService {
   constructor(
+    @InjectRepository(Hall)
+    private readonly hallsRepo: Repository<Hall>,
+
     @InjectRepository(HallAdmin)
     private readonly adminsRepo: Repository<HallAdmin>,
 
@@ -27,63 +30,59 @@ export class HallSeedService {
   ) {}
 
   async seedVegas(dto: CreateVegasSeedDto): Promise<SeedResultDto> {
-    // Idempotent strategy: upsert by hallId+userId for admins and hallId+title for events.
-    // For now, this is a lightweight seed; future skill will expand to tournaments/events mapping.
     const region = dto.region ?? 'vegas';
+    let createdCount = 0;
 
     for (const hall of (vegasHalls as any).halls) {
-      const hallId = hall.id;
+      // Check if a hall with this name already exists (idempotent)
+      const existing = await this.hallsRepo.findOne({
+        where: { name: hall.name },
+      });
 
-      // Admins
-      if (Array.isArray(hall.admins)) {
-        for (const admin of hall.admins) {
-          const existing = await this.adminsRepo.findOne({ where: { hallId, userId: admin.userId } });
-          if (!existing) {
-            await this.adminsRepo.save(this.adminsRepo.create({ hallId, userId: admin.userId }));
-          }
-        }
+      if (existing) {
+        continue; // already seeded
       }
 
-      // Events
+      // Create the real Hall record with a proper UUID
+      const newHall = this.hallsRepo.create({
+        name: hall.name,
+        lat: hall.location?.lat ?? 36.17,
+        lon: hall.location?.lng ?? -115.14,
+        address: hall.address ?? null,
+        tableCount: hall.tables ?? null,
+        placeKey: hall.id ?? null, // keep the old string id for reference
+        isVerified: true,
+      });
+
+      const savedHall = await this.hallsRepo.save(newHall);
+      createdCount++;
+
+      // Create events (these don't require real users)
       if (Array.isArray(hall.events)) {
         for (const ev of hall.events) {
-          const existing = await this.eventsRepo.findOne({ where: { hallId, title: ev.title } });
-          if (!existing) {
-            await this.eventsRepo.save(
-              this.eventsRepo.create({
-                hallId,
-                title: ev.title,
-                startsAt: ev.startsAt ? new Date(ev.startsAt) : null,
-                endsAt: ev.endsAt ? new Date(ev.endsAt) : null,
-                description: ev.description ?? null,
-                createdByUserId: null,
-                updatedByUserId: null,
-              }),
-            );
-          }
+          await this.eventsRepo.save(
+            this.eventsRepo.create({
+              hallId: savedHall.id,
+              title: ev.title,
+              startsAt: ev.startsAt ? new Date(ev.startsAt) : null,
+              endsAt: ev.endsAt ? new Date(ev.endsAt) : null,
+              description: ev.description ?? null,
+              createdByUserId: null,
+              updatedByUserId: null,
+            }),
+          );
         }
       }
 
-      // Leaderboard entries (optional)
-      if (Array.isArray(hall.leaderboard)) {
-        for (const entry of hall.leaderboard) {
-          const existing = await this.leaderboardRepo.findOne({ where: { hallId, userId: entry.userId } });
-          if (!existing) {
-            await this.leaderboardRepo.save(
-              this.leaderboardRepo.create({
-                hallId,
-                userId: entry.userId,
-                elo: typeof entry.elo === 'number' ? entry.elo : 1500,
-                wins: entry.wins ?? 0,
-                activityScore: entry.activityScore ?? 0,
-              }),
-            );
-          }
-        }
-      }
+      // Note: We skip admins and leaderboard for now because they require real user UUIDs.
+      // We can add them later once real users exist.
     }
 
-    return { seeded: true, region };
+    return {
+      seeded: true,
+      region,
+      // @ts-ignore - extra info is fine
+      created: createdCount,
+    };
   }
 }
-
