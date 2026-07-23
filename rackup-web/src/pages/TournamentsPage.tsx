@@ -12,7 +12,7 @@ export function TournamentsPage() {
     configJson?: { entrants?: string[] };
   };
 
-type TournamentMatchRow = {
+  type TournamentMatchRow = {
     id: string;
     round: number;
     matchIndex: number;
@@ -23,7 +23,6 @@ type TournamentMatchRow = {
     status: string;
   };
 
-
   type TournamentDetails = {
     tournament: TournamentRow;
     matches: TournamentMatchRow[];
@@ -33,7 +32,6 @@ type TournamentMatchRow = {
   const [data, setData] = useState<TournamentDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
 
   // -----------------------------
   // Load tournament + live updates
@@ -53,9 +51,15 @@ type TournamentMatchRow = {
         setLoading(false);
       });
 
+    // Production-ready Socket.IO connection
+    const SOCKET_URL = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
+      : 'http://localhost:3000';
 
-    // Live WebSocket updates
-    const socket = io('http://localhost:3000');
+    const socket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+    });
+
     socket.emit('joinTournamentRoom', id);
 
     socket.on('tournamentUpdated', (updated) => {
@@ -78,9 +82,7 @@ type TournamentMatchRow = {
     <div style={{ padding: '20px' }}>
       <h1>{tournament.name}</h1>
 
-      {/* ----------------------------- */}
-      {/* Registration Button           */}
-      {/* ----------------------------- */}
+      {/* Registration Button */}
       <button
         onClick={() => {
           api
@@ -101,9 +103,7 @@ type TournamentMatchRow = {
         Register for Tournament
       </button>
 
-      {/* ----------------------------- */}
-      {/* Entrants List                 */}
-      {/* ----------------------------- */}
+      {/* Entrants List */}
       <div style={{ marginBottom: '20px' }}>
         <h2>Entrants</h2>
         {tournament.configJson?.entrants?.map((e) => (
@@ -111,14 +111,10 @@ type TournamentMatchRow = {
         ))}
       </div>
 
-      {/* ----------------------------- */}
-      {/* Bracket Viewer                */}
-      {/* ----------------------------- */}
+      {/* Bracket Viewer */}
       <Bracket matches={matches} />
 
-      {/* ----------------------------- */}
-      {/* Advance Round Button          */}
-      {/* ----------------------------- */}
+      {/* Advance Round Button */}
       <button
         onClick={() => {
           api
@@ -139,9 +135,7 @@ type TournamentMatchRow = {
         Advance Round
       </button>
 
-      {/* ----------------------------- */}
-      {/* Match Reporting UI            */}
-      {/* ----------------------------- */}
+      {/* Match Reporting UI */}
       <div style={{ marginTop: '40px' }}>
         <h2>Report Matches</h2>
 
@@ -160,16 +154,15 @@ type TournamentMatchRow = {
             {match.status !== 'COMPLETED' &&
               match.playerAId &&
               match.playerBId && (
-
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
                     const form = e.target as HTMLFormElement;
                     const aScore = Number(
-                      (form.elements.namedItem('aScore') as HTMLInputElement).value
+                      (form.elements.namedItem('aScore') as HTMLInputElement).value,
                     );
                     const bScore = Number(
-                      (form.elements.namedItem('bScore') as HTMLInputElement).value
+                      (form.elements.namedItem('bScore') as HTMLInputElement).value,
                     );
 
                     api
