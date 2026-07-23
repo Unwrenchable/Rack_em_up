@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { randomUUID } from 'crypto';
 
 import { Hall } from '../../hall.entity';
 import { HallAdmin } from '../entities/hall-admin.entity';
@@ -32,32 +31,42 @@ export class HallSeedService {
   async seedVegas(dto: CreateVegasSeedDto): Promise<SeedResultDto> {
     const region = dto.region ?? 'vegas';
     let createdCount = 0;
+    let updatedCount = 0;
 
     for (const hall of (vegasHalls as any).halls) {
-      // Check if a hall with this name already exists (idempotent)
       const existing = await this.hallsRepo.findOne({
         where: { name: hall.name },
       });
 
       if (existing) {
-        continue; // already seeded
+        // Update location + address on existing hall
+        existing.lat = hall.location?.lat ?? existing.lat;
+        existing.lon = hall.location?.lng ?? existing.lon;
+        existing.address = hall.address ?? existing.address;
+        existing.tableCount = hall.tables ?? existing.tableCount;
+        existing.placeKey = hall.id ?? existing.placeKey;
+        existing.isVerified = true;
+
+        await this.hallsRepo.save(existing);
+        updatedCount++;
+        continue;
       }
 
-      // Create the real Hall record with a proper UUID
+      // Create new hall
       const newHall = this.hallsRepo.create({
         name: hall.name,
         lat: hall.location?.lat ?? 36.17,
         lon: hall.location?.lng ?? -115.14,
         address: hall.address ?? null,
         tableCount: hall.tables ?? null,
-        placeKey: hall.id ?? null, // keep the old string id for reference
+        placeKey: hall.id ?? null,
         isVerified: true,
       });
 
       const savedHall = await this.hallsRepo.save(newHall);
       createdCount++;
 
-      // Create events (these don't require real users)
+      // Create events (optional)
       if (Array.isArray(hall.events)) {
         for (const ev of hall.events) {
           await this.eventsRepo.save(
@@ -73,16 +82,15 @@ export class HallSeedService {
           );
         }
       }
-
-      // Note: We skip admins and leaderboard for now because they require real user UUIDs.
-      // We can add them later once real users exist.
     }
 
     return {
       seeded: true,
       region,
-      // @ts-ignore - extra info is fine
+      // @ts-ignore
       created: createdCount,
+      // @ts-ignore
+      updated: updatedCount,
     };
   }
 }
