@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { checkInHall, fetchHalls, fetchLiveHalls } from '../lib/api';
 import { useToast } from '../lib/toast-context';
 import type { Hall, LiveHall } from '../lib/types';
+import { HallsMap } from '../components/HallsMap';
 
 export function HallsPage() {
   const { push } = useToast();
@@ -38,7 +39,6 @@ export function HallsPage() {
     const query = h.address
       ? encodeURIComponent(h.address)
       : `${h.lat},${h.lon}`;
-
     window.open(
       `https://www.google.com/maps/search/?api=1&query=${query}`,
       '_blank',
@@ -75,6 +75,9 @@ export function HallsPage() {
           </span>
         </div>
       </div>
+
+      {/* Map view */}
+      {halls && halls.length > 0 && <HallsMap halls={halls} />}
 
       <div className="stack">
         {halls?.map((h) => {
