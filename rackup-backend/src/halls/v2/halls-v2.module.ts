@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { Hall } from '../hall.entity'; // ← add this
 import { HallCheckIn } from './entities/hall-checkin.entity';
 import { HallEvent } from './entities/hall-event.entity';
 import { HallPhoto } from './entities/hall-photo.entity';
@@ -12,10 +13,18 @@ import { HallsV2Service } from './halls-v2.service';
 import { HallSeedService } from './seed/hall-seed.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([HallCheckIn, HallEvent, HallPhoto, HallAdmin, HallLeaderboardEntry])],
+  imports: [
+    TypeOrmModule.forFeature([
+      Hall, // ← add this
+      HallCheckIn,
+      HallEvent,
+      HallPhoto,
+      HallAdmin,
+      HallLeaderboardEntry,
+    ]),
+  ],
   controllers: [HallsV2Controller],
   providers: [HallsV2Service, HallSeedService],
   exports: [HallsV2Service],
 })
 export class HallsV2Module {}
-
