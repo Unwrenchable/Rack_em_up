@@ -138,7 +138,7 @@ export async function fetchLiveHalls(): Promise<LiveHall[]> {
   try {
     return await request<LiveHall[]>('/halls/live');
   } catch {
-    return DEMO_HALLS_LIVE;
+    return [];
   }
 }
 
@@ -147,7 +147,7 @@ export async function fetchHalls(): Promise<Hall[]> {
   try {
     return await request<Hall[]>('/halls');
   } catch {
-    return DEMO_HALLS;
+    return [];
   }
 }
 
@@ -172,7 +172,7 @@ export async function fetchMemories(): Promise<MatchMemory[]> {
   try {
     return await request<MatchMemory[]>('/users/me/memories');
   } catch {
-    return DEMO_MEMORIES;
+    return [];
   }
 }
 
@@ -181,7 +181,7 @@ export async function fetchMoneyMatches(): Promise<MoneyMatch[]> {
   try {
     return await request<MoneyMatch[]>('/money-matches');
   } catch {
-    return DEMO_MONEY;
+    return [];
   }
 }
 
@@ -211,10 +211,30 @@ export async function createMoneyMatch(body: {
 export async function fetchLookingPlayers(): Promise<LookingPlayer[]> {
   if (isDemoMode()) return DEMO_PLAYERS;
   try {
-    await request('/matchmaking/search?lat=36.17&lon=-115.14&radiusKm=20&game=9-ball');
-    return DEMO_PLAYERS;
+    const raw = await request<
+      Array<{
+        id: string;
+        user_id: string;
+        game: string;
+        stakes: string;
+        distance_meters: number;
+        min_rating: number;
+        max_rating: number;
+        rank_score: number;
+      }>
+    >('/matchmaking/search?lat=36.17&lon=-115.14&radius=20000&game=9-ball');
+    if (!Array.isArray(raw)) return [];
+    return raw.map((r) => ({
+      id: r.id,
+      displayName: `Player ${r.user_id.slice(0, 6)}`,
+      rating: Math.round((r.min_rating + r.max_rating) / 2),
+      game: r.game,
+      stakes: r.stakes,
+      distanceKm: Math.round((r.distance_meters ?? 0) / 100) / 10,
+      reputation: 0,
+    }));
   } catch {
-    return DEMO_PLAYERS;
+    return [];
   }
 }
 
@@ -240,7 +260,7 @@ export async function fetchTournaments(): Promise<Tournament[]> {
     const rows = await request<Tournament[]>('/tournaments');
     return rows;
   } catch {
-    return DEMO_TOURNAMENTS;
+    return [];
   }
 }
 
@@ -249,17 +269,31 @@ export async function fetchLeagues(): Promise<League[]> {
   try {
     return await request<League[]>('/leagues');
   } catch {
-    return DEMO_LEAGUES;
+    return [];
   }
 }
 
 export async function fetchFriends(): Promise<FriendCard[]> {
   if (isDemoMode()) return DEMO_FRIENDS;
   try {
-    await request('/friends');
-    return DEMO_FRIENDS;
+    const raw = await request<
+      Array<{
+        id: string;
+        requesterId: string;
+        addresseeId: string;
+        status: string;
+        createdAt: string;
+      }>
+    >('/friends');
+    if (!Array.isArray(raw)) return [];
+    return raw.map((f) => ({
+      id: f.id,
+      displayName: `User ${(f.requesterId ?? f.addresseeId).slice(0, 6)}`,
+      rating: 500,
+      status: f.status === 'ACCEPTED' ? 'online' : 'offline',
+    }));
   } catch {
-    return DEMO_FRIENDS;
+    return [];
   }
 }
 
@@ -268,7 +302,7 @@ export async function fetchActionBoard(): Promise<ActionPost[]> {
   try {
     return await request<ActionPost[]>('/action-board');
   } catch {
-    return DEMO_ACTION;
+    return [];
   }
 }
 
@@ -314,7 +348,7 @@ export async function fetchTodayDrills(): Promise<{
       provider: data.provider,
     };
   } catch {
-    return { drills: DEMO_DRILLS, provider: 'demo-fallback' };
+    return { drills: [], provider: 'error' };
   }
 }
 
@@ -374,7 +408,7 @@ export async function fetchNotificationsApi(): Promise<AppNotification[]> {
       time: formatRelative(n.createdAt),
     }));
   } catch {
-    return DEMO_NOTIFICATIONS;
+    return [];
   }
 }
 
@@ -388,8 +422,15 @@ export async function fetchShotOfTheDay(): Promise<ShotOfTheDay> {
   try {
     return await request<ShotOfTheDay>('/shots/today');
   } catch {
-    return DEMO_SHOT_OF_DAY;
+    throw new Error('Failed to fetch shot of the day');
   }
+}
+
+export async function registerForTournament(tournamentId: string, userId: string): Promise<void> {
+  await request(`/tournaments/${tournamentId}/register`, {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId }),
+  });
 }
 
 export async function confirmMoneyMatch(input: {

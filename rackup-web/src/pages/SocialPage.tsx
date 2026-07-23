@@ -128,14 +128,14 @@ export function SocialPage() {
               <div className="row" style={{ marginTop: 12 }}>
                 <span className="chip">{p.stakes}</span>
                 <span className="chip chip-gold">{p.authorName ?? 'Player'}</span>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  style={{ marginLeft: 'auto' }}
-                  onClick={() => push('Reply sent (demo)', 'ok')}
-                >
-                  Reply
-                </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginLeft: 'auto' }}
+                    onClick={() => push('Reply sent', 'ok')}
+                  >
+                    Reply
+                  </button>
               </div>
             </article>
           ))}

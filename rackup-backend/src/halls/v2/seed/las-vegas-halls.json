@@ -4,7 +4,11 @@
       "id": "hall-griffs-vegas",
       "name": "Griff's Bar & Billiards",
       "address": "3650 S Decatur Blvd, Las Vegas, NV 89103",
+<<<<<<< HEAD
       "location": { "lat": 36.1237099, "lng": -115.2073495 },
+=======
+      "location": { "lat": 36.12371, "lng": -115.20735 },
+>>>>>>> ec37035 (demo fixes)
       "tables": 36,
       "amenities": ["Pro tables", "Food", "Full bar", "Weekly tournaments"],
       "admins": [
@@ -43,7 +47,11 @@
       "id": "hall-cueclub-vegas",
       "name": "Las Vegas Cue Club",
       "address": "953 E Sahara Ave, Las Vegas, NV 89104",
+<<<<<<< HEAD
       "location": { "lat": 36.1434121, "lng": -115.1438007 },
+=======
+      "location": { "lat": 36.14203, "lng": -115.14223 },
+>>>>>>> ec37035 (demo fixes)
       "tables": 28,
       "amenities": ["Pro tables", "Snacks", "APA leagues"],
       "admins": [{ "userId": "admin-cueclub-001" }],
@@ -65,7 +73,11 @@
       "id": "hall-goodtimez-vegas",
       "name": "Good Timez Billiards",
       "address": "5740 W Charleston Blvd, Las Vegas, NV 89146",
+<<<<<<< HEAD
       "location": { "lat": 36.1594104, "lng": -115.2203762 },
+=======
+      "location": { "lat": 36.15941, "lng": -115.22038 },
+>>>>>>> ec37035 (demo fixes)
       "tables": 24,
       "amenities": ["Food", "Bar", "Leagues", "Tournaments"],
       "admins": [{ "userId": "admin-goodtimez-001" }],
@@ -86,8 +98,13 @@
     {
       "id": "hall-walters-vegas",
       "name": "Walter's Billiards",
+<<<<<<< HEAD
       "address": "8665 W Flamingo Rd Suite 114, Las Vegas, NV",
       "location": { "lat": 36.1138380, "lng": -115.2810729 },
+=======
+      "address": "3930 E Sunset Rd, Las Vegas, NV 89120",
+      "location": { "lat": 36.07150, "lng": -115.08950 },
+>>>>>>> ec37035 (demo fixes)
       "tables": 20,
       "amenities": ["Food", "Bar", "APA leagues"],
       "admins": [{ "userId": "admin-walters-001" }],
@@ -100,7 +117,11 @@
       "id": "hall-backstage-vegas",
       "name": "Backstage Bar & Billiards",
       "address": "601 Fremont St, Las Vegas, NV 89101",
+<<<<<<< HEAD
       "location": { "lat": 36.1685789, "lng": -115.1394736 },
+=======
+      "location": { "lat": 36.16990, "lng": -115.14000 },
+>>>>>>> ec37035 (demo fixes)
       "tables": 12,
       "amenities": ["Live music", "Bar", "Pool tables"],
       "admins": [{ "userId": "admin-backstage-001" }],

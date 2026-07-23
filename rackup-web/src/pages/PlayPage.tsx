@@ -9,6 +9,7 @@ import {
   fetchTournaments,
   formatMoney,
   formatRelative,
+  registerForTournament,
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
@@ -216,7 +217,15 @@ export function PlayPage() {
                 type="button"
                 className="btn btn-secondary btn-sm"
                 style={{ marginTop: 12 }}
-                onClick={() => push(`Registered for ${t.name} (demo)`, 'ok')}
+                onClick={async () => {
+                  if (!user) { push('Sign in to register', 'err'); return; }
+                  try {
+                    await registerForTournament(t.id, user.id);
+                    push(`Registered for ${t.name}`, 'ok');
+                  } catch (e) {
+                    push(e instanceof Error ? e.message.slice(0, 120) : 'Registration failed', 'err');
+                  }
+                }}
               >
                 Register
               </button>
@@ -244,7 +253,7 @@ export function PlayPage() {
                 type="button"
                 className="btn btn-ghost btn-sm"
                 style={{ marginTop: 12 }}
-                onClick={() => push('League join waitlist (demo)', 'info')}
+                onClick={() => push('Standings coming soon', 'info')}
               >
                 View standings
               </button>
