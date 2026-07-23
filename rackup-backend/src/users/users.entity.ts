@@ -37,4 +37,8 @@ export class User {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
   updatedAt!: Date;
+
+  @Column({ name: 'email_verified_at', type: 'timestamp', nullable: true })
+  emailVerifiedAt!: Date | null;
 }
+

@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: rackup-db
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rackup
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    container_name: rackup-redis
+    ports:
+      - "6379:6379"

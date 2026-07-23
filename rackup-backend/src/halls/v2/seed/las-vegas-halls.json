@@ -1,0 +1,211 @@
+{
+  "halls": [
+    {
+      "id": "hall-griffs-vegas",
+      "name": "Griff's Bar & Billiards",
+      "address": "3650 S Decatur Blvd, Las Vegas, NV 89103",
+      "location": { "lat": 36.12194, "lng": -115.20962 },
+      "tables": 36,
+      "amenities": ["Pro tables", "Food", "Full bar", "Weekly tournaments"],
+      "admins": [
+        { "userId": "admin-griffs-001" },
+        { "userId": "admin-griffs-002" }
+      ],
+      "events": [
+        {
+          "title": "Griff’s Weekly 9-Ball",
+          "startsAt": "2026-07-21T19:00:00.000Z",
+          "endsAt": "2026-07-21T23:00:00.000Z",
+          "description": "Competitive 9-ball tournament every Tuesday night."
+        },
+        {
+          "title": "Open Practice Night",
+          "startsAt": "2026-07-22T18:00:00.000Z",
+          "endsAt": "2026-07-22T22:00:00.000Z",
+          "description": "Free practice tables for all players."
+        }
+      ],
+      "photos": [
+        { "url": "https://example.com/griffs/photo1.jpg" },
+        { "url": "https://example.com/griffs/photo2.jpg" }
+      ],
+      "leaderboard": [
+        { "userId": "player-001", "elo": 1820, "wins": 12, "activityScore": 44 },
+        { "userId": "player-002", "elo": 1750, "wins": 9, "activityScore": 38 }
+      ],
+      "feed": [
+        { "type": "event", "refId": "event-griffs-001" },
+        { "type": "photo", "refId": "photo-griffs-001" },
+        { "type": "shotOfTheDay", "refId": "sotd-2026-07-18" }
+      ]
+    },
+
+    {
+      "id": "hall-cueclub-vegas",
+      "name": "Las Vegas Cue Club",
+      "address": "953 E Sahara Ave, Las Vegas, NV 89104",
+      "location": { "lat": 36.14452, "lng": -115.13678 },
+      "tables": 28,
+      "amenities": ["Pro tables", "Snacks", "APA leagues"],
+      "admins": [{ "userId": "admin-cueclub-001" }],
+      "events": [
+        {
+          "title": "APA League Night",
+          "startsAt": "2026-07-20T18:00:00.000Z",
+          "endsAt": "2026-07-20T22:00:00.000Z",
+          "description": "Weekly APA league matches."
+        }
+      ],
+      "photos": [
+        { "url": "https://example.com/cueclub/photo1.jpg" }
+      ],
+      "leaderboard": [
+        { "userId": "player-003", "elo": 1680, "wins": 7, "activityScore": 29 }
+      ],
+      "feed": [
+        { "type": "event", "refId": "event-cueclub-001" }
+      ]
+    },
+
+    {
+      "id": "hall-goodtimez-vegas",
+      "name": "Good Timez Billiards",
+      "address": "7380 S Eastern Ave #102, Las Vegas, NV 89123",
+      "location": { "lat": 36.05691, "lng": -115.11872 },
+      "tables": 24,
+      "amenities": ["Food", "Bar", "Leagues", "Tournaments"],
+      "admins": [{ "userId": "admin-goodtimez-001" }],
+      "events": [
+        {
+          "title": "Good Timez 8-Ball",
+          "startsAt": "2026-07-23T19:00:00.000Z",
+          "endsAt": "2026-07-23T22:00:00.000Z",
+          "description": "Thursday night 8-ball tournament."
+        }
+      ],
+      "photos": [
+        { "url": "https://example.com/goodtimez/photo1.jpg" }
+      ],
+      "leaderboard": [
+        { "userId": "player-004", "elo": 1600, "wins": 5, "activityScore": 21 }
+      ],
+      "feed": [
+        { "type": "event", "refId": "event-goodtimez-001" }
+      ]
+    },
+
+    {
+      "id": "hall-walters-vegas",
+      "name": "Walter's Billiards",
+      "address": "3930 E Sunset Rd, Las Vegas, NV 89120",
+      "location": { "lat": 36.07111, "lng": -115.08944 },
+      "tables": 20,
+      "amenities": ["Food", "Bar", "APA leagues"],
+      "admins": [{ "userId": "admin-walters-001" }],
+      "events": [],
+      "photos": [],
+      "leaderboard": [],
+      "feed": []
+    },
+
+    {
+      "id": "hall-backstage-vegas",
+      "name": "Backstage Bar & Billiards",
+      "address": "601 Fremont St, Las Vegas, NV 89101",
+      "location": { "lat": 36.16994, "lng": -115.13983 },
+      "tables": 12,
+      "amenities": ["Live music", "Bar", "Pool tables"],
+      "admins": [{ "userId": "admin-backstage-001" }],
+      "events": [],
+      "photos": [],
+      "leaderboard": [],
+      "feed": []
+    },
+
+    {
+      "id": "hall-cued-vegas",
+      "name": "Cue D’s",
+      "address": "3400 S Jones Blvd, Las Vegas, NV 89146",
+      "location": { "lat": 36.12621, "lng": -115.22471 },
+      "tables": 18,
+      "amenities": ["Food", "Bar", "Tournaments"],
+      "admins": [{ "userId": "admin-cued-001" }],
+      "events": [],
+      "photos": [],
+      "leaderboard": [],
+      "feed": []
+    },
+
+    {
+      "id": "hall-banginballz-vegas",
+      "name": "Bangin Ballz Billiards Bar",
+      "address": "276 N Jones Blvd, Las Vegas, NV 89107",
+      "location": { "lat": 36.17641, "lng": -115.22463 },
+      "tables": 16,
+      "amenities": ["Bar", "Food", "Pool tables"],
+      "admins": [{ "userId": "admin-banginballz-001" }],
+      "events": [],
+      "photos": [],
+      "leaderboard": [],
+      "feed": []
+    }
+  ],
+
+  "tournaments": [
+    {
+      "id": "tourney-vegas-open-2026",
+      "name": "Vegas Open 2026",
+      "hallId": "hall-griffs-vegas",
+      "format": "9-ball",
+      "type": "single-elimination",
+      "startsAt": "2026-08-01T18:00:00.000Z"
+    },
+    {
+      "id": "tourney-vegas-summer-8ball",
+      "name": "Vegas Summer 8-Ball Classic",
+      "hallId": "hall-goodtimez-vegas",
+      "format": "8-ball",
+      "type": "double-elimination",
+      "startsAt": "2026-08-15T18:00:00.000Z"
+    }
+  ],
+
+  "leagues": [
+    {
+      "id": "league-vegas-apa-2026",
+      "name": "Vegas APA 2026",
+      "region": "Las Vegas",
+      "startsAt": "2026-09-01T18:00:00.000Z",
+      "halls": ["hall-cueclub-vegas", "hall-walters-vegas"]
+    },
+    {
+      "id": "league-vegas-fargo-2026",
+      "name": "Vegas FargoRate League 2026",
+      "region": "Las Vegas",
+      "startsAt": "2026-09-10T18:00:00.000Z",
+      "halls": ["hall-griffs-vegas", "hall-goodtimez-vegas"]
+    }
+  ],
+
+  "shotOfTheDay": [
+    {
+      "id": "sotd-2026-07-18",
+      "hallId": "hall-griffs-vegas",
+      "description": "Cross‑side bank shot with cue ball three‑rail position.",
+      "diagram": {
+        "balls": [
+          { "id": "cue", "x": 0.22, "y": 0.65 },
+          { "id": "object", "x": 0.55, "y": 0.40 }
+        ],
+        "cuePath": [
+          { "x": 0.22, "y": 0.65 },
+          { "x": 0.48, "y": 0.42 }
+        ],
+        "finalPositions": [
+          { "id": "cue", "x": 0.80, "y": 0.20 },
+          { "id": "object", "x": 0.55, "y": 0.10 }
+        ]
+      }
+    }
+  ]
+}

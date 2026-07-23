@@ -5,8 +5,10 @@ import { Server } from 'socket.io';
   cors: {
     origin: '*',
   },
+  path: '/socket.io',
 })
 export class MatchesGateway {
+
   @WebSocketServer()
   server!: Server;
 

@@ -21,6 +21,22 @@
 
 ---
 
+## Done — V2 module scaffolding (Halls/Tournaments/Leagues/RealAI/Matchmaking)
+
+- [x] Create halls v2 module/controller/service + entities + DTOs + Vegas seed endpoint
+- [x] Wire halls v2 into app.module.ts + register entities in ormconfig.ts
+- [x] Create tournaments v2 module/controller/service + bracket generation (single-elim, double-elim, round-robin)
+- [x] Wire tournaments v2 into app.module.ts + register entities in ormconfig.ts
+- [x] Create leagues v2 module/controller/service + rating normalization + external rating storage
+- [x] Wire leagues v2 into app.module.ts + register entities in ormconfig.ts
+- [x] Create realai v2 module/controller/service + shot-of-the-day structured diagram DTOs
+- [x] Wire realai v2 into app.module.ts
+- [x] Create matchmaking v2 module/controller/service + Redis-backed queue + haversine pairing
+- [x] Wire matchmaking v2 into app.module.ts + register entities in ormconfig.ts
+- [x] `npx tsc --noEmit` passes cleanly (V2 code compiles without errors)
+
+---
+
 ## Done — product surface (P5)
 
 - [x] Friends API

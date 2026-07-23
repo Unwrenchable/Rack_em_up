@@ -43,4 +43,13 @@ export class UsersService {
       take: limit,
     });
   }
+
+  async markEmailVerified(userId: string): Promise<void> {
+    await this.usersRepository.update({ id: userId }, { emailVerifiedAt: new Date() });
+  }
+
+  async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    await this.usersRepository.update({ id: userId }, { passwordHash });
+  }
 }
+

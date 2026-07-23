@@ -11,8 +11,10 @@ import { Server, Socket } from 'socket.io';
   cors: {
     origin: '*',
   },
+  path: '/socket.io',
 })
 export class MatchmakingGateway {
+
   @WebSocketServer()
   server!: Server;
 
