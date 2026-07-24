@@ -1,7 +1,8 @@
 /**
  * Structured Shot-of-the-Day maps for all 52 catalog shots.
- * Coordinates: x 0–100 (head→foot), y 0–50 (bottom→top). Offline-safe catalog fallback.
- * Generated for RealAI V2 SOTD map endpoints; RealAI may enrich but never required.
+ * Internal geometry only (x 0–100 head→foot, y 0–50 near→far). Offline-safe catalog fallback.
+ * Frontend renders instructor-style diagrams with original drill tokens (not cards),
+ * dual paths (cue + object), real ball colors, and human coaching — never raw coords/legends.
  */
 
 export type SotdPoint = { x: number; y: number };

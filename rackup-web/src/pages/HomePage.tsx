@@ -153,10 +153,10 @@ export function HomePage() {
             {sotd.shot.tagline}
           </p>
           <div className="row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
-            <span className="chip">Tip: {sotd.shot.tipZone}</span>
             <span className="chip">Speed: {sotd.shot.speed}</span>
+            <span className="chip">{sotd.shot.category}</span>
             <span className="chip chip-gold" style={{ marginLeft: 'auto' }}>
-              Full breakdown →
+              Open drill →
             </span>
           </div>
         </Link>

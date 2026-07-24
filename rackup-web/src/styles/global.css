@@ -1061,6 +1061,48 @@ img {
   top: 68%;
 }
 
+/* SOTD — human coach layout + table size toggle */
+.table-size-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border, #333);
+}
+
+.table-size-toggle .btn {
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+
+.sotd-coach-block {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(201, 162, 39, 0.12);
+}
+
+.sotd-why,
+.sotd-mistakes {
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+.sotd-why {
+  background: rgba(90, 212, 160, 0.06);
+  border: 1px solid rgba(90, 212, 160, 0.18);
+}
+
+.sotd-mistakes {
+  background: rgba(220, 90, 90, 0.06);
+  border: 1px solid rgba(220, 90, 90, 0.16);
+}
+
+.sotd-card .field-label {
+  letter-spacing: 0.02em;
+}
+
 select.input {
   appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),

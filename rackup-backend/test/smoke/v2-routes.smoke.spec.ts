@@ -60,7 +60,7 @@ describe('SOTD maps catalog', () => {
     expect(one!.cue_ball_start).toBeDefined();
     expect(one!.object_ball_positions.length).toBeGreaterThan(0);
     expect(one!.intended_path.length).toBeGreaterThan(0);
-    expect(one!.ascii_table).toContain('Legend');
+    expect(one!.pocket_target).toBeDefined();
     expect(one!.source).toBe('catalog_fallback');
   });
 });

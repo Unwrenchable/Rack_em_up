@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchShotCatalog, fetchSotdMap } from '../lib/api';
-import type { CatalogShot, SotdShotMap } from '../lib/types';
+import { fetchShotCatalog } from '../lib/api';
+import type { CatalogShot } from '../lib/types';
 import { ShotCard } from '../components/ShotCard';
-import { ShotMapDiagram } from '../components/ShotMapDiagram';
 import { Modal } from '../components/Modal';
 
 const DIFFS = ['', 'Easy', 'Medium', 'Hard', 'Insane'];
@@ -26,7 +25,6 @@ export function ShotsCatalogPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<CatalogShot | null>(null);
-  const [map, setMap] = useState<SotdShotMap | null>(null);
   const pageSize = 8;
 
   useEffect(() => {
@@ -50,65 +48,62 @@ export function ShotsCatalogPage() {
   return (
     <div className="page stack" style={{ gap: 16 }}>
       <header>
-        <p className="eyebrow">Training · Catalog</p>
-        <h1 className="h1" style={{ fontSize: '2.5rem' }}>
-          Shot catalog
+        <p className="eyebrow">Training catalog</p>
+        <h1 className="h1" style={{ fontSize: '2.2rem' }}>
+          Shots
         </h1>
         <p className="muted" style={{ marginTop: 6 }}>
-          {total} shots · filters + maps
+          {total} drills · filter by feel and style
         </p>
       </header>
 
-      <div className="card grid-2" style={{ gap: 12 }}>
-        <div className="field">
-          <label>Difficulty</label>
-          <select className="input" value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
-            {DIFFS.map((d) => (
-              <option key={d || 'all'} value={d}>
-                {d || 'All'}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label>Category</label>
-          <select className="input" value={category} onChange={(e) => setCategory(e.target.value)}>
-            {CATS.map((c) => (
-              <option key={c || 'all'} value={c}>
-                {c || 'All'}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <select
+          className="input"
+          style={{ maxWidth: 160 }}
+          value={difficulty}
+          onChange={(e) => setDifficulty(e.target.value)}
+          aria-label="Difficulty"
+        >
+          <option value="">All difficulties</option>
+          {DIFFS.filter(Boolean).map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+        <select
+          className="input"
+          style={{ maxWidth: 160 }}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          aria-label="Category"
+        >
+          <option value="">All categories</option>
+          {CATS.filter(Boolean).map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <div className="stack">
+      <div className="stack" style={{ gap: 10 }}>
         {pageShots.map((s) => (
-          <article key={s.id} className="card">
-            <div className="row-between">
-              <div>
-                <h3 style={{ fontWeight: 600 }}>{s.name}</h3>
-                <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
-                  {s.tagline}
-                </p>
+          <article key={s.id} className="card row-between" style={{ gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <span className="chip chip-gold">{s.difficulty}</span>
+                <span className="chip">{s.category}</span>
               </div>
-              <span className="chip chip-gold">{s.difficulty}</span>
+              <h3 style={{ fontWeight: 700, marginTop: 8 }}>{s.name}</h3>
+              <p className="muted" style={{ fontSize: '0.88rem', marginTop: 4 }}>
+                {s.tagline}
+              </p>
             </div>
-            <div className="row" style={{ marginTop: 10 }}>
-              <span className="chip">{s.category}</span>
-              <span className="chip">{s.speed}</span>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={async () => {
-                  setSelected(s);
-                  const m = await fetchSotdMap(s.id);
-                  setMap(m);
-                }}
-              >
-                Open
-              </button>
-            </div>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSelected(s)}>
+              Open
+            </button>
           </article>
         ))}
         {!pageShots.length && <div className="empty card">No shots match filters.</div>}
@@ -139,7 +134,6 @@ export function ShotsCatalogPage() {
       <Modal open={!!selected} title={selected?.name ?? 'Shot'} onClose={() => setSelected(null)}>
         <div className="stack" style={{ gap: 12, maxHeight: '70vh', overflow: 'auto' }}>
           {selected && <ShotCard shot={selected} />}
-          {map && <ShotMapDiagram map={map} showAscii={false} />}
         </div>
       </Modal>
     </div>

@@ -572,13 +572,12 @@ export async function fetchSotdMap(shotId: string): Promise<SotdShotMap | null> 
       ],
       pocket_target: { x: 100, y: 25 },
       coordinate_system: {
-        x: '0=head rail → 100=foot rail',
-        y: '0=bottom long rail → 50=top long rail',
-        units: 'normalized table percent (9-foot aspect 2:1)',
+        x: 'head to foot',
+        y: 'near rail to far rail',
+        units: 'table percent',
       },
       source: 'catalog_fallback',
-      ascii_table:
-        '┌───────────────────────────────────────┐\n│C            1                       O│\n│                                       │\n└───────────────────────────────────────┘\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path',
+      ascii_table: '',
       realaiReachable: false,
     };
   }
