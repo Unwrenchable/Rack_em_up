@@ -2,6 +2,7 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { DataSource, DataSourceOptions } from 'typeorm';
 
 const isProd = process.env.NODE_ENV === 'production';
+
 /** Explicit opt-in for synchronize; default off in production. Dev defaults on unless TYPEORM_SYNC=false. */
 const synchronize =
   process.env.TYPEORM_SYNC === 'true' ||
@@ -23,8 +24,10 @@ export const ormConfig: TypeOrmModuleOptions = {
   extra: {
     max: 20,
   },
-  migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
-  migrationsRun: process.env.TYPEORM_MIGRATIONS_RUN === 'true',
+
+  /** 🔥 DROP-IN FIX: Disable migrations during boot */
+  migrations: [],
+  migrationsRun: false,
 };
 
 /** CLI DataSource for typeorm migration:run */
@@ -37,8 +40,11 @@ export const dataSourceOptions: DataSourceOptions = {
   password: process.env.DB_PASSWORD ?? 'postgres',
   database: process.env.DB_NAME ?? 'rackup',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
+
+  /** 🔥 DROP-IN FIX: Disable migrations for CLI too */
+  migrations: [],
   synchronize: false,
+
   ssl: isProd ? { rejectUnauthorized: false } : false,
 };
 
