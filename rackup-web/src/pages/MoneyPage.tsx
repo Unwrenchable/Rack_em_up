@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
-import { fetchMoneyMatches, formatMoney } from '../lib/api';
+import { Link } from 'react-router-dom';
+import {
+  completeMoneyMatch,
+  confirmMoneyMatch,
+  disputeMoneyMatch,
+  fetchMoneyMatches,
+  formatMoney,
+} from '../lib/api';
+import { useAuth } from '../lib/auth-context';
+import { useToast } from '../lib/toast-context';
 import type { MoneyMatch } from '../lib/types';
+import { Modal } from '../components/Modal';
 
 function statusChip(status: MoneyMatch['status']) {
   if (status === 'ACTIVE') return 'chip chip-live';
@@ -10,14 +20,18 @@ function statusChip(status: MoneyMatch['status']) {
 }
 
 export function MoneyPage() {
+  const { user } = useAuth();
+  const { push } = useToast();
   const [matches, setMatches] = useState<MoneyMatch[] | null>(null);
+  const [reportMatch, setReportMatch] = useState<MoneyMatch | null>(null);
+  const [aScore, setAScore] = useState(0);
+  const [bScore, setBScore] = useState(0);
 
   useEffect(() => {
     fetchMoneyMatches().then(setMatches);
   }, []);
 
-  const pot =
-    matches?.reduce((n, m) => n + Number(m.amountCents || 0), 0) ?? 0;
+  const pot = matches?.reduce((n, m) => n + Number(m.amountCents || 0), 0) ?? 0;
 
   return (
     <div className="page stack" style={{ gap: 16 }}>
@@ -39,14 +53,14 @@ export function MoneyPage() {
             </div>
             <div className="money">{formatMoney(pot)}</div>
           </div>
-          <button type="button" className="btn btn-primary btn-sm">
+          <Link to="/play" className="btn btn-primary btn-sm">
             + New set
-          </button>
+          </Link>
         </div>
       </div>
 
       <div className="banner banner-info">
-        Both sides confirm before it goes ACTIVE. Upload proof if you need a dispute.
+        Both sides confirm before it goes ACTIVE. Report scores when the set is done.
       </div>
 
       <div className="section-title">
@@ -73,18 +87,65 @@ export function MoneyPage() {
               {m.livestreamUrl ? ' · Stream linked' : ''}
             </p>
             <div className="row" style={{ marginTop: 14 }}>
-              {m.status === 'PENDING' && (
-                <button type="button" className="btn btn-secondary btn-sm">
+              {m.status === 'PENDING' && user && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={async () => {
+                    try {
+                      const side =
+                        m.playerAId === user.id ? 'A' : m.playerBId === user.id ? 'B' : 'A';
+                      const updated = await confirmMoneyMatch({
+                        matchId: m.id,
+                        confirmingPlayerId: user.id,
+                        confirmingSide: side,
+                      });
+                      setMatches((list) =>
+                        (list ?? []).map((x) => (x.id === m.id ? { ...x, ...updated } : x)),
+                      );
+                      push('Confirm recorded', 'ok');
+                    } catch (e) {
+                      push(e instanceof Error ? e.message.slice(0, 100) : 'Confirm failed', 'err');
+                    }
+                  }}
+                >
                   Confirm
                 </button>
               )}
               {m.status === 'ACTIVE' && (
-                <button type="button" className="btn btn-primary btn-sm">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setReportMatch(m);
+                    setAScore(0);
+                    setBScore(0);
+                  }}
+                >
                   Report result
                 </button>
               )}
               {(m.status === 'PENDING' || m.status === 'ACTIVE') && (
-                <button type="button" className="btn btn-danger btn-sm">
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  onClick={async () => {
+                    try {
+                      await disputeMoneyMatch({
+                        matchId: m.id,
+                        reason: 'Disputed from money board',
+                      });
+                      setMatches((list) =>
+                        (list ?? []).map((x) =>
+                          x.id === m.id ? { ...x, status: 'DISPUTED' as const } : x,
+                        ),
+                      );
+                      push('Dispute filed', 'err');
+                    } catch (e) {
+                      push(e instanceof Error ? e.message.slice(0, 100) : 'Dispute failed', 'err');
+                    }
+                  }}
+                >
                   Dispute
                 </button>
               )}
@@ -96,6 +157,58 @@ export function MoneyPage() {
           <div className="empty card">No money matches yet. Create one and lock the stakes.</div>
         )}
       </div>
+
+      <Modal open={!!reportMatch} title="Report result" onClose={() => setReportMatch(null)}>
+        <div className="stack">
+          <div className="grid-2">
+            <div className="field">
+              <label>A score</label>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                value={aScore}
+                onChange={(e) => setAScore(Number(e.target.value))}
+              />
+            </div>
+            <div className="field">
+              <label>B score</label>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                value={bScore}
+                onChange={(e) => setBScore(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            disabled={!user || !reportMatch || aScore === bScore}
+            onClick={async () => {
+              if (!user || !reportMatch) return;
+              try {
+                const updated = await completeMoneyMatch({
+                  matchId: reportMatch.id,
+                  reportingPlayerId: user.id,
+                  aScore,
+                  bScore,
+                });
+                setMatches((list) =>
+                  (list ?? []).map((x) => (x.id === reportMatch.id ? { ...x, ...updated } : x)),
+                );
+                setReportMatch(null);
+                push('Result recorded', 'ok');
+              } catch (e) {
+                push(e instanceof Error ? e.message.slice(0, 120) : 'Complete failed', 'err');
+              }
+            }}
+          >
+            Submit scores
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

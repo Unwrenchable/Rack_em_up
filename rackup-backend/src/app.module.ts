@@ -1,6 +1,8 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { AuthV2Module } from './auth/v2/auth-v2.module';
 
@@ -26,12 +28,24 @@ import { TournamentsV2Module } from './tournaments/v2/tournaments-v2.module';
 import { LeaguesV2Module } from './leagues/v2/leagues-v2.module';
 import { RealaiV2Module } from './realai/v2/realai-v2.module';
 import { MatchmakingV2Module } from './matchmaking/v2/matchmaking-v2.module';
-
+import { ScorekeepingModule } from './scorekeeping/scorekeeping.module';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot(ormConfig),
-    JwtModule.register({}),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: 120,
+      },
+    ]),
+    JwtModule.register({
+      secret: process.env.JWT_SECRET ?? 'dev_access_secret',
+    }),
+    ScorekeepingModule,
     AuthModule,
     AuthV2Module,
 
@@ -57,6 +71,16 @@ import { MatchmakingV2Module } from './matchmaking/v2/matchmaking-v2.module';
     MatchmakingV2Module,
   ],
 
-  providers: [ChatGateway],
+  providers: [
+    ChatGateway,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(CorrelationIdMiddleware, RequestLoggingMiddleware).forRoutes('*');
+  }
+}

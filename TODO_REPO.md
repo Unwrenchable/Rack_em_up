@@ -1,119 +1,80 @@
 # RackUp — Unified Repo-Wide TODO (Production Readiness)
 
-This file consolidates all remaining backend, frontend, V2, RealAI, Redis, runtime, infra, and production-hardening tasks. Every item is concrete, actionable, and mapped to file paths.
+**Last updated:** 2026-07-24  
+**PR readiness:** P0 + P1 + P2 implemented; only P3/future remain.
 
 ---
 
-## 🟥 P0 — Critical (Must Complete Before Launch)
+## Completed — P0 / P1 / P2
 
-### Backend
-- [ ] Scorekeeping V2 Hooks  
-  Files: src/halls/v2/halls.service.ts, src/tournaments/v2/tournaments.service.ts, src/leagues/v2/leagues.service.ts  
-  Action: Add emitScoreUpdate() after match reports; create scorekeeping.service.ts.
+### P0 (prior pass)
+- [x] Scorekeeping V2 + report wiring  
+- [x] Redis V2 keys  
+- [x] Health `"Database connected"`  
+- [x] Tournament bracket advance  
+- [x] RealAI summary jobs  
+- [x] Unified rating  
+- [x] Smoke tests / throttler / logging / migrations  
+- [x] Frontend money complete + standings  
+- [x] SOTD streak + catalog + 52 maps  
 
-- [ ] RealAI V2 Summary Integration  
-  Files: src/realai/v2/realai.service.ts, halls/tournaments/leagues controllers  
-  Action: Add summary job submission + webhook handler.
+### P1 (this pass)
+- [x] **GET /users/:id + /users/profiles** — public profiles; friends & looking players hydrated  
+  - Backend: `users.controller.ts`, `users.service.ts`  
+  - Frontend: `fetchUserProfile` / `fetchUserProfiles` in `api.ts`  
+- [x] **Matchmaking radius + queue expiry** — `radiusMeters`, expire stale requests/sessions, radius-filtered pairing  
+  - `matchmaking-v2.service.ts`, entity column + migration  
+- [x] **Chat socket JWT** — handshake `auth.token`; disconnect unauth; message throttle  
+  - `chat.gateway.ts`, `ChatPage.tsx`  
+- [x] **Live e2e** — `test/e2e/live-api.e2e.spec.ts` (`E2E_BASE_URL`, skips if offline)  
+- [x] **CI** — `.github/workflows/ci.yml` (tsc, build, test:smoke backend; tsc/build frontend)  
+- [x] **Auth V2 web cutover** — login/signup prefer `/auth/v2/*`, V1 legacy fallback; refresh stored  
 
-- [ ] Redis V2 Namespaces  
-  Files: src/common/redis.service.ts  
-  Action: Implement namespaced keys:  
-    halls:v2:{id}:*  
-    tournaments:v2:{id}:*  
-    leagues:v2:{id}:*  
-    matchmaking:v2:{id}:*  
-    realai:v2:{id}:*
-
-- [ ] DB Connection Verification  
-  Files: src/health/health.controller.ts  
-  Action: Add "Database connected" check.
-
-### Frontend
-- [ ] Wire Demo → Live APIs  
-  Files: src/lib/api.ts, src/pages/FindPage.tsx, src/pages/PlayPage.tsx, src/pages/SocialPage.tsx  
-  Action: Remove demo fallbacks; ensure live-mode returns [] on error.
-
-- [ ] Tournament Register Confirm Flow  
-  Files: src/pages/PlayPage.tsx  
-  Action: Wire to POST /tournaments/:id/register.
+### P2 (this pass)
+- [x] **Losers bracket** — double-elim generates winners + losers R1; losers drop on report  
+- [x] **Seed script** — `npm run seed:demo` (`scripts/seed-demo.ts`)  
+- [x] **Hall photo storage** — local `uploads/hall-photos`, base64 or URL; static `/uploads`  
 
 ---
 
-## 🟧 P1 — High Priority
+## 🟩 P3 — Future / roadmap only
 
-### Backend
-- [ ] Unified Rating Normalization  
-  Files: src/leagues/v2/normalization.ts  
-  Action: Apply consistent rating updates across V2 modules.
-
-- [ ] Full V2 Route Verification  
-  Files: tests/smoke/v2-routes.spec.ts  
-  Action: Add authenticated smoke tests.
-
-- [ ] TypeORM Migrations  
-  Files: ormconfig.ts, migrations/*  
-  Action: Disable synchronize in non-dev; add migration scripts.
-
-- [ ] Global Throttler  
-  Files: src/app.module.ts  
-  Action: Add @nestjs/throttler for auth/money/chat.
-
-- [ ] Structured Logging + Correlation IDs  
-  Files: src/main.ts, src/common/logger.service.ts  
-  Action: Add pino/winston + middleware.
-
-### Frontend
-- [ ] Money Complete Score UI  
-  Files: src/pages/MoneyMatchPage.tsx  
-  Action: Wire to POST /money-matches/:id/complete.
-
-- [ ] League Standings Live API  
-  Files: src/pages/PlayPage.tsx  
-  Action: Replace demo toast with real standings fetch.
-
-- [ ] Friends Display Names  
-  Files: src/components/FriendsList.tsx  
-  Action: Hydrate via GET /users/:id.
+- [ ] RealAI multimodal vision shot analysis  
+- [ ] RealAI multi-agent `/v1/tasks`  
+- [ ] Escrow (Stripe/PayPal) for money matches  
+- [ ] Live streaming / spectator / tips  
+- [ ] Push notifications (FCM/APNs)  
+- [ ] PostGIS hall heat maps  
+- [ ] Premium tier / hall B2B billing  
+- [ ] Object storage (S3) replace local uploads  
+- [ ] Full double-elim grand final reset series  
+- [ ] Do **not** vendor RealAI monorepo  
 
 ---
 
-## 🟨 P2 — Medium Priority
+## Known limitations (acceptable for PR)
 
-### Backend
-- [ ] E2E Tests  
-  Files: tests/e2e/*  
-  Action: Add tests for halls/tournaments/leagues/matchmaking/realai.
-
-### Frontend
-- [ ] SOTD Streak Tracking  
-  Files: src/pages/ShotOfTheDay.tsx  
-  Action: Add “I made it” button + streak UI.
-
-- [ ] Shot Catalog Browser  
-  Files: src/pages/ShotsCatalog.tsx  
-  Action: Add filters + pagination.
+| Item | Note |
+|------|------|
+| League standings | V1 league id may ≠ V2 season id → empty standings until linked |
+| E2E in CI | Live e2e is opt-in via `E2E_BASE_URL`; CI runs smoke only |
+| Auth V1 | Still available as legacy fallback |
+| Local photos | Not durable multi-instance; use S3 for multi-node prod |
+| Matchmaking V1 | Looking players still use V1 search + name hydration |
 
 ---
 
-## 🟩 P3 — Optional / Future
+## Run for demo / PR
 
-### Backend
-- [ ] RealAI multimodal vision  
-- [ ] RealAI multi-agent tasks  
-- [ ] Escrow (Stripe/PayPal)  
-- [ ] Push notifications  
-- [ ] PostGIS heat maps  
+```bash
+docker compose -f rackup-backend/docker-compose.yml up -d
+cd rackup-backend && npm i && TYPEORM_SYNC=true npm run start:dev
+# optional: npm run seed:demo
+cd rackup-web && npm i && npm run dev
 
-### Frontend
-- [ ] Chat JWT auth  
-- [ ] Premium tier UI  
-
----
-
-## 📁 Files to Update
-- CURRENT_STATUS.md  
-- rackup-backend/PROJECT_TODO.md  
-- rackup-backend/TODO.md  
-- MEGA_STATUS_REPORT.md  
-- TODO_REPO.md (this file)
-
+# checks
+cd rackup-backend && npx tsc --noEmit && npm run test:smoke
+cd rackup-web && npx tsc -b
+# live e2e (API up):
+E2E_BASE_URL=http://localhost:3000/api/v1 npm run test:e2e
+```

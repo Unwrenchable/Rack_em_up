@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,15 +12,21 @@ import { ReportPoolMatchDto } from './dto/report-pool-match.dto';
 import { MemoriesService } from '../memories/memories.service';
 import { RatingService } from '../users/rating.service';
 import { MatchesGateway } from './matches.gateway';
+import { ScorekeepingService } from '../scorekeeping/scorekeeping.service';
+import { RealaiV2Service } from '../realai/v2/realai-v2.service';
 
 @Injectable()
 export class MatchesService {
+  private readonly logger = new Logger(MatchesService.name);
+
   constructor(
     @InjectRepository(PoolMatch)
     private readonly matchesRepo: Repository<PoolMatch>,
     private readonly memoriesService: MemoriesService,
     private readonly ratingService: RatingService,
     private readonly matchesGateway: MatchesGateway,
+    private readonly scorekeeping: ScorekeepingService,
+    private readonly realaiV2: RealaiV2Service,
   ) {}
 
   // Create a new match (from matchmaking or manual)
@@ -144,6 +151,25 @@ export class MatchesService {
       aWins ? saved.playerAId : saved.playerBId,
       aWins ? saved.playerBId : saved.playerAId,
     );
+
+    await this.scorekeeping.emitScoreUpdate({
+      domain: 'standard',
+      entityId: saved.id,
+      matchId: saved.id,
+      playerAId: saved.playerAId,
+      playerBId: saved.playerBId,
+      aScore: saved.aScore ?? 0,
+      bScore: saved.bScore ?? 0,
+      winnerId: aWins ? saved.playerAId : saved.playerBId,
+      hallId: saved.hallId,
+    });
+
+    void this.realaiV2
+      .submitSummaryJob({
+        matchId: saved.id,
+        context: `standard:${saved.game}`,
+      })
+      .catch((e) => this.logger.warn(`summary job: ${e}`));
 
     this.matchesGateway.emitMatchCompleted(saved);
 

@@ -49,6 +49,11 @@ export class HallsV2Controller {
     return this.hallsV2.uploadPhoto(req.user.id, dto);
   }
 
+  @Get('photos/:hallId')
+  async listPhotos(@Param('hallId') hallId: string) {
+    return this.hallsV2.listPhotos(hallId);
+  }
+
   @Get('leaderboard/:hallId')
   async leaderboard(@Param('hallId') hallId: string) {
     return this.hallsV2.leaderboard(hallId);

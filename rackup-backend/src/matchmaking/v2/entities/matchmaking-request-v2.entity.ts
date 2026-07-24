@@ -39,6 +39,10 @@ export class MatchmakingRequestV2 {
   @Column({ name: 'elo_at_request', type: 'int' })
   eloAtRequest!: number;
 
+  /** Max distance for pairing (meters). Default 20km. */
+  @Column({ name: 'radius_meters', type: 'int', default: 20000 })
+  radiusMeters!: number;
+
   @Column({ name: 'expires_at', type: 'timestamp' })
   expiresAt!: Date;
 

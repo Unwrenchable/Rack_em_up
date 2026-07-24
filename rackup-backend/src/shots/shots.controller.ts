@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ShotsService } from './shots.service';
 
 @Controller('shots')
@@ -23,6 +24,18 @@ export class ShotsController {
     @Query('category') category?: string,
   ) {
     return this.shotsService.getCatalog({ difficulty, category });
+  }
+
+  @Post('complete')
+  @UseGuards(AuthGuard('jwt'))
+  complete(@Req() req: any, @Query('shotId') shotId?: string) {
+    return this.shotsService.completeToday(req.user.id, shotId);
+  }
+
+  @Get('streak')
+  @UseGuards(AuthGuard('jwt'))
+  streak(@Req() req: any) {
+    return this.shotsService.getStreak(req.user.id);
   }
 
   @Get(':id')

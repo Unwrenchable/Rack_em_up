@@ -6,6 +6,7 @@ import { MoneyMatchesService } from './money-matches.service';
 import { MemoriesModule } from '../memories/memories.module';
 import { UsersModule } from '../users/users.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { RealaiV2Module } from '../realai/v2/realai-v2.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     MemoriesModule,
     UsersModule,
     NotificationsModule,
+    RealaiV2Module,
   ],
   controllers: [MoneyMatchesController],
   providers: [MoneyMatchesService],

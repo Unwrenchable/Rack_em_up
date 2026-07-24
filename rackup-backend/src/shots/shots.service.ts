@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import {
   CatalogShot,
   SHOT_CATALOG,
@@ -6,6 +8,7 @@ import {
   getShotById,
   getShotByIndex,
 } from './shot-catalog';
+import { SotdCompletion } from './sotd-completion.entity';
 
 /** UTC calendar day key YYYY-MM-DD */
 function utcDayKey(d = new Date()): string {
@@ -17,10 +20,6 @@ function utcDayIndex(d = new Date()): number {
   return Math.floor(d.getTime() / 86_400_000);
 }
 
-/**
- * Deterministic shuffle of 0..n-1 for a given cycle.
- * Each cycle length = catalog size → no repeats until full rotation.
- */
 function rotationOrder(seed: number, n: number): number[] {
   const arr = Array.from({ length: n }, (_, i) => i);
   let s = seed >>> 0;
@@ -46,6 +45,11 @@ export type ShotOfTheDayResponse = {
 @Injectable()
 export class ShotsService {
   private readonly n = catalogLength();
+
+  constructor(
+    @InjectRepository(SotdCompletion)
+    private readonly completionsRepo: Repository<SotdCompletion>,
+  ) {}
 
   getToday(date = new Date()): ShotOfTheDayResponse {
     const dayIndex = utcDayIndex(date);
@@ -90,7 +94,6 @@ export class ShotsService {
     return shot;
   }
 
-  /** Upcoming N days of SOTD (for “what’s next” UI). */
   upcoming(count = 7): Array<{ date: string; shotId: string; name: string; difficulty: string }> {
     const out: Array<{ date: string; shotId: string; name: string; difficulty: string }> = [];
     const start = utcDayIndex();
@@ -105,5 +108,65 @@ export class ShotsService {
       });
     }
     return out;
+  }
+
+  /** Record "I made it" for today's SOTD and return streak. */
+  async completeToday(userId: string, shotId?: string): Promise<{
+    completed: boolean;
+    date: string;
+    shotId: string;
+    streak: number;
+  }> {
+    const today = this.getToday();
+    const id = shotId && getShotById(shotId) ? shotId : today.shot.id;
+    const date = today.date;
+
+    const existing = await this.completionsRepo.findOne({
+      where: { userId, completedOn: date },
+    });
+    if (!existing) {
+      await this.completionsRepo.save(
+        this.completionsRepo.create({
+          userId,
+          shotId: id,
+          completedOn: date,
+        }),
+      );
+    }
+
+    const streak = await this.computeStreak(userId);
+    return { completed: true, date, shotId: id, streak };
+  }
+
+  async getStreak(userId: string): Promise<{ streak: number; lastCompletedOn: string | null }> {
+    const streak = await this.computeStreak(userId);
+    const last = await this.completionsRepo.find({
+      where: { userId },
+      order: { completedOn: 'DESC' },
+      take: 1,
+    });
+    return { streak, lastCompletedOn: last[0]?.completedOn ?? null };
+  }
+
+  private async computeStreak(userId: string): Promise<number> {
+    const rows = await this.completionsRepo.find({
+      where: { userId },
+      order: { completedOn: 'DESC' },
+      take: 400,
+    });
+    if (!rows.length) return 0;
+
+    const days = new Set(rows.map((r) => r.completedOn));
+    let streak = 0;
+    let cursor = utcDayIndex();
+    // Allow streak to start from today or yesterday if today not yet complete
+    if (!days.has(utcDayKey(new Date(cursor * 86_400_000)))) {
+      cursor -= 1;
+    }
+    while (days.has(utcDayKey(new Date(cursor * 86_400_000)))) {
+      streak += 1;
+      cursor -= 1;
+    }
+    return streak;
   }
 }

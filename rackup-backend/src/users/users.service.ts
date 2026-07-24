@@ -24,6 +24,53 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { id } });
   }
 
+  /** Safe public fields only (no email / password). */
+  async getPublicProfile(id: string): Promise<{
+    id: string;
+    displayName: string;
+    avatarUrl: string | null;
+    reputation: number;
+    rating: number;
+    role: string;
+  } | null> {
+    const u = await this.findById(id);
+    if (!u) return null;
+    return {
+      id: u.id,
+      displayName: u.displayName,
+      avatarUrl: u.avatarUrl,
+      reputation: u.reputation ?? 0,
+      rating: u.rating ?? 500,
+      role: u.role,
+    };
+  }
+
+  async findPublicByIds(ids: string[]): Promise<
+    Array<{
+      id: string;
+      displayName: string;
+      avatarUrl: string | null;
+      reputation: number;
+      rating: number;
+      role: string;
+    }>
+  > {
+    if (!ids.length) return [];
+    const unique = [...new Set(ids)];
+    const rows = await this.usersRepository
+      .createQueryBuilder('u')
+      .where('u.id IN (:...ids)', { ids: unique })
+      .getMany();
+    return rows.map((u) => ({
+      id: u.id,
+      displayName: u.displayName,
+      avatarUrl: u.avatarUrl,
+      reputation: u.reputation ?? 0,
+      rating: u.rating ?? 500,
+      role: u.role,
+    }));
+  }
+
   async createUser(input: CreateUserInput): Promise<User> {
     const user = this.usersRepository.create({
       email: input.email,

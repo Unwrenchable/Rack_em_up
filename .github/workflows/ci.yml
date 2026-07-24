@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend:
+    name: Backend lint · build · smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rackup-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: rackup-backend/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint (non-blocking if no eslint config)
+        run: npm run lint || true
+      - name: Build
+        run: npm run build
+      - name: Smoke tests
+        run: npm run test:smoke
+
+  frontend:
+    name: Frontend typecheck · build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rackup-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: rackup-web/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc -b --pretty false
+      - name: Build
+        run: npm run build

@@ -6,12 +6,14 @@ import { MatchesService } from './matches.service';
 import { MemoriesModule } from '../memories/memories.module';
 import { UsersModule } from '../users/users.module';
 import { MatchesGateway } from './matches.gateway';
+import { RealaiV2Module } from '../realai/v2/realai-v2.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([PoolMatch]),
     MemoriesModule,
     UsersModule,
+    RealaiV2Module,
   ],
   controllers: [MatchesController],
   providers: [

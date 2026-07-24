@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MoneyMatch, MoneyMatchStatus } from './money-matches.entity';
@@ -9,6 +9,8 @@ import { CompleteMoneyMatchDto } from './dto/complete-money-match.dto';
 import { MemoriesService } from '../memories/memories.service';
 import { RatingService } from '../users/rating.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ScorekeepingService } from '../scorekeeping/scorekeeping.service';
+import { RealaiV2Service } from '../realai/v2/realai-v2.service';
 
 export type MoneyMatchFilters = {
   status?: MoneyMatchStatus | string;
@@ -18,12 +20,16 @@ export type MoneyMatchFilters = {
 
 @Injectable()
 export class MoneyMatchesService {
+  private readonly logger = new Logger(MoneyMatchesService.name);
+
   constructor(
     @InjectRepository(MoneyMatch)
     private readonly moneyMatchesRepo: Repository<MoneyMatch>,
     private readonly memoriesService: MemoriesService,
     private readonly ratingService: RatingService,
     private readonly notificationsService: NotificationsService,
+    private readonly scorekeeping: ScorekeepingService,
+    private readonly realaiV2: RealaiV2Service,
   ) {}
 
   /**
@@ -159,6 +165,28 @@ export class MoneyMatchesService {
 
     const saved = await this.moneyMatchesRepo.save(match);
     await this.createMemoriesIfScored(saved);
+
+    const aScore = dto.aScore;
+    const bScore = dto.bScore;
+    const winnerId = aScore > bScore ? saved.playerAId : saved.playerBId;
+    await this.scorekeeping.emitScoreUpdate({
+      domain: 'money',
+      entityId: saved.id,
+      matchId: saved.id,
+      playerAId: saved.playerAId,
+      playerBId: saved.playerBId,
+      aScore,
+      bScore,
+      winnerId,
+      hallId: saved.hallId,
+    });
+    void this.realaiV2
+      .submitSummaryJob({
+        matchId: saved.id,
+        context: `money:${saved.game}`,
+      })
+      .catch((e) => this.logger.warn(`money summary job: ${e}`));
+
     return saved;
   }
 

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  completeMoneyMatch,
   confirmMoneyMatch,
   createMoneyMatch,
   disputeMoneyMatch,
+  fetchLeagueStandings,
   fetchLeagues,
   fetchMoneyMatches,
   fetchTournaments,
@@ -40,6 +42,14 @@ export function PlayPage() {
   const [dollars, setDollars] = useState(100);
   const [opponentId, setOpponentId] = useState('p1');
   const [saving, setSaving] = useState(false);
+  const [reportMatch, setReportMatch] = useState<MoneyMatch | null>(null);
+  const [aScore, setAScore] = useState(0);
+  const [bScore, setBScore] = useState(0);
+  const [standingsOpen, setStandingsOpen] = useState(false);
+  const [standingsTitle, setStandingsTitle] = useState('');
+  const [standingsRows, setStandingsRows] = useState<
+    Array<{ playerId: string; points: number; position: number }>
+  >([]);
 
   useEffect(() => {
     fetchMoneyMatches().then(setMoney);
@@ -165,7 +175,11 @@ export function PlayPage() {
                   <button
                     type="button"
                     className="btn btn-primary btn-sm"
-                    onClick={() => push('Use POST /money-matches/:id/complete with scores', 'info')}
+                    onClick={() => {
+                      setReportMatch(m);
+                      setAScore(0);
+                      setBScore(0);
+                    }}
                   >
                     Report
                   </button>
@@ -253,7 +267,19 @@ export function PlayPage() {
                 type="button"
                 className="btn btn-ghost btn-sm"
                 style={{ marginTop: 12 }}
-                onClick={() => push('Standings coming soon', 'info')}
+                onClick={async () => {
+                  try {
+                    const res = await fetchLeagueStandings(l.id);
+                    setStandingsTitle(l.name);
+                    setStandingsRows(res.standings);
+                    setStandingsOpen(true);
+                    if (!res.standings.length) {
+                      push('No V2 standings for this league id yet', 'info');
+                    }
+                  } catch (e) {
+                    push(e instanceof Error ? e.message.slice(0, 120) : 'Standings failed', 'err');
+                  }
+                }}
               >
                 View standings
               </button>
@@ -317,6 +343,81 @@ export function PlayPage() {
           <button type="button" className="btn btn-primary btn-block" disabled={saving} onClick={submitMoney}>
             {saving ? 'Creating…' : 'Create set'}
           </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!reportMatch}
+        title="Report money result"
+        onClose={() => setReportMatch(null)}
+      >
+        <div className="stack">
+          <p className="muted" style={{ fontSize: '0.85rem' }}>
+            {reportMatch?.game} · race to {reportMatch?.raceTo}
+          </p>
+          <div className="grid-2">
+            <div className="field">
+              <label>Player A score</label>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                value={aScore}
+                onChange={(e) => setAScore(Number(e.target.value))}
+              />
+            </div>
+            <div className="field">
+              <label>Player B score</label>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                value={bScore}
+                onChange={(e) => setBScore(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            disabled={!user || !reportMatch || aScore === bScore}
+            onClick={async () => {
+              if (!user || !reportMatch) return;
+              try {
+                const updated = await completeMoneyMatch({
+                  matchId: reportMatch.id,
+                  reportingPlayerId: user.id,
+                  aScore,
+                  bScore,
+                });
+                setMoney((list) =>
+                  (list ?? []).map((x) => (x.id === reportMatch.id ? { ...x, ...updated } : x)),
+                );
+                setReportMatch(null);
+                push('Result recorded', 'ok');
+              } catch (e) {
+                push(e instanceof Error ? e.message.slice(0, 120) : 'Complete failed', 'err');
+              }
+            }}
+          >
+            Submit scores
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={standingsOpen} title={standingsTitle || 'Standings'} onClose={() => setStandingsOpen(false)}>
+        <div className="stack">
+          {!standingsRows.length && (
+            <p className="muted">No standings rows. Use a leagues/v2 season id when available.</p>
+          )}
+          {standingsRows.map((row) => (
+            <div key={row.playerId} className="row-between card" style={{ padding: 10 }}>
+              <span>
+                #{row.position} · {row.playerId.slice(0, 8)}
+              </span>
+              <strong>{row.points} pts</strong>
+            </div>
+          ))}
         </div>
       </Modal>
     </div>

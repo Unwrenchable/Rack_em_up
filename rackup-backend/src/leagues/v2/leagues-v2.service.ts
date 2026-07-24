@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -15,9 +15,14 @@ import { ReportLeagueMatchV2Dto } from './dto/report-league-match-v2.dto';
 import { RatingsImportV2Dto } from './dto/ratings-import-v2.dto';
 
 import { unifyRackupRating } from './rating/unified-rackup-rating';
+import { ScorekeepingService } from '../../scorekeeping/scorekeeping.service';
+import { RealaiV2Service } from '../../realai/v2/realai-v2.service';
+import { RatingService } from '../../users/rating.service';
 
 @Injectable()
 export class LeaguesV2Service {
+  private readonly logger = new Logger(LeaguesV2Service.name);
+
   constructor(
     @InjectRepository(LeagueSeason)
     private readonly seasonRepo: Repository<LeagueSeason>,
@@ -33,6 +38,10 @@ export class LeaguesV2Service {
 
     @InjectRepository(PlayerExternalRating)
     private readonly playerExternalRatingRepo: Repository<PlayerExternalRating>,
+
+    private readonly scorekeeping: ScorekeepingService,
+    private readonly realaiV2: RealaiV2Service,
+    private readonly ratingService: RatingService,
   ) {}
 
   async createSeason(organizerId: string, dto: CreateLeagueSeasonV2Dto): Promise<LeagueSeason> {
@@ -135,6 +144,32 @@ export class LeaguesV2Service {
     }
 
     await this.standingRepo.save([aStanding, bStanding]);
+
+    const winnerId = aWins ? match.playerAId : bWins ? match.playerBId : null;
+    if (winnerId) {
+      const loserId = winnerId === match.playerAId ? match.playerBId : match.playerAId;
+      await this.ratingService.applyMatchResult(winnerId, loserId).catch((e) =>
+        this.logger.warn(`league rating failed: ${e}`),
+      );
+    }
+
+    await this.scorekeeping.emitScoreUpdate({
+      domain: 'league_v2',
+      entityId: seasonId,
+      matchId: match.id,
+      playerAId: match.playerAId,
+      playerBId: match.playerBId,
+      aScore: dto.playerAScore,
+      bScore: dto.playerBScore,
+      winnerId,
+    });
+
+    void this.realaiV2
+      .submitSummaryJob({
+        matchId: match.id,
+        context: `league_v2:${seasonId}`,
+      })
+      .catch((e) => this.logger.warn(`league summary job: ${e}`));
 
     return { success: true };
   }

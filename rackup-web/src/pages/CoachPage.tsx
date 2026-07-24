@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   analyzeShot,
+  completeSotd,
   fetchProviderHealth,
   fetchShotOfTheDay,
+  fetchSotdStreak,
   fetchTodayDrills,
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
@@ -24,6 +27,8 @@ export function CoachPage() {
   const [videoUrl, setVideoUrl] = useState('');
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [madeIt, setMadeIt] = useState(false);
 
   useEffect(() => {
     fetchTodayDrills().then((r) => {
@@ -34,6 +39,7 @@ export function CoachPage() {
     fetchProviderHealth().then((p) =>
       setRealai({ reachable: p.reachable, model: p.model }),
     );
+    fetchSotdStreak().then((s) => setStreak(s.streak));
   }, []);
 
   const today = drills[0];
@@ -75,14 +81,39 @@ export function CoachPage() {
       </header>
 
       {sotd && (
-        <ShotCard
-          shot={sotd.shot}
-          meta={{
-            date: sotd.date,
-            daysUntilRepeat: sotd.daysUntilRepeat,
-            cycleLength: sotd.cycleLength,
-          }}
-        />
+        <>
+          <div className="row-between" style={{ flexWrap: 'wrap', gap: 8 }}>
+            <span className="chip chip-gold">SOTD streak · {streak} day{streak === 1 ? '' : 's'}</span>
+            <Link to="/shots" className="btn btn-ghost btn-sm">
+              Browse catalog
+            </Link>
+          </div>
+          <ShotCard
+            shot={sotd.shot}
+            meta={{
+              date: sotd.date,
+              daysUntilRepeat: sotd.daysUntilRepeat,
+              cycleLength: sotd.cycleLength,
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            disabled={madeIt}
+            onClick={async () => {
+              try {
+                const res = await completeSotd(sotd.shot.id);
+                setStreak(res.streak);
+                setMadeIt(true);
+                push(`Logged — streak ${res.streak}`, 'ok');
+              } catch (e) {
+                push(e instanceof Error ? e.message.slice(0, 100) : 'Could not log shot', 'err');
+              }
+            }}
+          >
+            {madeIt ? 'Made it ✓' : 'I made it'}
+          </button>
+        </>
       )}
 
       <div className="card">

@@ -189,3 +189,41 @@ export type ShotOfTheDay = {
   shot: CatalogShot;
   note: string;
 };
+
+export type SotdPoint = { x: number; y: number };
+
+export type SotdObjectBall = SotdPoint & {
+  ballId: number;
+  role?: 'object' | 'blocker' | 'prop';
+};
+
+export type SotdPathSegment = {
+  from: SotdPoint;
+  to: SotdPoint;
+};
+
+export type SotdShotMap = {
+  id: string;
+  name: string;
+  difficulty: string;
+  difficulty_rating: number;
+  category: string;
+  speed_category: string;
+  tip_zone: string;
+  cue_ball_start: SotdPoint;
+  object_ball_positions: SotdObjectBall[];
+  intended_path: SotdPathSegment[];
+  english: {
+    tip_zone: string;
+    sidespin: number;
+    backspin: number;
+    follow: number;
+    label: string;
+  };
+  landing_zones: Array<SotdPoint & { label: string }>;
+  pocket_target: SotdPoint;
+  coordinate_system: { x: string; y: string; units: string };
+  source: 'catalog_fallback' | 'realai';
+  ascii_table: string;
+  realaiReachable?: boolean;
+};

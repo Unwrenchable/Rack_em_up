@@ -1,4 +1,8 @@
-import type { CatalogShot } from '../lib/types';
+import { useEffect, useState } from 'react';
+import type { CatalogShot, SotdShotMap } from '../lib/types';
+import { fetchSotdMap } from '../lib/api';
+import { ShotMapDiagram } from './ShotMapDiagram';
+import { ShotMapTable } from './ShotMapTable';
 
 const TIP_LABEL: Record<string, string> = {
   center: '● Center',
@@ -19,6 +23,19 @@ export function ShotCard({
   shot: CatalogShot;
   meta?: { date?: string; daysUntilRepeat?: number; cycleLength?: number };
 }) {
+  const [map, setMap] = useState<SotdShotMap | null>(null);
+  const [showMap, setShowMap] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSotdMap(shot.id).then((m) => {
+      if (!cancelled) setMap(m);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [shot.id]);
+
   return (
     <article className="card card-glow stack" style={{ gap: 14 }}>
       <div className="row-between" style={{ flexWrap: 'wrap', gap: 8 }}>
@@ -123,6 +140,29 @@ export function ShotCard({
       </div>
 
       <div className="banner banner-info">{shot.successLooksLike}</div>
+
+      {map && (
+        <div className="stack" style={{ gap: 10 }}>
+          <div className="row-between">
+            <div className="field-label" style={{ margin: 0 }}>
+              Table map & path
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setShowMap((v) => !v)}
+            >
+              {showMap ? 'Hide map' : 'Show map'}
+            </button>
+          </div>
+          {showMap && (
+            <>
+              <ShotMapDiagram map={map} />
+              <ShotMapTable map={map} />
+            </>
+          )}
+        </div>
+      )}
     </article>
   );
 }

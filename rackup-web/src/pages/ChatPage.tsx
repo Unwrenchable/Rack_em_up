@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { getToken } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import type { ChatMessage } from '../lib/types';
 
@@ -8,6 +9,7 @@ export function ChatPage() {
 
   const [online, setOnline] = useState(0);
   const [connected, setConnected] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -19,6 +21,11 @@ export function ChatPage() {
   ]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const myNameRef = useRef(user?.displayName ?? '');
+
+  useEffect(() => {
+    myNameRef.current = user?.displayName ?? '';
+  }, [user?.displayName]);
 
   useEffect(() => {
     if (demo) {
@@ -27,7 +34,13 @@ export function ChatPage() {
       return;
     }
 
-    // Production-ready socket URL
+    const token = getToken();
+    if (!token || token === 'demo') {
+      setAuthError('Sign in required for live chat');
+      setConnected(false);
+      return;
+    }
+
     const SOCKET_URL = import.meta.env.VITE_API_URL
       ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
       : 'http://localhost:3000';
@@ -36,12 +49,23 @@ export function ChatPage() {
       transports: ['websocket', 'polling'],
       reconnection: true,
       withCredentials: false,
+      auth: { token },
     });
 
     socketRef.current = socket;
 
-    socket.on('connect', () => setConnected(true));
+    socket.on('connect', () => {
+      setConnected(true);
+      setAuthError(null);
+    });
     socket.on('disconnect', () => setConnected(false));
+    socket.on('authenticated', () => setAuthError(null));
+    socket.on('error', (payload: { message?: string }) => {
+      setAuthError(payload?.message ?? 'Chat error');
+    });
+    socket.on('connect_error', () => {
+      setAuthError('Could not connect — check JWT / API');
+    });
 
     socket.on('presence', (payload: { onlineCount?: number }) => {
       if (typeof payload?.onlineCount === 'number') {
@@ -51,7 +75,7 @@ export function ChatPage() {
 
     socket.on(
       'message',
-      (payload: { sender?: string; text?: string; createdAt?: string }) => {
+      (payload: { sender?: string; senderId?: string; text?: string; createdAt?: string }) => {
         setMessages((m) => [
           ...m,
           {
@@ -59,7 +83,9 @@ export function ChatPage() {
             sender: payload.sender ?? 'anon',
             text: payload.text ?? '',
             createdAt: payload.createdAt ?? new Date().toISOString(),
-            mine: payload.sender === socket.id,
+            mine:
+              payload.sender === myNameRef.current ||
+              payload.senderId === user?.id,
           },
         ]);
       },
@@ -68,7 +94,7 @@ export function ChatPage() {
     return () => {
       socket.disconnect();
     };
-  }, [demo]);
+  }, [demo, user?.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -115,6 +141,12 @@ export function ChatPage() {
           )}
         </span>
       </header>
+
+      {authError && (
+        <div className="banner banner-info" style={{ marginBottom: 12 }}>
+          {authError}
+        </div>
+      )}
 
       <div className="chat-log card">
         {messages.map((m) => (

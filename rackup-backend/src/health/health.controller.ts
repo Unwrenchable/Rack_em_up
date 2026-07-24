@@ -12,17 +12,21 @@ export class HealthController {
   async check(): Promise<{
     status: string;
     db: string;
+    database: string;
     redis: string;
     realai: { reachable: boolean; baseUrl: string; model: string };
   }> {
     let db = 'down';
+    let database = 'Database disconnected';
     let redis = 'down';
 
     try {
       await this.dataSource.query('SELECT 1');
       db = 'up';
+      database = 'Database connected';
     } catch {
       db = 'down';
+      database = 'Database disconnected';
     }
 
     try {
@@ -38,6 +42,7 @@ export class HealthController {
     return {
       status,
       db,
+      database,
       redis,
       realai: {
         reachable: realai.reachable,

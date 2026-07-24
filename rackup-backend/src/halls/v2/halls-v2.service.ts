@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { getRedisClient } from '../../config/redis.config';
+import { keyForHallV2 } from '../../common/redis-keys';
 
 import { HallCheckIn } from './entities/hall-checkin.entity';
 import { HallEvent } from './entities/hall-event.entity';
@@ -19,12 +20,11 @@ import { UploadHallPhotoDto } from './dto/photos/upload-hall-photo.dto';
 import { CreateVegasSeedDto } from './dto/seed/create-vegas-seed.dto';
 import { SeedResultDto } from './dto/seed/seed-result.dto';
 import { HallSeedService } from './seed/hall-seed.service';
+import { ShotsService } from '../../shots/shots.service';
+import { HallPhotoStorageService } from './hall-photo-storage.service';
 
 @Injectable()
 export class HallsV2Service {
-  private readonly feedKeyPrefix = 'halls:v2:feed';
-  private readonly leaderboardKeyPrefix = 'halls:v2:leaderboard';
-
   constructor(
     @InjectRepository(HallCheckIn)
     private readonly checkinsRepo: Repository<HallCheckIn>,
@@ -42,7 +42,17 @@ export class HallsV2Service {
     private readonly leaderboardRepo: Repository<HallLeaderboardEntry>,
 
     private readonly seedService: HallSeedService,
+    private readonly shotsService: ShotsService,
+    private readonly photoStorage: HallPhotoStorageService,
   ) {}
+
+  private feedKey(hallId: string) {
+    return keyForHallV2(hallId, 'feed');
+  }
+
+  private leaderboardKey(hallId: string) {
+    return keyForHallV2(hallId, 'leaderboard');
+  }
 
   async seedVegas(dto: CreateVegasSeedDto): Promise<SeedResultDto> {
     return this.seedService.seedVegas(dto);
@@ -81,7 +91,7 @@ export class HallsV2Service {
 
     const redis = await getRedisClient();
     // Best-effort cache invalidation
-    await redis.del(`${this.feedKeyPrefix}:${hallId}`);
+    await redis.del(`${this.feedKey(hallId)}`);
 
     return { hallId, userId, checkedInAt: saved.checkedInAt, alreadyCheckedIn: false };
   }
@@ -108,14 +118,14 @@ export class HallsV2Service {
     await this.checkinsRepo.save(open);
 
     const redis = await getRedisClient();
-    await redis.del(`${this.feedKeyPrefix}:${hallId}`);
+    await redis.del(`${this.feedKey(hallId)}`);
 
     return { hallId, userId, checkedOutAt: open.checkedOutAt };
   }
 
   async feed(hallId: string) {
     const redis = await getRedisClient();
-    const cacheKey = `${this.feedKeyPrefix}:${hallId}`;
+    const cacheKey = `${this.feedKey(hallId)}`;
 
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -125,12 +135,18 @@ export class HallsV2Service {
     const events = await this.eventsRepo.find({ where: { hallId }, order: { createdAt: 'DESC' }, take: 50 });
     const photos = await this.photosRepo.find({ where: { hallId }, order: { createdAt: 'DESC' }, take: 50 });
 
-    // Placeholder: shot-of-the-day integration will be plugged in later (without touching v1).
+    let shotOfTheDay: unknown = null;
+    try {
+      shotOfTheDay = this.shotsService.getToday();
+    } catch {
+      shotOfTheDay = null;
+    }
+
     const response = {
       hallId,
       events,
       photos,
-      shotOfTheDay: null,
+      shotOfTheDay,
     };
 
     await redis.set(cacheKey, JSON.stringify(response), { EX: 60 });
@@ -151,8 +167,8 @@ export class HallsV2Service {
 
 
     const redis = await getRedisClient();
-    await redis.del(`${this.feedKeyPrefix}:${hallId}`);
-    await redis.del(`${this.leaderboardKeyPrefix}:${hallId}`);
+    await redis.del(`${this.feedKey(hallId)}`);
+    await redis.del(this.leaderboardKey(hallId));
 
     return saved;
   }
@@ -172,7 +188,7 @@ export class HallsV2Service {
     const saved = await this.eventsRepo.save(event);
 
     const redis = await getRedisClient();
-    await redis.del(`${this.feedKeyPrefix}:${hallId}`);
+    await redis.del(`${this.feedKey(hallId)}`);
 
     return saved;
   }
@@ -180,28 +196,46 @@ export class HallsV2Service {
   async uploadPhoto(userId: string, dto: UploadHallPhotoDto) {
     const { hallId } = dto;
 
-    // For now, allow hall admin to upload; later can support any authenticated user.
     const isAdmin = await this.adminsRepo.count({ where: { userId, hallId } });
     if (!isAdmin) throw new BadRequestException('Not authorized for this hall');
+
+    let photoUrl: string;
+    try {
+      photoUrl = await this.photoStorage.resolvePhotoUrl({
+        hallId,
+        photoUrl: dto.photoUrl,
+        photoBase64: dto.photoBase64,
+      });
+    } catch (e) {
+      throw new BadRequestException(e instanceof Error ? e.message : 'Invalid photo');
+    }
 
     const photo = this.photosRepo.create({
       hallId,
       userId,
-      photoUrl: dto.photoUrl,
+      photoUrl,
       caption: dto.caption ?? null,
     });
 
     const saved = await this.photosRepo.save(photo);
 
     const redis = await getRedisClient();
-    await redis.del(`${this.feedKeyPrefix}:${hallId}`);
+    await redis.del(this.feedKey(hallId));
 
     return saved;
   }
 
+  async listPhotos(hallId: string) {
+    return this.photosRepo.find({
+      where: { hallId },
+      order: { createdAt: 'DESC' },
+      take: 100,
+    });
+  }
+
   async leaderboard(hallId: string) {
     const redis = await getRedisClient();
-    const cacheKey = `${this.leaderboardKeyPrefix}:${hallId}`;
+    const cacheKey = this.leaderboardKey(hallId);
 
     const cached = await redis.get(cacheKey);
     if (cached) return JSON.parse(cached);

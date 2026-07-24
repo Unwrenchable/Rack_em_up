@@ -86,9 +86,72 @@ export class BracketGenerationService {
     await this.nodeRepo.save(nodes);
   }
 
+  /**
+   * Double elimination:
+   * - Winners R1: same as single-elim (power-of-two with byes as null).
+   * - Losers R1: one match slot per winners R1 match (loser drops in).
+   * - Higher losers/winners rounds are created on report via advanceWinner.
+   */
   private async generateDoubleEliminationBaseline(tournament: TournamentV2, entrants: string[]) {
-    // Phase 1 baseline: treat as single-elim winners bracket only.
-    await this.generateSingleElimination(tournament, entrants);
+    const size = this.nextPowerOfTwo(entrants.length || 1);
+    const seeded = [...entrants, ...new Array(size - entrants.length).fill(null)];
+
+    await this.roundRepo.save(
+      this.roundRepo.create({ tournamentId: tournament.id, roundNumber: 1 }),
+    );
+
+    const winners: TournamentMatchV2[] = [];
+    for (let i = 0; i < seeded.length; i += 2) {
+      winners.push(
+        this.matchRepo.create({
+          tournamentId: tournament.id,
+          round: 1,
+          matchIndex: i / 2 + 1,
+          playerAId: seeded[i],
+          playerBId: seeded[i + 1],
+          status: TournamentMatchStatus.ACTIVE,
+          bracket: TournamentBracketSide.WINNERS,
+        }),
+      );
+    }
+    await this.matchRepo.save(winners);
+
+    // Pre-create empty losers R1 slots (filled when winners R1 losers drop)
+    const losersR1: TournamentMatchV2[] = [];
+    for (let i = 0; i < winners.length; i += 2) {
+      losersR1.push(
+        this.matchRepo.create({
+          tournamentId: tournament.id,
+          round: 1,
+          matchIndex: Math.floor(i / 2) + 1,
+          playerAId: null,
+          playerBId: null,
+          status: TournamentMatchStatus.ACTIVE,
+          bracket: TournamentBracketSide.LOSERS,
+        }),
+      );
+    }
+    if (losersR1.length) await this.matchRepo.save(losersR1);
+
+    const nodes: BracketNode[] = [
+      ...winners.map((m, idx) =>
+        this.nodeRepo.create({
+          tournamentId: tournament.id,
+          roundNumber: 1,
+          nodeIndex: idx + 1,
+          matchId: m.id,
+        }),
+      ),
+      ...losersR1.map((m, idx) =>
+        this.nodeRepo.create({
+          tournamentId: tournament.id,
+          roundNumber: 1,
+          nodeIndex: 1000 + idx + 1,
+          matchId: m.id,
+        }),
+      ),
+    ];
+    if (nodes.length) await this.nodeRepo.save(nodes);
   }
 
   private async generateRoundRobin(tournament: TournamentV2, entrants: string[]) {

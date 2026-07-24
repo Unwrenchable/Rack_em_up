@@ -16,6 +16,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { TournamentsListPage } from './pages/TournamentsListPage';
 import { TournamentsPage } from './pages/TournamentsPage';
+import { ShotsCatalogPage } from './pages/ShotsCatalogPage';
+import { MoneyPage } from './pages/MoneyPage';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -38,11 +40,12 @@ function AppRoutes() {
         <Route index element={<HomePage />} />
         <Route path="find" element={<FindPage />} />
         <Route path="play" element={<PlayPage />} />
-        <Route path="money" element={<Navigate to="/play" replace />} />
+        <Route path="money" element={<MoneyPage />} />
         <Route path="social" element={<SocialPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="halls" element={<HallsPage />} />
         <Route path="coach" element={<CoachPage />} />
+        <Route path="shots" element={<ShotsCatalogPage />} />
         <Route path="memories" element={<MemoriesPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="settings" element={<SettingsPage />} />
