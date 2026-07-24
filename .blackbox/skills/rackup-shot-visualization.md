@@ -5,39 +5,29 @@ description: Human-friendly Shot of the Day diagrams — instructor style with o
 
 # RackUp Shot Visualization
 
+Full implementer spec: `rackup-web/docs/SOTD_DIAGRAM_SPEC.md`.
+
 ## Style goals
-- Feel like a fun training drill (inspired by the *idea* of table markers), not a CAD drawing.
-- Fully original markers — **never** real playing-card faces, suits, or copyrighted layouts.
-- Self-explanatory diagram: no coordinate dumps, no ASCII legends, no machine jargon.
+- Instructor-grade, player-friendly — not CAD / not machine dumps.
+- Diamonds from real pocket-center geometry (L×odd/12, S×k/4).
+- Self-explanatory: no coordinates, ASCII legends, or provider jargon in the UI.
 
 ## Visual requirements
-- **Table:** realistic felt, wood rails, diamonds (3 long / 2 short), open pocket mouths.
-- **Balls:** white cue ball; standard pool colors for object balls (1 yellow … 8 black; stripes 9–15).
-- **Paths:**
-  - Cue approach → contact (cream / white solid + arrow)
-  - Object ball → pocket (OB color + arrow)
-  - Cue after contact (soft dashed + rest ring)
-- **Ghost ball / tangent:** only when the cut needs them.
-- **Drill tokens:** 3–6 original numbered shapes (disc, triangle, diamond, hex, tile, star) marking the shot sequence on the cloth.
+- **Diamonds:** 6 per long rail at L·[1,3,5,7,9,11]/12; 3 per short rail at S·[1,2,3]/4.
+- **Pockets:** trapezoid mouths with jaw angles (corner 20–28°, side 10–18°) + shelf depth.
+- **Paths (always three):** CB→OB (cream solid), OB→pocket (OB color solid), CB after (cream dashed).
+- **Balls:** white cue; standard solid/stripe colors; no letter labels on cue.
+- **Markers:** optional original shapes only on multi-step drills — never gold card tokens or real card faces.
 
 ## Table size
-- Toggle **7-foot barbox** vs **9-foot tournament**.
-- Same 2:1 cloth; adjust ball size, pocket size, rail thickness, and diamond spacing.
+- Toggle **7-ft barbox** vs **9-ft tournament** via `buildTableGeometry(size)`.
+- Same fractional diamond rules; scale ball, rail, pocket mouths.
 
-## Coaching copy (plain language)
-- Where to aim
-- What spin to use
-- What speed to hit
-- What the cue ball will do after contact
-- Why this works
-- Common mistakes
+## Coaching (every SOTD)
+- One-line drill label · 2–3 purpose lines · aim · english · speed · CB finish zone · common mistakes.
 
-## Data (internal only — do not show raw to players)
-- Geometry may use normalized points `x 0–100`, `y 0–50` for rendering.
-- Frontend derives paths + markers via `shot-map-geometry.ts`.
-- Do not surface coordinates, vectors, or provider metadata in the UI.
+## Modules
+- `table-geometry.ts` · `shot-map-geometry.ts` · `ShotMapDiagram.tsx` · `ShotCard.tsx`
 
-## Legal / originality
-- Do **not** copy Mike Massey’s card layouts, card faces, or exact drills.
-- You may use the general concept of “markers on the table” for practice patterns.
-- All diagrams, token shapes, and shot sequences must be RackUp originals.
+## Legal
+- Original RackUp art only. Do not copy copyrighted card layouts or commercial drills.

@@ -4,14 +4,16 @@ import { fetchSotdMap } from '../lib/api';
 import { ShotMapDiagram } from './ShotMapDiagram';
 import {
   cueAfterPlain,
+  drillLabel,
+  drillPurpose,
   speedPlain,
   tipZonePlain,
+  deriveShotGeometry,
   type TableSize,
 } from '../lib/shot-map-geometry';
 
-/** Clock-face tip guide — visual only, plain language beside it. */
 const TIP_SHORT: Record<string, string> = {
-  center: 'Center ball',
+  center: 'Center (stun)',
   '12-high': 'High (follow)',
   '6-low': 'Low (draw)',
   '3-right': 'Right english',
@@ -58,8 +60,10 @@ export function ShotCard({
     }
   }, [tableSize]);
 
+  const label = useMemo(() => drillLabel(shot), [shot]);
+  const purpose = useMemo(() => drillPurpose(shot), [shot]);
   const aimLine = useMemo(() => buildAimLine(shot), [shot]);
-  const spinLine = useMemo(() => {
+  const englishLine = useMemo(() => {
     const tip = tipZonePlain(shot.tipZone);
     const eng = shot.english?.trim();
     if (eng && !/^none\.?$/i.test(eng)) return `${tip}. ${eng}`;
@@ -69,11 +73,17 @@ export function ShotCard({
     () => speedPlain(shot.speed, shot.speedDetail),
     [shot.speed, shot.speedDetail],
   );
-  const afterLine = useMemo(
-    () => cueAfterPlain(shot.tipZone, shot.category),
-    [shot.tipZone, shot.category],
-  );
-  const whyLines = shot.tips?.length ? shot.tips : [shot.successLooksLike];
+  const finishLine = useMemo(() => {
+    if (map) {
+      const g = deriveShotGeometry(map);
+      return cueAfterPlain(shot.tipZone, shot.category, g.cueFinishZone);
+    }
+    return cueAfterPlain(shot.tipZone, shot.category);
+  }, [map, shot.tipZone, shot.category]);
+
+  const caption = useMemo(() => {
+    return `${label} Aim: ${aimLine} English: ${englishLine} Speed: ${speedLine}`;
+  }, [label, aimLine, englishLine, speedLine]);
 
   return (
     <article className="card card-glow stack sotd-card" style={{ gap: 16 }}>
@@ -87,9 +97,23 @@ export function ShotCard({
         <h2 className="h2" style={{ fontSize: '1.45rem' }}>
           {shot.name}
         </h2>
-        <p className="muted" style={{ marginTop: 4 }}>
-          {shot.tagline}
+        <p
+          style={{
+            marginTop: 8,
+            fontWeight: 600,
+            color: 'var(--gold)',
+            fontSize: '0.98rem',
+          }}
+        >
+          {label}
         </p>
+        <div className="muted" style={{ marginTop: 8, fontSize: '0.9rem', lineHeight: 1.45 }}>
+          {purpose.map((line) => (
+            <p key={line} style={{ margin: '0 0 6px' }}>
+              {line}
+            </p>
+          ))}
+        </div>
         {meta?.date && (
           <p className="muted" style={{ fontSize: '0.78rem', marginTop: 6 }}>
             {meta.date}
@@ -100,7 +124,7 @@ export function ShotCard({
         )}
       </div>
 
-      {/* A. Realistic table diagram + table size toggle */}
+      {/* Diagram + table size */}
       <div className="stack" style={{ gap: 10 }}>
         <div className="row-between" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           <div className="field-label" style={{ margin: 0 }}>
@@ -134,13 +158,13 @@ export function ShotCard({
           </div>
         )}
 
-        <p className="muted" style={{ fontSize: '0.8rem', margin: 0, textAlign: 'center' }}>
-          Follow the gold tokens in order — that&apos;s the shot pattern.
-          {tableSize === '7ft' ? ' Scaled for a 7-foot barbox.' : ' Scaled for a 9-foot tournament table.'}
+        {/* Short player caption — matches coaching, no jargon */}
+        <p className="sotd-caption muted" style={{ fontSize: '0.82rem', margin: 0, lineHeight: 1.4 }}>
+          {caption.length > 220 ? `${caption.slice(0, 217)}…` : caption}
         </p>
       </div>
 
-      {/* Cue tip visual + spin */}
+      {/* Tip face */}
       <div className="cue-ball-guide">
         <div className="cue-ball-face" aria-hidden>
           <span className="cue-dot n">↑</span>
@@ -149,14 +173,9 @@ export function ShotCard({
           <span className="cue-dot w">L</span>
           <span className={`cue-hit tip-${shot.tipZone.replace(/[:.]/g, '-')}`} />
         </div>
-        <div className="stack" style={{ gap: 8, flex: 1 }}>
-          <div>
-            <div className="field-label">Where to hit the cue ball</div>
-            <div style={{ fontWeight: 600 }}>{TIP_SHORT[shot.tipZone] ?? tipZonePlain(shot.tipZone)}</div>
-            <div className="muted" style={{ fontSize: '0.85rem' }}>
-              {shot.tipDetail}
-            </div>
-          </div>
+        <div className="stack" style={{ gap: 6, flex: 1 }}>
+          <div className="field-label">Tip on the cue ball</div>
+          <div style={{ fontWeight: 600 }}>{TIP_SHORT[shot.tipZone] ?? tipZonePlain(shot.tipZone)}</div>
           {shot.elevation && !/^level\.?$/i.test(shot.elevation.trim()) && (
             <div className="muted" style={{ fontSize: '0.82rem' }}>
               Cue angle: {shot.elevation}
@@ -165,12 +184,12 @@ export function ShotCard({
         </div>
       </div>
 
-      {/* B. Human-readable shot explanation */}
+      {/* Coaching blocks */}
       <div className="sotd-coach stack" style={{ gap: 12 }}>
-        <CoachBlock title="Where to aim" body={aimLine} />
-        <CoachBlock title="What spin to use" body={spinLine} />
-        <CoachBlock title="What speed to hit" body={speedLine} />
-        <CoachBlock title="What the cue ball will do" body={afterLine} />
+        <CoachBlock title="Aim point" body={aimLine} />
+        <CoachBlock title="English (spin)" body={englishLine} />
+        <CoachBlock title="Speed" body={speedLine} />
+        <CoachBlock title="Expected cue-ball finish" body={finishLine} />
 
         <div>
           <div className="field-label">Setup on the table</div>
@@ -193,7 +212,7 @@ export function ShotCard({
         <div className="sotd-why">
           <div className="field-label">Why this works</div>
           <ul className="shot-list">
-            {whyLines.map((t) => (
+            {(shot.tips?.length ? shot.tips : [shot.successLooksLike]).map((t) => (
               <li key={t}>{t}</li>
             ))}
           </ul>
@@ -250,10 +269,7 @@ function humanCategory(cat: string): string {
 function buildAimLine(shot: CatalogShot): string {
   const pocket = shot.pocket?.replace(/\.$/, '') || 'the intended pocket';
   const ob = shot.objectBall?.replace(/\.$/, '') || 'the object ball';
-  // Prefer first setup line that mentions aim/pocket if present
-  const aimHint = shot.steps.find((s) => /aim|line|center|ghost|diamond|rail/i.test(s));
-  if (aimHint) {
-    return `${aimHint} Target: ${pocket}. Object: ${ob}.`;
-  }
-  return `Line up so the white cue ball sends ${ob} toward ${pocket}. Follow the numbered gold tokens on the diagram for the full pattern.`;
+  const aimHint = shot.steps.find((s) => /aim|line|center|ghost|diamond|rail|contact/i.test(s));
+  if (aimHint) return `${aimHint} Target pocket: ${pocket}.`;
+  return `Hit ${ob} so it tracks cleanly into ${pocket}. Read the cut from the object-ball path on the diagram.`;
 }
