@@ -810,7 +810,10 @@ export async function fetchRealAiShotOfTheDay(body?: {
   if (isDemoMode()) {
     return {
       ok: true,
-      why: DEMO_SHOT_OF_DAY.shot.description,
+      why:
+        DEMO_SHOT_OF_DAY.note ||
+        DEMO_SHOT_OF_DAY.shot.tagline ||
+        DEMO_SHOT_OF_DAY.shot.successLooksLike,
       result: { primary: DEMO_SHOT_OF_DAY.shot },
       provider: 'demo',
     };
@@ -1596,7 +1599,11 @@ export async function updateRocWalletPreferences(body: {
   preferredPayoutMethod?: 'stripe_bank' | 'usdc';
   usdcWalletAddress?: string | null;
   stripeConnectAccountId?: string | null;
-}) {
+}): Promise<{
+  preferredPayoutMethod?: 'stripe_bank' | 'usdc';
+  usdcWalletAddress?: string | null;
+  stripeConnectAccountId?: string | null;
+}> {
   if (isDemoMode()) return body;
   return request('/roc/wallet/preferences', {
     method: 'PATCH',

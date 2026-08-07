@@ -6,7 +6,8 @@ services:
     region: oregon
     plan: starter
     rootDir: .
-    buildCommand: npm install && npm run build
+    # Install all deps (including build tooling). nest is in dependencies for prod builds.
+    buildCommand: npm ci || npm install && npm run build
     startCommand: npm start
     autoDeploy: true
     envVars:

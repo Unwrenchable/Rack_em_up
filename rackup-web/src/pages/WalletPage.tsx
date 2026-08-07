@@ -30,11 +30,19 @@ export function WalletPage() {
 
   async function savePrefs() {
     try {
-      const w = await updateRocWalletPreferences({
+      await updateRocWalletPreferences({
         preferredPayoutMethod: method,
         usdcWalletAddress: method === 'usdc' ? usdc || null : undefined,
       });
-      setData((d) => (d ? { ...d, ...w, history: d.history } : d));
+      setData((d) =>
+        d
+          ? {
+              ...d,
+              preferredPayoutMethod: method,
+              usdcWalletAddress: method === 'usdc' ? usdc || null : d.usdcWalletAddress,
+            }
+          : d,
+      );
       push('Payout preferences saved', 'ok');
     } catch {
       push('Save failed', 'err');
