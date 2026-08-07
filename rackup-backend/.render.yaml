@@ -6,8 +6,9 @@ services:
     region: oregon
     plan: starter
     rootDir: .
-    # Install all deps (including build tooling). nest is in dependencies for prod builds.
-    buildCommand: npm ci || npm install && npm run build
+    # NODE_ENV=production would skip devDependencies (incl. @types/*) and break nest build.
+    # --include=dev keeps TypeScript / Express typings available for compilation.
+    buildCommand: npm ci --include=dev || npm install --include=dev && npm run build
     startCommand: npm start
     autoDeploy: true
     envVars:
