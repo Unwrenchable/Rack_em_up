@@ -1,0 +1,14 @@
+services:
+  - type: static
+    name: rackup-web
+    env: node
+    runtime: node
+    region: oregon
+    plan: starter
+    rootDir: .
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://api.rackofchampions.com
