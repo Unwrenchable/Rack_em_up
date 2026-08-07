@@ -20,8 +20,14 @@ export class BracketGenerationService {
     private readonly nodeRepo: Repository<BracketNode>,
   ) {}
 
-  async generateForTournament(tournament: TournamentV2): Promise<void> {
-    const entrants = tournament.entrants ?? [];
+  /**
+   * @param orderedEntrants optional pre-seeded order (manual/random/elo already applied)
+   */
+  async generateForTournament(
+    tournament: TournamentV2,
+    orderedEntrants?: string[],
+  ): Promise<void> {
+    const entrants = orderedEntrants ?? tournament.entrants ?? [];
 
     if (tournament.mode === TournamentV2Mode.SINGLE_ELIMINATION) {
       await this.generateSingleElimination(tournament, entrants);
@@ -33,14 +39,58 @@ export class BracketGenerationService {
       return;
     }
 
-    // Default: double elimination baseline uses single-elim bracket with placeholder losers path.
     if (tournament.mode === TournamentV2Mode.DOUBLE_ELIMINATION) {
       await this.generateDoubleEliminationBaseline(tournament, entrants);
       return;
     }
 
-    // Fallback
+    if (tournament.mode === TournamentV2Mode.SWISS) {
+      await this.generateSwissRound(tournament, entrants, 1);
+      return;
+    }
+
     await this.generateSingleElimination(tournament, entrants);
+  }
+
+  /**
+   * Swiss round N: pair adjacent after ordering (R1 = seed order; later = by wins).
+   */
+  async generateSwissRound(
+    tournament: TournamentV2,
+    orderedPlayerIds: string[],
+    roundNumber: number,
+  ): Promise<void> {
+    await this.roundRepo.save(
+      this.roundRepo.create({ tournamentId: tournament.id, roundNumber }),
+    );
+
+    const matches: TournamentMatchV2[] = [];
+    let matchIndex = 1;
+    for (let i = 0; i < orderedPlayerIds.length; i += 2) {
+      matches.push(
+        this.matchRepo.create({
+          tournamentId: tournament.id,
+          round: roundNumber,
+          matchIndex,
+          playerAId: orderedPlayerIds[i] ?? null,
+          playerBId: orderedPlayerIds[i + 1] ?? null,
+          status: TournamentMatchStatus.ACTIVE,
+          bracket: TournamentBracketSide.WINNERS,
+        }),
+      );
+      matchIndex += 1;
+    }
+    if (matches.length) await this.matchRepo.save(matches);
+
+    const nodes: BracketNode[] = matches.map((m, idx) =>
+      this.nodeRepo.create({
+        tournamentId: tournament.id,
+        roundNumber,
+        nodeIndex: idx + 1,
+        matchId: m.id,
+      }),
+    );
+    if (nodes.length) await this.nodeRepo.save(nodes);
   }
 
   private nextPowerOfTwo(n: number): number {

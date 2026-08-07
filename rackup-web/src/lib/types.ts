@@ -5,7 +5,15 @@ export type User = {
   avatarUrl?: string | null;
   role: string;
   reputation: number;
+  /** ROC Glicko-2 continuous rating */
   rating: number;
+  rd?: number;
+  volatility?: number;
+  matches?: number;
+  band?: string;
+  /** e.g. "Advanced • 547" from RealAI / RackUp public payload */
+  ratingDisplay?: string;
+  ladder?: 'roc_glicko2';
 };
 
 export type LiveHall = {
@@ -56,6 +64,24 @@ export type MoneyMatch = {
   aConfirmed: boolean;
   bConfirmed: boolean;
   createdAt: string;
+  /** Phase 3D escrow */
+  escrowStatus?: 'NONE' | 'HELD' | 'RELEASED' | 'REFUNDED' | 'FAILED';
+  escrowProvider?: string | null;
+  escrowExternalId?: string | null;
+  /** Phase 2 dual result confirm stores pendingResult until both players agree */
+  resultJson?: {
+    pendingResult?: {
+      aScore: number;
+      bScore: number;
+      confirmedBy: string[];
+      proposedAt?: string;
+      proposedBy?: string;
+    };
+    dualConfirmed?: boolean;
+    aScore?: number;
+    bScore?: number;
+    [key: string]: unknown;
+  } | null;
 };
 
 export type LookingPlayer = {
@@ -87,11 +113,18 @@ export type League = {
   hallId: string;
 };
 
+export type FriendshipStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'DECLINED'
+  | 'BLOCKED'
+  | 'CANCELLED';
+
 export type Friendship = {
   id: string;
   requesterId: string;
   addresseeId: string;
-  status: 'PENDING' | 'ACCEPTED' | 'BLOCKED';
+  status: FriendshipStatus;
   createdAt: string;
 };
 
@@ -106,12 +139,55 @@ export type ActionPost = {
   authorName?: string;
 };
 
+/** Friend list row from GET /friends (hydrated with presence). */
 export type FriendCard = {
   id: string;
+  friendshipId?: string;
   displayName: string;
   rating: number;
   status: 'online' | 'at_hall' | 'offline';
   hallName?: string;
+  avatarUrl?: string | null;
+  lastSeenAt?: string | null;
+  mutualCount?: number;
+};
+
+export type FriendListItem = {
+  friendshipId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  rating: number;
+  status: FriendshipStatus;
+  direction?: 'incoming' | 'outgoing' | 'mutual';
+  online: boolean;
+  lastSeenAt: string | null;
+  activity: {
+    type: string;
+    label?: string;
+    hallId?: string;
+    matchId?: string;
+  } | null;
+  mutualCount?: number;
+};
+
+export type ChatThread = {
+  id: string;
+  kind: 'DM' | 'GROUP';
+  title: string | null;
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+  createdById: string;
+};
+
+export type ThreadMessage = {
+  id: string;
+  threadId: string;
+  senderId: string;
+  type: string;
+  body: string | null;
+  payloadJson?: Record<string, unknown> | null;
+  createdAt: string;
 };
 
 export type ChatMessage = {

@@ -1,29 +1,34 @@
-# RackUp Domain Quick Reference
+# RackUp Live Domain Reference (2026-08-05)
 
-## Core Game Types
-- 8-ball
-- 9-ball
-- 10-ball
-- One-pocket
+## Repo Layout
+- `rackup-backend/` — NestJS + TypeORM + Redis
+- `rackup-web/` — Vite + React
+- RealAI — external OpenAI-compatible provider only
 
-## Key Concepts
-- **Race length**: first to N games (common: race to 5, 7, 9, 11)
-- **Hill-hill**: both players one game away from winning the set
-- **FargoRate / custom rating**: skill-based matching
-- **Money match**: high-stakes set tracked with dual verification
-- **Side-bet credits**: non-monetary bragging rights only
-- **Hall check-in**: player becomes visible to others at that location
-- **Match Memories**: auto-generated social post after a match
-- **Reputation score**: show-up reliability + sportsmanship + verified results
+## Completed Tracks
+- P0 / P1 / P2 — Done
+- Phase 2 Integration Hooks — Done
 
-## Typical User Flows Agents Should Support
-1. Find nearby player → Instant Match ping → Accept → Play → Dual report result → Stats + reputation update
-2. Create tournament → Generate bracket → Players join → Live score updates → Notify next match → Final standings
-3. Join / create league team → Weekly schedule → Play matches → Handicap + standings update → Season archive
-4. Hall check-in → See who else is there → Challenge → Play → Post highlight / shot replay
+## Scorekeeping V2 (single entry)
+- `ScorekeepingServiceV2.processReport(MatchReportPayload)`
+- Domains: `standard` | `money` | `tournament_v2` | `league_v2`
+- Side effects: Elo, memories (std/money), Redis `scorekeeping:v2:*`, RealAI summary job, socket `score_update`, money audit
 
-## Privacy & Safety Notes
-- Location is sensitive — always respect player visibility settings
-- Money match results require confirmation from both players
-- Never auto-adjust ratings without an audit trail
-- Side bets stay non-monetary inside the tool layer
+## Money dual-confirm
+1. Stake confirms → ACTIVE
+2. First score propose → pendingResult
+3. Second same scores → COMPLETED + processReport
+4. Audit Redis `audit:v2:money:*`
+
+## ID bridge
+- Entity `id_bridges` + `IdBridgeService`
+- `GET /id-bridge/:kind/v1/:id` · `POST /id-bridge/link`
+- Used by league standings / tournament bracket resolve
+
+## Redis Canonical Namespaces
+- `halls:v2:*` · `tournaments:v2:*` · `leagues:v2:*`
+- `matchmaking:v2:*` · `realai:v2:*` · `scorekeeping:v2:*`
+- `audit:v2:money:*` · `idbridge:v2:*`
+
+## Out of Scope
+Escrow, streaming, push, PostGIS, S3 multi-node photos, premium, full DE grand-finals reset, vision AI.

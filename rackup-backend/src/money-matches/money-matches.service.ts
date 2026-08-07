@@ -1,4 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MoneyMatch, MoneyMatchStatus } from './money-matches.entity';
@@ -6,11 +13,13 @@ import { CreateMoneyMatchDto } from './dto/create-money-match.dto';
 import { ConfirmMoneyMatchDto } from './dto/confirm-money-match.dto';
 import { DisputeMoneyMatchDto } from './dto/dispute-money-match.dto';
 import { CompleteMoneyMatchDto } from './dto/complete-money-match.dto';
-import { MemoriesService } from '../memories/memories.service';
-import { RatingService } from '../users/rating.service';
+import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ScorekeepingService } from '../scorekeeping/scorekeeping.service';
-import { RealaiV2Service } from '../realai/v2/realai-v2.service';
+import { ScorekeepingServiceV2 } from '../scorekeeping/scorekeeping-v2.service';
+import { EscrowService } from './escrow.service';
+import { MoneyAuditService } from './money-audit.service';
+import { User } from '../users/users.entity';
+import { PushService } from '../notifications/push.service';
 
 export type MoneyMatchFilters = {
   status?: MoneyMatchStatus | string;
@@ -18,6 +27,22 @@ export type MoneyMatchFilters = {
   hallId?: string;
 };
 
+type PendingResult = {
+  aScore: number;
+  bScore: number;
+  confirmedBy: string[];
+  proposedAt: string;
+  proposedBy: string;
+};
+
+const ARBITER_ROLES = new Set(['ADMIN', 'HALL_OWNER', 'ORGANIZER']);
+
+/**
+ * State machine:
+ * - PENDING -> ACTIVE (both stake confirms) + escrow hold
+ * - ACTIVE: dual result confirm -> COMPLETED + escrow release + processReport
+ * - PENDING/ACTIVE -> DISPUTED; arbiter resolve -> COMPLETED or refund
+ */
 @Injectable()
 export class MoneyMatchesService {
   private readonly logger = new Logger(MoneyMatchesService.name);
@@ -25,19 +50,15 @@ export class MoneyMatchesService {
   constructor(
     @InjectRepository(MoneyMatch)
     private readonly moneyMatchesRepo: Repository<MoneyMatch>,
-    private readonly memoriesService: MemoriesService,
-    private readonly ratingService: RatingService,
+    @InjectRepository(User)
+    private readonly usersRepo: Repository<User>,
     private readonly notificationsService: NotificationsService,
-    private readonly scorekeeping: ScorekeepingService,
-    private readonly realaiV2: RealaiV2Service,
+    private readonly scorekeepingV2: ScorekeepingServiceV2,
+    private readonly escrow: EscrowService,
+    private readonly audit: MoneyAuditService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
-  /**
-   * State machine:
-   * - PENDING -> ACTIVE (when both sides confirm)
-   * - ACTIVE/PENDING -> DISPUTED (when dispute filed)
-   * - DISPUTED -> COMPLETED (admin resolution)
-   */
   async create(dto: CreateMoneyMatchDto): Promise<MoneyMatch> {
     const created = this.moneyMatchesRepo.create({
       playerAId: dto.playerAId,
@@ -51,9 +72,25 @@ export class MoneyMatchesService {
       resultJson: null,
       aConfirmed: false,
       bConfirmed: false,
+      escrowStatus: 'NONE',
+      escrowProvider: this.escrow.provider(),
+      escrowExternalId: null,
+      escrowJson: null,
     });
 
-    return this.moneyMatchesRepo.save(created);
+    const saved = await this.moneyMatchesRepo.save(created);
+    await this.audit.record({
+      matchId: saved.id,
+      action: 'created',
+      actorId: dto.playerAId,
+      payload: {
+        playerAId: saved.playerAId,
+        playerBId: saved.playerBId,
+        amountCents: Number(saved.amountCents),
+        escrowProvider: saved.escrowProvider,
+      },
+    });
+    return saved;
   }
 
   async confirm(dto: ConfirmMoneyMatchDto): Promise<MoneyMatch> {
@@ -76,26 +113,92 @@ export class MoneyMatchesService {
       match.bConfirmed = true;
     }
 
-    if (match.aConfirmed && match.bConfirmed) {
+    if (match.aConfirmed && match.bConfirmed && match.status === 'PENDING') {
       match.status = 'ACTIVE';
-      await this.notificationsService.create({
-        userId: match.playerAId,
-        title: 'Money match ACTIVE',
-        body: `${match.game} race to ${match.raceTo} is locked in.`,
-        kind: 'money',
-      });
-      await this.notificationsService.create({
-        userId: match.playerBId,
-        title: 'Money match ACTIVE',
-        body: `${match.game} race to ${match.raceTo} is locked in.`,
-        kind: 'money',
-      });
+
+      // Hold escrow when stakes lock
+      try {
+        const hold = await this.escrow.hold({
+          matchId: match.id,
+          amountCents: Number(match.amountCents),
+          playerAId: match.playerAId,
+          playerBId: match.playerBId,
+        });
+        match.escrowStatus = hold.status;
+        match.escrowProvider = hold.provider;
+        match.escrowExternalId = hold.externalId;
+        match.escrowJson = {
+          hold,
+          heldAt: hold.heldAt,
+        };
+        await this.audit.record({
+          matchId: match.id,
+          action: 'escrow_held',
+          actorId: dto.confirmingPlayerId,
+          payload: {
+            provider: hold.provider,
+            externalId: hold.externalId,
+            amountCents: hold.amountCents,
+          },
+        });
+      } catch (e) {
+        match.escrowStatus = 'FAILED';
+        this.logger.warn(`escrow hold failed: ${e instanceof Error ? e.message : e}`);
+        await this.audit.record({
+          matchId: match.id,
+          action: 'escrow_hold_failed',
+          actorId: dto.confirmingPlayerId,
+          payload: { error: e instanceof Error ? e.message : String(e) },
+        });
+      }
+
+      const activeBody = `${match.game} race to ${match.raceTo} is locked in. Escrow: ${match.escrowStatus}.`;
+      if (this.push) {
+        await this.push.notify({
+          userId: match.playerAId,
+          title: 'Money match ACTIVE',
+          body: activeBody,
+          kind: 'money',
+        });
+        await this.push.notify({
+          userId: match.playerBId,
+          title: 'Money match ACTIVE',
+          body: activeBody,
+          kind: 'money',
+        });
+      } else {
+        await this.notificationsService.create({
+          userId: match.playerAId,
+          title: 'Money match ACTIVE',
+          body: activeBody,
+          kind: 'money',
+        });
+        await this.notificationsService.create({
+          userId: match.playerBId,
+          title: 'Money match ACTIVE',
+          body: activeBody,
+          kind: 'money',
+        });
+      }
     }
 
-    return this.moneyMatchesRepo.save(match);
+    const saved = await this.moneyMatchesRepo.save(match);
+    await this.audit.record({
+      matchId: saved.id,
+      action: 'stake_confirm',
+      actorId: dto.confirmingPlayerId,
+      payload: {
+        side: dto.confirmingSide,
+        status: saved.status,
+        aConfirmed: saved.aConfirmed,
+        bConfirmed: saved.bConfirmed,
+        escrowStatus: saved.escrowStatus,
+      },
+    });
+    return saved;
   }
 
-  async dispute(dto: DisputeMoneyMatchDto): Promise<MoneyMatch> {
+  async dispute(dto: DisputeMoneyMatchDto & { filedBy?: string }): Promise<MoneyMatch> {
     const match = await this.moneyMatchesRepo.findOne({ where: { id: dto.matchId } });
     if (!match) throw new NotFoundException('Money match not found');
 
@@ -110,30 +213,126 @@ export class MoneyMatchesService {
         reason: dto.reason,
         details: dto.details ?? null,
         filedAt: new Date().toISOString(),
+        filedBy: dto.filedBy ?? null,
       },
     };
 
-    return this.moneyMatchesRepo.save(match);
+    const saved = await this.moneyMatchesRepo.save(match);
+    await this.audit.record({
+      matchId: saved.id,
+      action: 'disputed',
+      actorId: dto.filedBy ?? null,
+      payload: { reason: dto.reason, details: dto.details ?? null },
+    });
+
+    // Notify both players + leave trail for arbiters
+    for (const uid of [match.playerAId, match.playerBId]) {
+      await this.notificationsService.create({
+        userId: uid,
+        title: 'Money match DISPUTED',
+        body: dto.reason,
+        kind: 'money',
+      });
+    }
+
+    return saved;
   }
 
-  // Admin override hook (intentionally not exposed as an endpoint per your requirements)
+  /**
+   * Arbiter path: ADMIN | HALL_OWNER | ORGANIZER (or platform role).
+   * complete → scores + Elo + release escrow to winner
+   * refund / no_contest → refund escrow, no Elo
+   */
+  async resolveDispute(
+    matchId: string,
+    dto: ResolveDisputeDto,
+    actorRole?: string,
+  ): Promise<MoneyMatch> {
+    await this.assertArbiter(dto.arbiterId, actorRole);
+
+    const match = await this.moneyMatchesRepo.findOne({ where: { id: matchId } });
+    if (!match) throw new NotFoundException('Money match not found');
+    if (match.status !== 'DISPUTED') {
+      throw new BadRequestException('Resolution requires status=DISPUTED');
+    }
+
+    if (dto.resolution === 'refund' || dto.resolution === 'no_contest') {
+      if (match.escrowExternalId && match.escrowStatus === 'HELD') {
+        const ref = await this.escrow.refund({
+          matchId: match.id,
+          externalId: match.escrowExternalId,
+          amountCents: Number(match.amountCents),
+        });
+        match.escrowStatus = ref.status;
+        match.escrowJson = { ...(match.escrowJson ?? {}), refund: ref };
+      }
+      match.status = 'COMPLETED';
+      match.resultJson = {
+        ...(match.resultJson ?? {}),
+        resolution: dto.resolution,
+        resolvedBy: dto.arbiterId,
+        notes: dto.notes ?? null,
+        completedAt: new Date().toISOString(),
+        dualConfirmed: false,
+        noElo: true,
+      };
+      const saved = await this.moneyMatchesRepo.save(match);
+      await this.audit.record({
+        matchId: saved.id,
+        action: `arbiter_${dto.resolution}`,
+        actorId: dto.arbiterId,
+        payload: { notes: dto.notes, escrowStatus: saved.escrowStatus },
+      });
+      return saved;
+    }
+
+    // complete with scores
+    const aScore = Number(dto.aScore);
+    const bScore = Number(dto.bScore);
+    if (!Number.isFinite(aScore) || !Number.isFinite(bScore) || aScore === bScore) {
+      throw new BadRequestException('Arbiter complete requires non-tie aScore/bScore');
+    }
+    const winnerId =
+      dto.winnerId ?? (aScore > bScore ? match.playerAId : match.playerBId);
+
+    match.status = 'COMPLETED';
+    match.resultJson = {
+      aScore,
+      bScore,
+      dualConfirmed: true,
+      resolvedBy: dto.arbiterId,
+      resolution: 'complete',
+      notes: dto.notes ?? null,
+      completedAt: new Date().toISOString(),
+      winnerId,
+    };
+
+    await this.releaseEscrowToWinner(match, winnerId);
+
+    const saved = await this.moneyMatchesRepo.save(match);
+    await this.audit.record({
+      matchId: saved.id,
+      action: 'arbiter_complete',
+      actorId: dto.arbiterId,
+      payload: { aScore, bScore, winnerId, notes: dto.notes },
+    });
+    await this.finalizeViaScorekeeping(saved, aScore, bScore, dto.arbiterId);
+    return saved;
+  }
+
+  /** @deprecated use resolveDispute */
   async adminResolve(
     matchId: string,
     resultJson: Record<string, any>,
   ): Promise<MoneyMatch> {
-    const match = await this.moneyMatchesRepo.findOne({ where: { id: matchId } });
-    if (!match) throw new NotFoundException('Money match not found');
-
-    if (match.status !== 'DISPUTED') {
-      throw new BadRequestException('Admin resolution requires status=DISPUTED');
-    }
-
-    match.status = 'COMPLETED';
-    match.resultJson = resultJson;
-
-    const saved = await this.moneyMatchesRepo.save(match);
-    await this.createMemoriesIfScored(saved);
-    return saved;
+    return this.resolveDispute(matchId, {
+      arbiterId: resultJson.arbiterId ?? resultJson.resolvedBy ?? '00000000-0000-0000-0000-000000000000',
+      resolution: 'complete',
+      aScore: resultJson.aScore,
+      bScore: resultJson.bScore,
+      winnerId: resultJson.winnerId,
+      notes: resultJson.notes,
+    }, 'ADMIN');
   }
 
   async complete(dto: CompleteMoneyMatchDto & { matchId: string }): Promise<MoneyMatch> {
@@ -142,6 +341,12 @@ export class MoneyMatchesService {
 
     if (match.status !== 'ACTIVE') {
       throw new BadRequestException(`Cannot complete money match from status=${match.status}`);
+    }
+
+    if (!match.aConfirmed || !match.bConfirmed) {
+      throw new BadRequestException(
+        'Both players must confirm stakes before reporting a result',
+      );
     }
 
     if (dto.aScore === dto.bScore) {
@@ -155,67 +360,115 @@ export class MoneyMatchesService {
       throw new BadRequestException('Only participants can report completion');
     }
 
+    const pending = (match.resultJson?.pendingResult ?? null) as PendingResult | null;
+
+    if (!pending) {
+      const next: PendingResult = {
+        aScore: dto.aScore,
+        bScore: dto.bScore,
+        confirmedBy: [dto.reportingPlayerId],
+        proposedAt: new Date().toISOString(),
+        proposedBy: dto.reportingPlayerId,
+      };
+      match.resultJson = {
+        ...(match.resultJson ?? {}),
+        pendingResult: next,
+      };
+      const saved = await this.moneyMatchesRepo.save(match);
+      await this.audit.record({
+        matchId: saved.id,
+        action: 'result_proposed',
+        actorId: dto.reportingPlayerId,
+        payload: { aScore: dto.aScore, bScore: dto.bScore, confirmedBy: next.confirmedBy },
+      });
+      return saved;
+    }
+
+    if (pending.aScore !== dto.aScore || pending.bScore !== dto.bScore) {
+      match.resultJson = {
+        ...(match.resultJson ?? {}),
+        pendingResult: {
+          aScore: dto.aScore,
+          bScore: dto.bScore,
+          confirmedBy: [dto.reportingPlayerId],
+          proposedAt: new Date().toISOString(),
+          proposedBy: dto.reportingPlayerId,
+        },
+        lastConflict: {
+          previous: pending,
+          at: new Date().toISOString(),
+        },
+      };
+      const saved = await this.moneyMatchesRepo.save(match);
+      await this.audit.record({
+        matchId: saved.id,
+        action: 'result_conflict_reset',
+        actorId: dto.reportingPlayerId,
+        payload: { aScore: dto.aScore, bScore: dto.bScore },
+      });
+      return saved;
+    }
+
+    const confirmed = new Set(pending.confirmedBy ?? []);
+    confirmed.add(dto.reportingPlayerId);
+
+    if (!confirmed.has(match.playerAId) || !confirmed.has(match.playerBId)) {
+      match.resultJson = {
+        ...(match.resultJson ?? {}),
+        pendingResult: {
+          ...pending,
+          confirmedBy: Array.from(confirmed),
+        },
+      };
+      const saved = await this.moneyMatchesRepo.save(match);
+      await this.audit.record({
+        matchId: saved.id,
+        action: 'result_confirm_partial',
+        actorId: dto.reportingPlayerId,
+        payload: { confirmedBy: Array.from(confirmed) },
+      });
+      return saved;
+    }
+
+    // Dual result confirmation achieved
+    const winnerId = dto.aScore > dto.bScore ? match.playerAId : match.playerBId;
     match.status = 'COMPLETED';
     match.resultJson = {
       aScore: dto.aScore,
       bScore: dto.bScore,
       reportedBy: dto.reportingPlayerId,
+      dualConfirmed: true,
+      confirmedBy: Array.from(confirmed),
       completedAt: new Date().toISOString(),
+      winnerId,
     };
 
+    await this.releaseEscrowToWinner(match, winnerId);
+
     const saved = await this.moneyMatchesRepo.save(match);
-    await this.createMemoriesIfScored(saved);
-
-    const aScore = dto.aScore;
-    const bScore = dto.bScore;
-    const winnerId = aScore > bScore ? saved.playerAId : saved.playerBId;
-    await this.scorekeeping.emitScoreUpdate({
-      domain: 'money',
-      entityId: saved.id,
+    await this.audit.record({
       matchId: saved.id,
-      playerAId: saved.playerAId,
-      playerBId: saved.playerBId,
-      aScore,
-      bScore,
-      winnerId,
-      hallId: saved.hallId,
+      action: 'result_dual_confirmed',
+      actorId: dto.reportingPlayerId,
+      payload: {
+        aScore: dto.aScore,
+        bScore: dto.bScore,
+        confirmedBy: Array.from(confirmed),
+        escrowStatus: saved.escrowStatus,
+      },
     });
-    void this.realaiV2
-      .submitSummaryJob({
-        matchId: saved.id,
-        context: `money:${saved.game}`,
-      })
-      .catch((e) => this.logger.warn(`money summary job: ${e}`));
 
+    await this.finalizeViaScorekeeping(saved, dto.aScore, dto.bScore, dto.reportingPlayerId);
     return saved;
   }
 
-  private async createMemoriesIfScored(match: MoneyMatch): Promise<void> {
-    const aScore = match.resultJson?.aScore;
-    const bScore = match.resultJson?.bScore;
-    if (typeof aScore !== 'number' || typeof bScore !== 'number' || aScore === bScore) {
-      return;
-    }
+  async getAudit(matchId: string) {
+    await this.findOne(matchId);
+    return this.audit.listForMatch(matchId);
+  }
 
-    const aWins = aScore > bScore;
-    await this.memoriesService.createForMatchParticipants({
-      matchId: match.id,
-      matchType: 'MONEY',
-      participantAId: match.playerAId,
-      participantBId: match.playerBId,
-      aIsWinner: aWins,
-      bIsWinner: !aWins,
-      game: match.game,
-      raceTo: match.raceTo,
-      stakes: String(match.amountCents),
-      scorelineA: { aScore, bScore },
-      scorelineB: { aScore, bScore },
-    });
-
-    await this.ratingService.applyMatchResult(
-      aWins ? match.playerAId : match.playerBId,
-      aWins ? match.playerBId : match.playerAId,
-    );
+  async exportAudit(filters?: { matchId?: string; action?: string; limit?: number }) {
+    return this.audit.export(filters);
   }
 
   async findOne(id: string): Promise<MoneyMatch> {
@@ -238,5 +491,69 @@ export class MoneyMatchesService {
 
     qb.orderBy('m.createdAt', 'DESC');
     return qb.getMany();
+  }
+
+  private async releaseEscrowToWinner(match: MoneyMatch, winnerId: string): Promise<void> {
+    if (match.escrowStatus !== 'HELD' || !match.escrowExternalId) {
+      return;
+    }
+    try {
+      const rel = await this.escrow.release({
+        matchId: match.id,
+        externalId: match.escrowExternalId,
+        winnerId,
+        amountCents: Number(match.amountCents),
+      });
+      match.escrowStatus = rel.status;
+      match.escrowJson = { ...(match.escrowJson ?? {}), release: rel };
+      await this.audit.record({
+        matchId: match.id,
+        action: 'escrow_released',
+        actorId: winnerId,
+        payload: { externalId: rel.externalId, winnerId },
+      });
+    } catch (e) {
+      match.escrowStatus = 'FAILED';
+      this.logger.warn(`escrow release failed: ${e instanceof Error ? e.message : e}`);
+      await this.audit.record({
+        matchId: match.id,
+        action: 'escrow_release_failed',
+        payload: { error: e instanceof Error ? e.message : String(e) },
+      });
+    }
+  }
+
+  private async assertArbiter(arbiterId: string, actorRole?: string): Promise<void> {
+    if (actorRole && ARBITER_ROLES.has(actorRole)) return;
+    const user = await this.usersRepo.findOne({ where: { id: arbiterId } });
+    if (!user || !ARBITER_ROLES.has(user.role)) {
+      throw new ForbiddenException(
+        'Arbiter must have role ADMIN, HALL_OWNER, or ORGANIZER',
+      );
+    }
+  }
+
+  private async finalizeViaScorekeeping(
+    match: MoneyMatch,
+    aScore: number,
+    bScore: number,
+    reportingPlayerId?: string,
+  ): Promise<void> {
+    const winnerId = aScore > bScore ? match.playerAId : match.playerBId;
+    await this.scorekeepingV2.processReport({
+      domain: 'money',
+      matchId: match.id,
+      entityId: match.id,
+      playerAId: match.playerAId,
+      playerBId: match.playerBId,
+      aScore,
+      bScore,
+      winnerId,
+      gameType: match.game,
+      hallId: match.hallId,
+      raceTo: match.raceTo,
+      stakes: String(match.amountCents),
+      reportingPlayerId,
+    });
   }
 }

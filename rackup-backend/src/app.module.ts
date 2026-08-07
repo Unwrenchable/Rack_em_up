@@ -18,6 +18,8 @@ import { HallsModule } from './halls/halls.module';
 import { MatchesModule } from './matches/matches.module';
 import { HealthModule } from './health/health.module';
 import { FriendsModule } from './friends/friends.module';
+import { SocialModule } from './social/social.module';
+import { ChatModule } from './chat/chat.module';
 import { ActionBoardModule } from './action-board/action-board.module';
 import { TrainingModule } from './training/training.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -29,8 +31,11 @@ import { LeaguesV2Module } from './leagues/v2/leagues-v2.module';
 import { RealaiV2Module } from './realai/v2/realai-v2.module';
 import { MatchmakingV2Module } from './matchmaking/v2/matchmaking-v2.module';
 import { ScorekeepingModule } from './scorekeeping/scorekeeping.module';
+import { IdBridgeModule } from './common/id-bridge.module';
+import { ObjectStorageModule } from './common/object-storage.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
+import { RocModule } from './roc/roc.module';
 
 @Module({
   imports: [
@@ -45,6 +50,8 @@ import { RequestLoggingMiddleware } from './common/middleware/request-logging.mi
     JwtModule.register({
       secret: process.env.JWT_SECRET ?? 'dev_access_secret',
     }),
+    ObjectStorageModule,
+    IdBridgeModule,
     ScorekeepingModule,
     AuthModule,
     AuthV2Module,
@@ -58,7 +65,9 @@ import { RequestLoggingMiddleware } from './common/middleware/request-logging.mi
     HallsModule,
     MatchesModule,
     HealthModule,
+    SocialModule,
     FriendsModule,
+    ChatModule,
     ActionBoardModule,
     TrainingModule,
     NotificationsModule,
@@ -69,6 +78,7 @@ import { RequestLoggingMiddleware } from './common/middleware/request-logging.mi
     LeaguesV2Module,
     RealaiV2Module,
     MatchmakingV2Module,
+    RocModule,
   ],
 
   providers: [

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import {
   completeMoneyMatch,
   confirmMoneyMatch,
@@ -11,6 +12,8 @@ import {
   fetchTournaments,
   formatMoney,
   formatRelative,
+  getSocketUrl,
+  getToken,
   registerForTournament,
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
@@ -57,6 +60,29 @@ export function PlayPage() {
     fetchLeagues().then(setLeagues);
   }, []);
 
+  // Live score updates from ScorekeepingServiceV2
+  useEffect(() => {
+    const token = getToken();
+    const socket = io(getSocketUrl(), {
+      transports: ['websocket', 'polling'],
+      auth: token && token !== 'demo' ? { token } : undefined,
+    });
+    socket.on('score_update', (payload: { domain?: string; matchId?: string; aScore?: number; bScore?: number }) => {
+      if (payload.domain === 'money' || payload.domain === 'standard') {
+        push(
+          `Live score ${payload.aScore ?? 0}–${payload.bScore ?? 0}${
+            payload.matchId ? ` (${payload.matchId.slice(0, 6)}…)` : ''
+          }`,
+          'info',
+        );
+        fetchMoneyMatches().then(setMoney);
+      }
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, [push]);
+
   const pot = money?.reduce((n, m) => n + Number(m.amountCents || 0), 0) ?? 0;
 
   async function submitMoney() {
@@ -89,7 +115,10 @@ export function PlayPage() {
           Play
         </h1>
         <p className="muted" style={{ marginTop: 6 }}>
-          Money, brackets, and leagues — one home for action.
+          Money, brackets, and leagues — one home for action.{' '}
+          <Link to="/scorekeeping">Live scorekeeping V2 →</Link>
+          {' · '}
+          <Link to="/pyramid">RackUp Pyramid →</Link>
         </p>
       </header>
 
@@ -348,13 +377,21 @@ export function PlayPage() {
 
       <Modal
         open={!!reportMatch}
-        title="Report money result"
+        title="Report money result (dual confirm)"
         onClose={() => setReportMatch(null)}
       >
         <div className="stack">
           <p className="muted" style={{ fontSize: '0.85rem' }}>
-            {reportMatch?.game} · race to {reportMatch?.raceTo}
+            {reportMatch?.game} · race to {reportMatch?.raceTo}. Both players must submit matching
+            scores before the set completes.
           </p>
+          {reportMatch?.resultJson?.pendingResult && (
+            <div className="banner banner-info">
+              Pending: {reportMatch.resultJson.pendingResult.aScore}–
+              {reportMatch.resultJson.pendingResult.bScore} (
+              {reportMatch.resultJson.pendingResult.confirmedBy?.length ?? 0}/2)
+            </div>
+          )}
           <div className="grid-2">
             <div className="field">
               <label>Player A score</label>
@@ -394,13 +431,19 @@ export function PlayPage() {
                   (list ?? []).map((x) => (x.id === reportMatch.id ? { ...x, ...updated } : x)),
                 );
                 setReportMatch(null);
-                push('Result recorded', 'ok');
+                if (updated.status === 'COMPLETED') {
+                  push('Dual-confirmed — Elo & RealAI fired', 'ok');
+                } else if (updated.resultJson?.pendingResult) {
+                  push('Score proposed — opponent must confirm same scores', 'ok');
+                } else {
+                  push('Result recorded', 'ok');
+                }
               } catch (e) {
                 push(e instanceof Error ? e.message.slice(0, 120) : 'Complete failed', 'err');
               }
             }}
           >
-            Submit scores
+            Submit / confirm scores
           </button>
         </div>
       </Modal>

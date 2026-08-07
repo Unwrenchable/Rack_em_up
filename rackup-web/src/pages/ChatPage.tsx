@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { getToken } from '../lib/api';
+import { getSocketUrl, getToken } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import type { ChatMessage } from '../lib/types';
 
@@ -41,13 +41,16 @@ export function ChatPage() {
       return;
     }
 
-    const SOCKET_URL = import.meta.env.VITE_API_URL
-      ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
-      : 'http://localhost:3000';
+    const SOCKET_URL = getSocketUrl();
 
     const socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
+      path: '/socket.io',
       reconnection: true,
+      reconnectionAttempts: 12,
+      reconnectionDelay: 800,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
       withCredentials: false,
       auth: { token },
     });

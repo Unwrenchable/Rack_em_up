@@ -1,42 +1,66 @@
 # RackUp MEGA STATUS REPORT
 
-**Authoritative as of:** 2026-07-24 (P0+P1+P2 complete — PR ready)  
+**Authoritative as of:** 2026-08-05 (Phase 2 hooks + Phase 3A product-loop UI)  
 **Companion:** [`TODO_REPO.md`](./TODO_REPO.md)
 
 ---
 
 ## 1. Executive summary
 
-RackUp is **PR-ready for real-world demo**: V1 product surface, V2 modules with integration hooks, production hardening, frontend live wiring, CI smoke, and optional live e2e.
+RackUp is **PR-ready for real-world demo** with a **single report entry point**: `ScorekeepingServiceV2.processReport`, and **Phase 3A** wires core UI to V2 APIs.
 
 | Track | Status |
 |-------|--------|
 | P0 integration + hardening | **Done** |
 | P1 (profiles, MM radius, chat JWT, e2e, CI, Auth V2) | **Done** |
 | P2 (losers bracket, seed, hall photos) | **Done** |
-| P3 (escrow, vision AI, push, PostGIS, S3, premium) | Roadmap only |
+| **Phase 2 — Integration Hooks (expanded)** | **Done** |
+| **Phase 3A — Product loop UI** | **Done** |
+| **Phase 3B — Tournament ops** | **Done** (TV mode, admin bracket, auto-seed, Swiss V2) |
+| **Phase 3C — Deep scorekeeping** | **Done** |
+| **Phase 3D — Money trust** | **Done** |
+| **P3 platform slice** | **Done** (S3/local storage, push, DE grand final, premium flags) |
+| Remaining P3 | Vision AI, multi-agent tasks, PostGIS, full billing, streaming tips |
 
 ---
 
-## 2. Auth decision
-
-**Web cutover to Auth V2** (`POST /auth/v2/login|signup`) with **V1 legacy fallback** if V2 fails. Refresh token stored when returned. V1 routes remain for compatibility; new clients should use V2.
-
----
-
-## 3. Implementation map (P1/P2)
+## 2. Phase 2 Integration Hooks (this pass)
 
 | Feature | Location |
 |---------|----------|
-| Public user profile | `GET /api/v1/users/:id`, `GET /users/profiles?ids=` |
-| Friends / looking names | `api.ts` `fetchFriends` / `fetchLookingPlayers` + profiles |
-| MM radius + expiry | `matchmaking-v2.service.ts`, `radius_meters`, env `MM_V2_*` |
-| Chat JWT | `chat.gateway.ts` + `ChatPage` `auth: { token }` |
-| Live e2e | `test/e2e/live-api.e2e.spec.ts` |
-| CI | `.github/workflows/ci.yml` |
-| Losers bracket | `bracket-generation.service.ts` + `advanceWinner` drop |
-| Seed | `scripts/seed-demo.ts` → `npm run seed:demo` |
-| Hall photos | `hall-photo-storage.service.ts`, static `/uploads` |
+| Canonical Redis V2 keys + re-export | `src/common/redis-keys.ts`, `redis-keys.v2.ts` |
+| Legacy Redis key migration | `src/common/redis-migrate.util.ts` (runs on health boot) |
+| **ScorekeepingServiceV2.processReport** | `src/scorekeeping/scorekeeping-v2.service.ts` |
+| Wired report paths | standard matches, money complete, tournaments V2, leagues V2 |
+| Money dual result confirm + audit | `money-matches.service.ts` + Redis `audit:v2:money:*` |
+| RealAI summary job on every report | via `processReport` → `RealaiV2Service.submitSummaryJob` |
+| Live socket `score_update` | `matches.gateway.ts` |
+| V1↔V2 ID bridge | `id-bridge.entity/service/controller` |
+| Health scorekeeping | `GET /health/scorekeeping` |
+| Frontend V2 stubs | `rackup-web/src/lib/api.ts` (mm/halls/tournament V2 + health) |
+
+### Report lifecycle (single entry)
+
+```
+Domain service validates + persists COMPLETED state
+        ↓
+ScorekeepingServiceV2.processReport(MatchReportPayload)
+        ↓
+Elo → memories (std/money) → Redis events → RealAI job → socket → money audit
+```
+
+### Money dual-confirm
+
+1. Both stake confirms (`aConfirmed` && `bConfirmed`) → ACTIVE  
+2. First player proposes scores → `pendingResult` (not COMPLETED)  
+3. Second player confirms same scores → COMPLETED + `processReport`  
+4. Every state change writes Redis audit trail  
+
+---
+
+## 3. Auth decision
+
+**Web cutover to Auth V2** (`POST /auth/v2/login|signup`) with **V1 legacy fallback**. Refresh token stored when returned.
 
 ---
 
@@ -46,53 +70,38 @@ RackUp is **PR-ready for real-world demo**: V1 product surface, V2 modules with 
 |-------|---------|-----|
 | Smoke | `npm run test:smoke` | Yes |
 | Typecheck/build BE+FE | `tsc` / `build` | Yes |
-| Live e2e | `E2E_BASE_URL=... npm run test:e2e` | Opt-in (needs live stack) |
+| Live e2e | `E2E_BASE_URL=... npm run test:e2e` | Opt-in |
 
 ---
 
-## 5. Dependency graph (final)
-
-```
-[DONE] All P0 (scorekeeping → redis → advance → realai → rating → smoke → throttler → migrations → web money/SOTD)
-[DONE] P1 profiles → friends/looking names
-[DONE] P1 matchmaking radius/expiry
-[DONE] P1 chat JWT
-[DONE] P1 Auth V2 cutover
-[DONE] P1 CI + live e2e harness
-[DONE] P2 losers bracket · seed · local photo storage
-
-P3 only → escrow · vision · push · PostGIS · S3 · premium
-```
-
----
-
-## 6. Local demo / PR checklist
+## 5. Local demo
 
 ```bash
 docker compose -f rackup-backend/docker-compose.yml up -d
 cd rackup-backend && npm i && TYPEORM_SYNC=true npm run start:dev
 npm run seed:demo   # optional
 cd rackup-web && npm i && npm run dev
-# open http://localhost:5173 — signup (Auth V2), coach SOTD, play money, chat with JWT
+# GET /api/v1/health/scorekeeping after a report
 ```
 
-Demo seed users (after seed): `ace@rackup.demo` / `demo1234` (and vee/bank).
+Demo seed users: `ace@rackup.demo` / `demo1234` (and vee/bank).
 
 ---
 
-## 7. Known limitations
+## 6. Known limitations
 
-- Multi-node photo storage needs S3 (local disk only today).  
+- Multi-node photo storage needs S3 (local disk only).  
 - Full double-elim grand finals reset not modeled.  
-- Live e2e not forced in CI (requires compose + running API).  
-- V1 matchmaking search still powers Find page (names hydrated).  
+- Live e2e not forced in CI.  
+- Find page may still use V1 matchmaking until pages adopt `mmV2Search`.  
+- ID bridges must be created (`POST /id-bridge/link`) to map V1 league/tournament ids.  
 
 ---
 
-## 8. Atomic history (reference)
+## 7. P3 roadmap only
 
-Commits 1–12 (P0/SOTD) + P1/P2 follow-ups can be split if rewriting history; all code is on `main`.
+Escrow · vision AI · push · PostGIS · S3 · premium · full DE grand-final reset  
 
 ---
 
-*PR-ready status 2026-07-24. Remaining work is P3 product roadmap only.*
+*Phase 2 integration hooks complete 2026-08-05.*

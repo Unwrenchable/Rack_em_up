@@ -47,6 +47,10 @@ async function bootstrap(): Promise<void> {
   await app.listen(port, '0.0.0.0');
 
   logger.log(`RackUp backend running on http://0.0.0.0:${port}/api/v1`);
+  logger.log(`Socket.IO path=/socket.io (chat + score_update + /tv namespace)`);
+  logger.log(
+    `dotenv loaded; DB_HOST=${process.env.DB_HOST ?? 'localhost'} REDIS=${process.env.REDIS_URL ?? 'redis://localhost:6379'}`,
+  );
   logger.log(
     `synchronize=${process.env.TYPEORM_SYNC ?? '(dev default)'} NODE_ENV=${process.env.NODE_ENV ?? 'undefined'}`,
   );

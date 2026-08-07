@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -22,6 +22,9 @@ import { SeedResultDto } from './dto/seed/seed-result.dto';
 import { HallSeedService } from './seed/hall-seed.service';
 import { ShotsService } from '../../shots/shots.service';
 import { HallPhotoStorageService } from './hall-photo-storage.service';
+import { FriendsService } from '../../friends/friends.service';
+import { SocialRealtimeService } from '../../websocket/social-realtime.service';
+import { SocialSettingsService } from '../../social/social-settings.service';
 
 @Injectable()
 export class HallsV2Service {
@@ -44,6 +47,9 @@ export class HallsV2Service {
     private readonly seedService: HallSeedService,
     private readonly shotsService: ShotsService,
     private readonly photoStorage: HallPhotoStorageService,
+    @Optional() private readonly friends?: FriendsService,
+    @Optional() private readonly realtime?: SocialRealtimeService,
+    @Optional() private readonly socialSettings?: SocialSettingsService,
   ) {}
 
   private feedKey(hallId: string) {
@@ -93,6 +99,8 @@ export class HallsV2Service {
     // Best-effort cache invalidation
     await redis.del(`${this.feedKey(hallId)}`);
 
+    await this.fanOutCheckIn(userId, hallId, true);
+
     return { hallId, userId, checkedInAt: saved.checkedInAt, alreadyCheckedIn: false };
   }
 
@@ -108,10 +116,6 @@ export class HallsV2Service {
       .orderBy('ci.checkedInAt', 'DESC')
       .getOne();
 
-
-
-
-
     if (!open) throw new BadRequestException('No active check-in found');
 
     open.checkedOutAt = now;
@@ -120,7 +124,55 @@ export class HallsV2Service {
     const redis = await getRedisClient();
     await redis.del(`${this.feedKey(hallId)}`);
 
+    await this.fanOutCheckIn(userId, hallId, false);
+
     return { hallId, userId, checkedOutAt: open.checkedOutAt };
+  }
+
+  /**
+   * Social Phase 3: set presence activity + notify friends per visibility prefs.
+   */
+  private async fanOutCheckIn(
+    userId: string,
+    hallId: string,
+    checkedIn: boolean,
+  ): Promise<void> {
+    if (!this.realtime || !this.friends) return;
+    try {
+      if (checkedIn) {
+        await this.realtime.setActivity(userId, {
+          type: 'hall_checkin',
+          label: hallId,
+          hallId,
+        });
+      } else {
+        await this.realtime.setActivity(userId, null);
+      }
+
+      let audience = await this.friends.getAcceptedFriendIds(userId);
+      if (this.socialSettings) {
+        const prefs = await this.socialSettings.getOrCreate(userId);
+        if (prefs.checkInVisibility === 'NOBODY') {
+          audience = [];
+        } else if (prefs.checkInVisibility === 'SELECTED_FRIENDS') {
+          const allow = new Set(prefs.checkInVisibleToUserIds ?? []);
+          audience = audience.filter((id) => allow.has(id));
+        }
+      }
+
+      const event = checkedIn ? 'friend:checkin' : 'friend:checkout';
+      const payload = {
+        userId,
+        hallId,
+        checkedIn,
+        at: new Date().toISOString(),
+      };
+      for (const fid of audience) {
+        this.realtime.emitToUser(fid, event, payload);
+      }
+    } catch {
+      /* best-effort social fan-out */
+    }
   }
 
   async feed(hallId: string) {

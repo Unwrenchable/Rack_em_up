@@ -38,6 +38,31 @@ const USER_KEY = 'rackup_user';
 const DEMO_KEY = 'rackup_demo';
 const REFRESH_KEY = 'rackup_refresh';
 
+/**
+ * Socket.IO origin (no path).
+ * Priority: VITE_WS_URL → VITE_API_URL (strip /api/v1) → same origin (Vite proxies /socket.io).
+ */
+export function getSocketUrl(): string {
+  const ws = import.meta.env.VITE_WS_URL as string | undefined;
+  if (ws && /^wss?:\/\//i.test(ws)) {
+    // Allow wss://host or https://host — strip path after host
+    return ws
+      .replace(/^ws/i, 'http')
+      .replace(/\/socket\.io\/?$/i, '')
+      .replace(/\/$/, '');
+  }
+  if (ws && /^https?:\/\//i.test(ws)) {
+    return ws.replace(/\/socket\.io\/?$/i, '').replace(/\/$/, '');
+  }
+  const base = import.meta.env.VITE_API_URL ?? '';
+  if (base && /^https?:\/\//i.test(String(base))) {
+    return String(base).replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+  }
+  // Same-origin → Vite dev proxy /socket.io → :3000
+  if (typeof window !== 'undefined') return window.location.origin;
+  return 'http://localhost:3000';
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -380,37 +405,208 @@ export async function fetchLeagues(): Promise<League[]> {
   }
 }
 
+function mapFriendListItem(f: {
+  friendshipId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  rating: number;
+  online: boolean;
+  lastSeenAt?: string | null;
+  activity?: { type: string; label?: string; hallId?: string } | null;
+  mutualCount?: number;
+}): FriendCard {
+  const atHall = f.activity?.type === 'hall_checkin';
+  return {
+    id: f.userId,
+    friendshipId: f.friendshipId,
+    displayName: f.displayName,
+    rating: f.rating ?? 500,
+    status: atHall ? 'at_hall' : f.online ? 'online' : 'offline',
+    hallName: atHall ? f.activity?.label : undefined,
+    avatarUrl: f.avatarUrl ?? null,
+    lastSeenAt: f.lastSeenAt ?? null,
+    mutualCount: f.mutualCount,
+  };
+}
+
+/** Accepted friends with online presence + activity (GET /friends). */
 export async function fetchFriends(): Promise<FriendCard[]> {
   if (isDemoMode()) return DEMO_FRIENDS;
   try {
     const raw = await request<
       Array<{
-        id: string;
-        requesterId: string;
-        addresseeId: string;
-        status: string;
-        createdAt: string;
+        friendshipId: string;
+        userId: string;
+        displayName: string;
+        avatarUrl: string | null;
+        rating: number;
+        online: boolean;
+        lastSeenAt: string | null;
+        activity: {
+          type: string;
+          label?: string;
+          hallId?: string;
+          matchId?: string;
+        } | null;
+        mutualCount?: number;
       }>
     >('/friends');
     if (!Array.isArray(raw)) return [];
+    // New hydrated shape
+    if (raw[0] && 'userId' in raw[0] && 'online' in raw[0]) {
+      return raw.map(mapFriendListItem);
+    }
+    // Legacy raw friendship rows fallback
+    const legacy = raw as unknown as Array<{
+      id: string;
+      requesterId: string;
+      addresseeId: string;
+      status: string;
+    }>;
     const me = getStoredUser()?.id;
-    const otherIds = raw.map((f) =>
+    const otherIds = legacy.map((f) =>
       me && f.requesterId === me ? f.addresseeId : f.requesterId,
     );
     const profiles = await fetchUserProfiles(otherIds);
-    return raw.map((f) => {
+    return legacy.map((f) => {
       const otherId = me && f.requesterId === me ? f.addresseeId : f.requesterId;
       const p = profiles.get(otherId);
       return {
-        id: f.id,
+        id: otherId,
+        friendshipId: f.id,
         displayName: p?.displayName ?? `User ${otherId.slice(0, 6)}`,
         rating: p?.rating ?? 500,
         status: f.status === 'ACCEPTED' ? 'online' : 'offline',
-      };
+      } as FriendCard;
     });
   } catch {
     return [];
   }
+}
+
+export async function fetchPendingFriendsIncoming() {
+  if (isDemoMode()) return [];
+  try {
+    return await request<
+      Array<{
+        friendshipId: string;
+        userId: string;
+        displayName: string;
+        rating: number;
+        online: boolean;
+      }>
+    >('/friends/pending/incoming');
+  } catch {
+    return [];
+  }
+}
+
+export async function requestFriend(addresseeId: string) {
+  return request('/friends/request', {
+    method: 'POST',
+    body: JSON.stringify({ addresseeId }),
+  });
+}
+
+export async function acceptFriend(friendshipId: string) {
+  return request(`/friends/${friendshipId}/accept`, { method: 'POST' });
+}
+
+export async function declineFriend(friendshipId: string) {
+  return request(`/friends/${friendshipId}/decline`, { method: 'POST' });
+}
+
+export async function cancelFriendRequest(friendshipId: string) {
+  return request(`/friends/${friendshipId}/cancel`, { method: 'POST' });
+}
+
+export async function blockUser(userId: string) {
+  return request('/friends/block', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export async function fetchChatThreads() {
+  if (isDemoMode()) return [];
+  try {
+    return await request<
+      Array<{
+        id: string;
+        kind: 'DM' | 'GROUP';
+        title: string | null;
+        lastMessageAt: string | null;
+        lastMessagePreview: string | null;
+        createdById: string;
+      }>
+    >('/chat/threads');
+  } catch {
+    return [];
+  }
+}
+
+export async function openDmThread(friendId: string) {
+  return request<{ id: string; kind: string }>('/chat/threads/dm', {
+    method: 'POST',
+    body: JSON.stringify({ friendId }),
+  });
+}
+
+export async function fetchThreadMessages(threadId: string, limit = 50) {
+  return request<
+    Array<{
+      id: string;
+      threadId: string;
+      senderId: string;
+      type: string;
+      body: string | null;
+      createdAt: string;
+    }>
+  >(`/chat/threads/${threadId}/messages?limit=${limit}`);
+}
+
+export async function sendThreadMessage(
+  threadId: string,
+  body: string,
+  type: string = 'TEXT',
+) {
+  return request(`/chat/threads/${threadId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ type, body }),
+  });
+}
+
+export async function fetchSocialSettings() {
+  if (isDemoMode()) {
+    return {
+      checkInVisibility: 'FRIENDS',
+      showOnlineToFriends: true,
+      allowDmFromNonFriends: false,
+    };
+  }
+  return request<{
+    checkInVisibility: string;
+    checkInVisibleToUserIds: string[];
+    checkInDefaultTtlMinutes: number;
+    showOnlineToFriends: boolean;
+    allowDmFromNonFriends: boolean;
+  }>('/social/settings');
+}
+
+export async function updateSocialSettings(
+  patch: Partial<{
+    checkInVisibility: string;
+    checkInVisibleToUserIds: string[];
+    checkInDefaultTtlMinutes: number;
+    showOnlineToFriends: boolean;
+    allowDmFromNonFriends: boolean;
+  }>,
+) {
+  return request('/social/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
 }
 
 export async function fetchActionBoard(): Promise<ActionPost[]> {
@@ -600,6 +796,111 @@ export async function fetchSotdMaps(): Promise<{ total: number; maps: SotdShotMa
   }
 }
 
+/**
+ * Personalized Shot of the Day via RealAI rackup-coach ability `shot_of_the_day`.
+ * Surfaces primary + why_helps_regular_play per wiring contract.
+ */
+export async function fetchRealAiShotOfTheDay(body?: {
+  game?: string;
+  tableSize?: string;
+  skillLevel?: string;
+  weaknesses?: string[];
+  shownShotIds?: string[];
+}) {
+  if (isDemoMode()) {
+    return {
+      ok: true,
+      why: DEMO_SHOT_OF_DAY.shot.description,
+      result: { primary: DEMO_SHOT_OF_DAY.shot },
+      provider: 'demo',
+    };
+  }
+  return request<{
+    ok: boolean;
+    why?: string | null;
+    result?: Record<string, unknown>;
+    provider?: string;
+    reason?: string;
+  }>('/realai/v2/shot-of-the-day', {
+    method: 'POST',
+    body: JSON.stringify({
+      game: body?.game ?? 'pyramid',
+      tableSize: body?.tableSize,
+      skillLevel: body?.skillLevel,
+      weaknesses: body?.weaknesses,
+      shownShotIds: body?.shownShotIds,
+    }),
+  });
+}
+
+/** Coach / practice plan via RealAI ability `coach` | `pyramid`. */
+export async function requestRealAiCoach(body: {
+  goal?: string;
+  mode?: string;
+  discipline?: string;
+  tableSize?: string;
+  skillLevel?: string | number;
+  minutes?: number;
+  matchId?: string;
+}) {
+  if (isDemoMode()) {
+    return {
+      ok: true,
+      result: {
+        practice_plan: {
+          duration_minutes: body.minutes ?? 30,
+          blocks: [
+            { order: 1, skill: 'position_play', minutes: 15, drill: 'Stop shot ladder' },
+          ],
+        },
+      },
+      provider: 'demo',
+    };
+  }
+  return request('/realai/v2/coach', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/** Pyramid rules / race help via RealAI `pyramid_rules` (offline matrix pin if down). */
+export async function fetchPyramidRules(body?: {
+  table_size?: string;
+  skill_level?: string;
+  my_score?: number;
+  opp_score?: number;
+}) {
+  if (isDemoMode()) {
+    return {
+      ok: true,
+      result: {
+        config: {
+          table_size: body?.table_size ?? '7ft',
+          rack_size: 10,
+          points_to_win: 35,
+          one_ball_value: 11,
+        },
+      },
+      provider: 'demo',
+    };
+  }
+  return request('/realai/v2/pyramid-rules', {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+/** Rank pre-filtered candidates via RealAI `matchmaking`. */
+export async function realAiMatchmaking(body: {
+  window?: number;
+  candidates: Array<Record<string, unknown>>;
+}) {
+  return request('/realai/v2/matchmaking', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function registerForTournament(tournamentId: string, userId: string): Promise<void> {
   await request(`/tournaments/${tournamentId}/register`, {
     method: 'POST',
@@ -760,6 +1061,103 @@ export async function disputeMoneyMatch(input: {
   });
 }
 
+/** Phase 3D — arbiter resolve (ADMIN / HALL_OWNER / ORGANIZER) */
+export async function resolveMoneyDispute(input: {
+  matchId: string;
+  resolution: 'complete' | 'refund' | 'no_contest';
+  aScore?: number;
+  bScore?: number;
+  winnerId?: string;
+  notes?: string;
+  arbiterId?: string;
+}): Promise<MoneyMatch> {
+  if (isDemoMode()) {
+    return {
+      id: input.matchId,
+      playerAId: 'p1',
+      playerBId: 'p2',
+      hallId: 'h1',
+      game: '9-ball',
+      raceTo: 7,
+      amountCents: 10000,
+      livestreamUrl: null,
+      status: 'COMPLETED',
+      aConfirmed: true,
+      bConfirmed: true,
+      escrowStatus: input.resolution === 'complete' ? 'RELEASED' : 'REFUNDED',
+      createdAt: new Date().toISOString(),
+    };
+  }
+  return request(`/money-matches/${input.matchId}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify({
+      arbiterId: input.arbiterId,
+      resolution: input.resolution,
+      aScore: input.aScore,
+      bScore: input.bScore,
+      winnerId: input.winnerId,
+      notes: input.notes,
+    }),
+  });
+}
+
+export async function fetchMoneyMatchAudit(matchId: string): Promise<unknown[]> {
+  if (isDemoMode()) return [];
+  return request(`/money-matches/${encodeURIComponent(matchId)}/audit`);
+}
+
+export async function exportMoneyAudit(params?: {
+  matchId?: string;
+  action?: string;
+  limit?: number;
+}): Promise<unknown[]> {
+  if (isDemoMode()) return [];
+  const q = new URLSearchParams();
+  if (params?.matchId) q.set('matchId', params.matchId);
+  if (params?.action) q.set('action', params.action);
+  if (params?.limit) q.set('limit', String(params.limit));
+  const qs = q.toString();
+  return request(`/money-matches/audit/export${qs ? `?${qs}` : ''}`);
+}
+
+// --- P3 platform stubs ---
+
+export async function registerPushDevice(body: {
+  token: string;
+  platform?: string;
+  prefs?: Record<string, boolean>;
+}): Promise<unknown> {
+  if (isDemoMode()) return { ok: true, token: body.token };
+  return request('/notifications/push/register', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function testPushNotification(body?: {
+  title?: string;
+  body?: string;
+}): Promise<unknown> {
+  if (isDemoMode()) return { queued: true };
+  return request('/notifications/push/test', {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export async function setPremiumTier(body?: {
+  tier?: 'free' | 'premium' | 'hall_pro';
+  days?: number;
+}): Promise<unknown> {
+  if (isDemoMode()) {
+    return { premiumTier: body?.tier ?? 'premium', premiumActive: true };
+  }
+  return request('/users/me/premium', {
+    method: 'POST',
+    body: JSON.stringify(body ?? { tier: 'premium', days: 30 }),
+  });
+}
+
 export function fetchBadges(): Badge[] {
   return DEMO_BADGES;
 }
@@ -797,6 +1195,484 @@ export function initials(name: string): string {
     .join('')
     .slice(0, 2)
     .toUpperCase();
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — V2 client stubs (pages can adopt without full rewrites)
+// ---------------------------------------------------------------------------
+
+/** Matchmaking V2 — Redis queue + haversine (matches backend SearchV2Body) */
+export async function mmV2Search(body: {
+  lat: number;
+  lon: number;
+  radius: number;
+  game?: string;
+  stakes?: string;
+  min_rating?: number;
+  max_rating?: number;
+  raceTo?: number;
+}): Promise<unknown> {
+  if (isDemoMode()) {
+    return { status: 'searching', sessionId: 'demo-mm', dryRun: true, ...body };
+  }
+  return request('/matchmaking/v2/search', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function mmV2Confirm(body: { sessionId: string }): Promise<unknown> {
+  if (isDemoMode()) return { ok: true, ...body };
+  return request('/matchmaking/v2/confirm', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function mmV2Cancel(body: { sessionId: string }): Promise<unknown> {
+  if (isDemoMode()) return { ok: true };
+  return request('/matchmaking/v2/cancel', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function mmV2Status(sessionId: string): Promise<unknown> {
+  if (isDemoMode()) return { sessionId, status: 'idle' };
+  return request(`/matchmaking/v2/status/${encodeURIComponent(sessionId)}`);
+}
+
+/** Halls V2 — check-in + feed */
+export async function hallV2CheckIn(body: { hallId: string }): Promise<unknown> {
+  if (isDemoMode()) return { ok: true, hallId: body.hallId, status: 'checked_in' };
+  return request('/halls/v2/checkin', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function hallV2CheckOut(body: { hallId: string }): Promise<unknown> {
+  if (isDemoMode()) return { ok: true, hallId: body.hallId, status: 'checked_out' };
+  return request('/halls/v2/checkout', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function hallV2Feed(hallId: string): Promise<unknown> {
+  if (isDemoMode()) return { hallId, items: [] };
+  return request(`/halls/v2/feed/${encodeURIComponent(hallId)}`);
+}
+
+/** Tournament V2 — list / create / start / bracket / report / admin / TV */
+export async function tournamentV2List(): Promise<
+  Array<{ id: string; name: string; game: string; mode: string; status: string }>
+> {
+  if (isDemoMode()) {
+    return [{ id: 'demo-t', name: 'Demo Open', game: '9-ball', mode: 'SINGLE_ELIMINATION', status: 'DRAFT' }];
+  }
+  return request('/tournaments/v2');
+}
+
+export async function tournamentV2Create(body: {
+  name: string;
+  game: string;
+  mode: string;
+  seed_strategy?: 'manual' | 'random' | 'elo';
+  format_config?: Record<string, unknown>;
+}): Promise<{ id: string; name: string; status: string }> {
+  if (isDemoMode()) return { id: `demo-${Date.now()}`, name: body.name, status: 'DRAFT' };
+  return request('/tournaments/v2/create', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export async function tournamentV2Register(tournamentId: string): Promise<unknown> {
+  if (isDemoMode()) return { success: true };
+  return request('/tournaments/v2/register', {
+    method: 'POST',
+    body: JSON.stringify({ tournamentId }),
+  });
+}
+
+export async function tournamentV2Start(body: {
+  tournamentId: string;
+  seed_strategy?: 'manual' | 'random' | 'elo';
+}): Promise<unknown> {
+  if (isDemoMode()) return { success: true };
+  return request('/tournaments/v2/start', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export async function tournamentV2Bracket(tournamentId: string): Promise<unknown> {
+  if (isDemoMode()) return { tournamentId, matches: [], rounds: [] };
+  return request(`/tournaments/v2/bracket/${encodeURIComponent(tournamentId)}`);
+}
+
+export async function tournamentV2ReportMatch(body: {
+  tournamentId: string;
+  matchId: string;
+  aScore: number;
+  bScore: number;
+  winnerId?: string;
+}): Promise<unknown> {
+  if (isDemoMode()) return { success: true, dryRun: true, ...body };
+  return request('/tournaments/v2/report-match', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function tournamentV2Standings(tournamentId: string): Promise<unknown> {
+  if (isDemoMode()) return { tournamentId, standings: [] };
+  return request(`/tournaments/v2/standings/${encodeURIComponent(tournamentId)}`);
+}
+
+export async function tournamentV2Tv(tournamentId: string): Promise<unknown> {
+  if (isDemoMode()) {
+    return {
+      type: 'tournament_tv',
+      tournament: { id: tournamentId, name: 'Demo TV', game: '9-ball', mode: 'SINGLE_ELIMINATION', status: 'ACTIVE' },
+      matches: [],
+      standings: [],
+      activeMatches: [],
+      completedCount: 0,
+    };
+  }
+  return request(`/tournaments/v2/tv/${encodeURIComponent(tournamentId)}`);
+}
+
+export async function tournamentV2AdminUpdateScore(body: {
+  tournamentId: string;
+  matchId: string;
+  aScore: number;
+  bScore: number;
+}): Promise<unknown> {
+  return request('/tournaments/v2/admin/update-score', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function tournamentV2AdminSwap(body: {
+  tournamentId: string;
+  matchId: string;
+}): Promise<unknown> {
+  return request('/tournaments/v2/admin/swap-players', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function tournamentV2AdminReseed(body: {
+  tournamentId: string;
+  seedStrategy?: 'manual' | 'random' | 'elo';
+  force?: boolean;
+}): Promise<unknown> {
+  return request('/tournaments/v2/admin/reseed', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function tournamentV2AdvanceSwiss(tournamentId: string): Promise<unknown> {
+  return request('/tournaments/v2/admin/advance-swiss', {
+    method: 'POST',
+    body: JSON.stringify({ tournamentId }),
+  });
+}
+
+/** Scorekeeping health (observability) */
+export async function fetchScorekeepingHealth(): Promise<{
+  status: string;
+  lastReport: unknown;
+  pendingRealAiJobs: number;
+  recentEventCount: number;
+  entryPoint?: string;
+}> {
+  if (isDemoMode()) {
+    return {
+      status: 'ok',
+      lastReport: null,
+      pendingRealAiJobs: 0,
+      recentEventCount: 0,
+      entryPoint: 'ScorekeepingServiceV2.processReport',
+    };
+  }
+  return request('/health/scorekeeping');
+}
+
+// --- Phase 3C deep scorekeeping / timelines ---
+
+export async function scorekeepingStartTimeline(body: {
+  matchId: string;
+  domain: string;
+  entityId?: string;
+  hallId?: string;
+  playerAId?: string;
+  playerBId?: string;
+  gameType?: string;
+}): Promise<unknown> {
+  if (isDemoMode()) return { matchId: body.matchId, events: [], domain: body.domain };
+  return request('/scorekeeping/v2/timeline/start', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function scorekeepingAppendEvent(body: {
+  matchId: string;
+  type: string;
+  domain?: string;
+  playerId?: string;
+  rack?: number;
+  aScore?: number;
+  bScore?: number;
+  data?: Record<string, unknown>;
+  note?: string;
+  hallId?: string;
+}): Promise<unknown> {
+  if (isDemoMode()) return { matchId: body.matchId, events: [{ type: body.type }], dryRun: true };
+  return request('/scorekeeping/v2/timeline/event', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function scorekeepingGetTimeline(matchId: string): Promise<unknown> {
+  if (isDemoMode()) return { matchId, events: [], sotdCandidates: [] };
+  return request(`/scorekeeping/v2/timeline/${encodeURIComponent(matchId)}`);
+}
+
+export async function scorekeepingSotdCandidates(): Promise<{
+  day: string;
+  count: number;
+  candidates: unknown[];
+}> {
+  if (isDemoMode()) return { day: new Date().toISOString().slice(0, 10), count: 0, candidates: [] };
+  return request('/scorekeeping/v2/sotd-candidates');
+}
+
+// --- RackUp Pyramid ---
+
+export async function fetchPyramidPresets(): Promise<{
+  gameStyle: string;
+  rules: Record<string, string>;
+  presets: Array<{
+    tableSizeFt: number;
+    skillLevel: string;
+    rackBalls: number;
+    pointsToWin: number;
+    callShot: string;
+    ratingWeight: number;
+    label: string;
+  }>;
+}> {
+  if (isDemoMode()) {
+    return {
+      gameStyle: 'rackup-pyramid',
+      rules: {},
+      presets: [
+        {
+          tableSizeFt: 7,
+          skillLevel: 'INTERMEDIATE',
+          rackBalls: 10,
+          pointsToWin: 35,
+          callShot: 'no',
+          ratingWeight: 0.85,
+          label: 'Demo',
+        },
+      ],
+    };
+  }
+  return request('/matches/pyramid/presets');
+}
+
+export async function createPyramidMatch(body: {
+  playerAId: string;
+  playerBId: string;
+  hallId?: string;
+  tableSizeFt: 7 | 9;
+  skillLevel: string;
+}): Promise<unknown> {
+  return request('/matches', {
+    method: 'POST',
+    body: JSON.stringify({
+      playerAId: body.playerAId,
+      playerBId: body.playerBId,
+      hallId: body.hallId,
+      game: 'rackup-pyramid',
+      tableSizeFt: body.tableSizeFt,
+      skillLevel: body.skillLevel,
+    }),
+  });
+}
+
+export async function fetchMatchScoreboard(matchId: string): Promise<unknown> {
+  return request(`/matches/${encodeURIComponent(matchId)}/scoreboard`);
+}
+
+export async function pyramidPocketBalls(input: {
+  matchId: string;
+  playerId: string;
+  balls: number[];
+}): Promise<unknown> {
+  return request(`/matches/${encodeURIComponent(input.matchId)}/pyramid/pocket`, {
+    method: 'POST',
+    body: JSON.stringify({ playerId: input.playerId, balls: input.balls }),
+  });
+}
+
+/** ID bridge helpers (V1 ↔ V2) */
+export async function resolveIdBridge(
+  kind: 'league' | 'tournament',
+  from: 'v1' | 'v2',
+  id: string,
+): Promise<{ kind: string; v1Id?: string; v2Id?: string; resolved: string }> {
+  if (isDemoMode()) return { kind, resolved: id, v1Id: id, v2Id: id };
+  return request(`/id-bridge/${kind}/${from}/${encodeURIComponent(id)}`);
+}
+
+// ─── ROC wallet / payments (USD ledger) ─────────────────────────────────────
+
+export type RocWallet = {
+  availableUsdCents: number;
+  availableUsd: string;
+  pendingUsdCents: number;
+  pendingUsd: string;
+  lifetimePaidOutUsdCents: number;
+  lifetimePaidOutUsd: string;
+  lifetimeEarnedUsdCents: number;
+  lifetimeEarnedUsd: string;
+  preferredPayoutMethod: 'stripe_bank' | 'usdc';
+  usdcWalletAddress: string | null;
+  stripeConnectAccountId: string | null;
+  currency: 'USD';
+  history: Array<{
+    id: string;
+    kind: 'payment_in' | 'payout_out';
+    amountUsdCents: number;
+    amountUsd: string;
+    method: string;
+    status: string;
+    sessionId?: string | null;
+    entryId?: string | null;
+    rocLeagueId?: string;
+    stripeRef?: string | null;
+    place?: number;
+    at: string;
+  }>;
+};
+
+export async function fetchRocWallet(): Promise<RocWallet> {
+  if (isDemoMode()) {
+    return {
+      availableUsdCents: 4500,
+      availableUsd: '$45.00',
+      pendingUsdCents: 1200,
+      pendingUsd: '$12.00',
+      lifetimePaidOutUsdCents: 20000,
+      lifetimePaidOutUsd: '$200.00',
+      lifetimeEarnedUsdCents: 24500,
+      lifetimeEarnedUsd: '$245.00',
+      preferredPayoutMethod: 'stripe_bank',
+      usdcWalletAddress: null,
+      stripeConnectAccountId: null,
+      currency: 'USD',
+      history: [
+        {
+          id: 'demo-1',
+          kind: 'payout_out',
+          amountUsdCents: 4500,
+          amountUsd: '$45.00',
+          method: 'wallet_credit',
+          status: 'paid',
+          at: new Date().toISOString(),
+        },
+      ],
+    };
+  }
+  return request<RocWallet>('/roc/wallet');
+}
+
+export async function updateRocWalletPreferences(body: {
+  preferredPayoutMethod?: 'stripe_bank' | 'usdc';
+  usdcWalletAddress?: string | null;
+  stripeConnectAccountId?: string | null;
+}) {
+  if (isDemoMode()) return body;
+  return request('/roc/wallet/preferences', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+/** Start Stripe Checkout / Payment Sheet for a ROC entry (USD only). */
+export async function rocCheckout(body: {
+  entryId: string;
+  method: 'card' | 'apple_pay' | 'google_pay' | 'usdc';
+  successUrl?: string;
+  cancelUrl?: string;
+}) {
+  return request<{
+    paymentId: string;
+    amountUsd: string;
+    checkoutUrl: string | null;
+    clientSecret: string | null;
+    splitPreview: { label: string };
+  }>('/roc/checkout', { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** Dev: confirm pay-in without Stripe webhook. */
+export async function rocMockConfirmPayment(paymentId: string) {
+  return request(`/roc/checkout/${paymentId}/mock-confirm`, { method: 'POST' });
+}
+
+export async function rocCreateLeague(body: { name: string; slug?: string }) {
+  return request('/roc/leagues', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export async function rocOperatorDashboard(leagueId: string) {
+  return request(`/roc/leagues/${leagueId}/dashboard`);
+}
+
+export async function rocSessionProjections(sessionId: string) {
+  return request(`/roc/sessions/${sessionId}/projections`);
+}
+
+export async function rocCloseSession(
+  sessionId: string,
+  body?: { acknowledgeWarnings?: boolean; overrideNote?: string },
+) {
+  return request(`/roc/sessions/${sessionId}/close`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+/** RealAI ledger_audit + payout_sanity (read-only). */
+export async function rocRunSessionAudit(sessionId: string) {
+  return request<{
+    auditId: string;
+    uiStatus: 'pass' | 'warnings' | 'blocked' | 'none';
+    label?: string;
+    plain_language: string[];
+    canAutoPayout: boolean;
+    blocked: boolean;
+    authorize_payout: false;
+  }>(`/roc/sessions/${sessionId}/audit`, { method: 'POST' });
+}
+
+export async function rocGetSessionAudit(sessionId: string) {
+  return request(`/roc/sessions/${sessionId}/audit`);
+}
+
+/** Operator release after warnings (re-runs audit; blockers still hold). */
+export async function rocReleasePayout(
+  sessionId: string,
+  overrideNote?: string,
+) {
+  return request(`/roc/sessions/${sessionId}/release-payout`, {
+    method: 'POST',
+    body: JSON.stringify({ overrideNote }),
+  });
 }
 
 export const api = {

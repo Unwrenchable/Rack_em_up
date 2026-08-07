@@ -13,6 +13,8 @@ import { HallsV2Service } from './halls-v2.service';
 import { HallSeedService } from './seed/hall-seed.service';
 import { ShotsModule } from '../../shots/shots.module';
 import { HallPhotoStorageService } from './hall-photo-storage.service';
+import { ObjectStorageModule } from '../../common/object-storage.module';
+import { FriendsModule } from '../../friends/friends.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { HallPhotoStorageService } from './hall-photo-storage.service';
       HallLeaderboardEntry,
     ]),
     ShotsModule,
+    ObjectStorageModule,
+    FriendsModule,
   ],
   controllers: [HallsV2Controller],
   providers: [HallsV2Service, HallSeedService, HallPhotoStorageService],

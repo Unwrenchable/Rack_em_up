@@ -4,7 +4,11 @@ export enum TournamentV2Mode {
   SINGLE_ELIMINATION = 'SINGLE_ELIMINATION',
   DOUBLE_ELIMINATION = 'DOUBLE_ELIMINATION',
   ROUND_ROBIN = 'ROUND_ROBIN',
+  SWISS = 'SWISS',
 }
+
+/** How entrants are ordered before bracket generation. */
+export type SeedStrategy = 'manual' | 'random' | 'elo';
 
 export enum TournamentV2Status {
   DRAFT = 'DRAFT',

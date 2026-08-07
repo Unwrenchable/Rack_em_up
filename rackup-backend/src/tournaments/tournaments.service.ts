@@ -234,8 +234,12 @@ export class TournamentsService {
     await this.seedSingleElimination(tournament);
   }
 
+  /**
+   * Swiss R1: top-down pairing (registration order).
+   * Later rounds: use advanceSwissRound (sort by wins, pair adjacent).
+   */
   private async seedSwiss(tournament: Tournament, _rounds: number) {
-    const entrants = tournament.configJson.entrants ?? [];
+    const entrants = [...(tournament.configJson.entrants ?? [])];
 
     let matchIndex = 1;
     for (let i = 0; i < entrants.length; i += 2) {
@@ -257,7 +261,10 @@ export class TournamentsService {
       matchIndex++;
     }
 
-    tournament.configJson = { ...tournament.configJson, bracket: [] };
+    tournament.configJson = {
+      ...tournament.configJson,
+      bracket: [],
+    };
     await this.tournamentRepo.save(tournament);
   }
 }

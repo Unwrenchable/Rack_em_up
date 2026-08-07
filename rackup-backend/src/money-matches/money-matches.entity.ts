@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 export type MoneyMatchStatus = 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'DISPUTED';
+export type MoneyEscrowStatus = 'NONE' | 'HELD' | 'RELEASED' | 'REFUNDED' | 'FAILED';
 
 @Entity({ name: 'money_matches' })
 export class MoneyMatch {
@@ -39,6 +40,19 @@ export class MoneyMatch {
 
   @Column({ name: 'b_confirmed', type: 'boolean', default: false })
   bConfirmed!: boolean;
+
+  /** Phase 3D escrow */
+  @Column({ name: 'escrow_status', type: 'varchar', length: 16, default: 'NONE' })
+  escrowStatus!: MoneyEscrowStatus;
+
+  @Column({ name: 'escrow_provider', type: 'varchar', length: 16, nullable: true })
+  escrowProvider!: string | null;
+
+  @Column({ name: 'escrow_external_id', type: 'varchar', length: 128, nullable: true })
+  escrowExternalId!: string | null;
+
+  @Column({ name: 'escrow_json', type: 'jsonb', nullable: true })
+  escrowJson!: Record<string, any> | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt!: Date;

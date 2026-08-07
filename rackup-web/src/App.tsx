@@ -16,8 +16,12 @@ import { SettingsPage } from './pages/SettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { TournamentsListPage } from './pages/TournamentsListPage';
 import { TournamentsPage } from './pages/TournamentsPage';
+import { TournamentTvPage } from './pages/TournamentTvPage';
 import { ShotsCatalogPage } from './pages/ShotsCatalogPage';
 import { MoneyPage } from './pages/MoneyPage';
+import { ScorekeepingPage } from './pages/ScorekeepingPage';
+import { PyramidPage } from './pages/PyramidPage';
+import { WalletPage } from './pages/WalletPage';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -29,6 +33,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
+      {/* Public TV board — no shell / no auth for hall displays */}
+      <Route path="tournaments/:id/tv" element={<TournamentTvPage />} />
 
       <Route
         element={
@@ -50,10 +56,12 @@ function AppRoutes() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="wallet" element={<WalletPage />} />
 
-        {/* ⭐ NEW — Tournament Routes */}
         <Route path="tournaments" element={<TournamentsListPage />} />
         <Route path="tournaments/:id" element={<TournamentsPage />} />
+        <Route path="scorekeeping" element={<ScorekeepingPage />} />
+        <Route path="pyramid" element={<PyramidPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

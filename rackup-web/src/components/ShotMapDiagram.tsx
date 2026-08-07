@@ -30,6 +30,8 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
   const { length: CL, width: CW } = table.cloth;
   const VB_W = CL + RAIL * 2;
   const VB_H = CW + RAIL * 2;
+  // 9ft fills the card; 7ft is proportionally smaller (still 2:1 viewBox)
+  const maxWidth = Math.round(580 * table.displayScale);
 
   /** Cloth → SVG (y inverted for top-down view with y=0 at near rail). */
   const sx = (x: number) => RAIL + x;
@@ -52,30 +54,44 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
   const feltGrad = `felt-${uid}`;
   const woodGrad = `wood-${uid}`;
 
-  // Diamonds sit on rail wood, outside cloth, aligned to pocket-center fractions
+  // Diamonds on rail wood at real cushion-nose offset (~3-11/16"), not an arbitrary fraction of rail
   const diamondOnRail = (p: Pt, edge: 'near' | 'far' | 'head' | 'foot') => {
-    const inset = RAIL * 0.42;
+    const inset = table.diamondRailInset;
     if (edge === 'near') return { x: sx(p.x), y: RAIL - inset };
     if (edge === 'far') return { x: sx(p.x), y: RAIL + CW + inset };
     if (edge === 'head') return { x: RAIL - inset, y: sy(p.y) };
     return { x: RAIL + CL + inset, y: sy(p.y) };
   };
 
-  const diamondR = tableSize === '7ft' ? 0.72 : 0.62;
+  // Diamond mark size ~ physical spacing (readable); scales with table
+  const diamondR = Math.max(0.45, (table.physical.diamondSpacingLong / table.physical.length) * CL * 0.09);
 
   return (
     <div className={className} style={{ width: '100%' }}>
+      <div
+        style={{
+          // Center a smaller 7ft table so the size change is obvious and proportional
+          maxWidth: 580,
+          margin: '0 auto',
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         width="100%"
         role="img"
-        aria-label={`Pool table diagram for ${map.name}`}
+        aria-label={`${tableSize === '7ft' ? '7-foot' : '9-foot'} pool table diagram for ${map.name}`}
         style={{
           display: 'block',
-          maxWidth: 580,
-          margin: '0 auto',
+          maxWidth,
+          width: '100%',
           borderRadius: 14,
           background: '#1a1410',
+          // Preserve 2:1 aspect from viewBox; browser keeps ratio via width+viewBox
+          aspectRatio: `${VB_W} / ${VB_H}`,
+          height: 'auto',
+          transition: 'max-width 0.25s ease',
         }}
       >
         <defs>
@@ -142,7 +158,7 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
           <circle cx={sx(table.footSpot.x)} cy={sy(table.footSpot.y)} r={0.5} fill="#9fd4b0" />
         </g>
 
-        {/* Rail diamonds — L×odd/12 and S×k/4 from pocket centers */}
+        {/* Rail diamonds — WPA: long = n/8 (skip side pocket), short = n/4 */}
         {table.diamonds.longNear.map((p, i) => {
           const d = diamondOnRail(p, 'near');
           return <DiamondMark key={`ln-${i}`} cx={d.x} cy={d.y} r={diamondR} />;
@@ -313,6 +329,20 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             ))}
         </g>
       </svg>
+      </div>
+      <p
+        className="muted"
+        style={{
+          textAlign: 'center',
+          fontSize: '0.72rem',
+          marginTop: 6,
+          opacity: 0.85,
+        }}
+      >
+        {tableSize === '7ft'
+          ? `7-ft barbox · cloth ~${table.physical.width}″×${table.physical.length}″ · diamonds ~${table.physical.diamondSpacingLong.toFixed(1)}″`
+          : `9-ft tournament · cloth ${table.physical.width}″×${table.physical.length}″ · diamonds ${table.physical.diamondSpacingLong}″`}
+      </p>
     </div>
   );
 }

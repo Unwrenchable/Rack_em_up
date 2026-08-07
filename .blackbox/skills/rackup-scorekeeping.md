@@ -5,16 +5,26 @@ description: Standardized scorekeeping for leagues and tournaments with standing
 
 # Rackup Scorekeeping
 
-## Instructions
-- **Data:** Track frame-by-frame results, racks, fouls, and potential shot-of-the-day candidates.
-- **Integration:** Feed score data into:
-  - tournament standings
-  - league standings
-  - RealAI match-summary
-- **Format:** Use structured JSON for match timelines (events array with timestamps and actions).
-- **Do not touch:** v1 match entity; add V2-specific scorekeeping where needed.
+**STATUS: implemented (Phase 3C)** — deep timelines live under `scorekeeping/v2`.
+
+## Live surface
+- Entity: `MatchTimelineEntity` (`match_timelines`)
+- Service: `MatchTimelineService` + `ScorekeepingServiceV2.processReport` finalizes timelines
+- API:
+  - `POST /api/v1/scorekeeping/v2/timeline/start`
+  - `POST /api/v1/scorekeeping/v2/timeline/event`
+  - `GET /api/v1/scorekeeping/v2/timeline/:matchId`
+  - `GET /api/v1/scorekeeping/v2/sotd-candidates`
+- Redis: `scorekeeping:v2:timeline:{matchId}`, `scorekeeping:v2:sotd_candidates:{day}`
+- Events: break, rack_won, foul, shot, ball_pocketed, sotd_candidate, score_tick, match_end, …
+- RealAI: processReport attaches timeline summary + keyShots to summary jobs
+- Hall feed: match complete / rack events pushed to `halls:v2:{id}:feed`
+
+## Instructions (agents)
+- Prefer timeline events during live play; never scatter Elo outside processReport.
+- Mark hard/bank/jump/combo shots via `data` for SOTD candidate detection.
+- Do not modify v1 match entity.
 
 ## Examples
-- Implement a `report-match` payload that includes per-rack scores and fouls.
-- Use scorekeeping data to update `TournamentMatchV2` and `LeagueStanding`.
-- Pass match timeline to `POST /api/v1/realai/v2/match-summary` for AI analysis.
+- Append foul: `POST …/timeline/event` `{ matchId, type: "foul", playerId, rack: 2 }`
+- Complete match → processReport auto-finalizes timeline with `match_end`.

@@ -15,9 +15,9 @@ import { ReportLeagueMatchV2Dto } from './dto/report-league-match-v2.dto';
 import { RatingsImportV2Dto } from './dto/ratings-import-v2.dto';
 
 import { unifyRackupRating } from './rating/unified-rackup-rating';
-import { ScorekeepingService } from '../../scorekeeping/scorekeeping.service';
-import { RealaiV2Service } from '../../realai/v2/realai-v2.service';
-import { RatingService } from '../../users/rating.service';
+import { ScorekeepingServiceV2 } from '../../scorekeeping/scorekeeping-v2.service';
+import { IdBridgeService } from '../../common/id-bridge.service';
+import { realaiLeagueValidate } from '../../ai/realai-coach.client';
 
 @Injectable()
 export class LeaguesV2Service {
@@ -39,9 +39,8 @@ export class LeaguesV2Service {
     @InjectRepository(PlayerExternalRating)
     private readonly playerExternalRatingRepo: Repository<PlayerExternalRating>,
 
-    private readonly scorekeeping: ScorekeepingService,
-    private readonly realaiV2: RealaiV2Service,
-    private readonly ratingService: RatingService,
+    private readonly scorekeepingV2: ScorekeepingServiceV2,
+    private readonly idBridge: IdBridgeService,
   ) {}
 
   async createSeason(organizerId: string, dto: CreateLeagueSeasonV2Dto): Promise<LeagueSeason> {
@@ -76,19 +75,32 @@ export class LeaguesV2Service {
     return { success: true };
   }
 
-  async getStandings(seasonId: string): Promise<{ seasonId: string; standings: Array<{ playerId: string; points: number; position: number }> }> {
-    const season = await this.seasonRepo.findOne({ where: { id: seasonId } });
+  async getStandings(seasonId: string): Promise<{
+    seasonId: string;
+    resolvedFrom?: string;
+    standings: Array<{ playerId: string; points: number; position: number }>;
+  }> {
+    // Accept V1 league id via id-bridge so UI mixing V1/V2 ids still works
+    const resolved = await this.idBridge.resolveV2OrSelf('league', seasonId);
+    const season = await this.seasonRepo.findOne({ where: { id: resolved } });
     if (!season) throw new NotFoundException('Season not found');
 
-    const standings = await this.standingRepo.find({ where: { seasonId }, order: { points: 'DESC' }, take: 1000 });
-    // Position is computed on read to keep write logic simple.
+    const standings = await this.standingRepo.find({
+      where: { seasonId: resolved },
+      order: { points: 'DESC' },
+      take: 1000,
+    });
     const withPos = standings.map((s, idx) => ({
       playerId: s.playerId,
       points: s.points,
       position: idx + 1,
     }));
 
-    return { seasonId, standings: withPos };
+    return {
+      seasonId: resolved,
+      ...(resolved !== seasonId ? { resolvedFrom: seasonId } : {}),
+      standings: withPos,
+    };
   }
 
   async scheduleMatch(organizerId: string, seasonId: string, dto: ScheduleLeagueMatchV2Dto): Promise<{ success: true }> {
@@ -119,6 +131,38 @@ export class LeaguesV2Service {
     if (!match) throw new NotFoundException('Scheduled match not found');
     if (match.status !== LeagueScheduledMatchStatus.SCHEDULED) throw new BadRequestException('Match already reported');
 
+    // RealAI league_validate before DB write (contract §4.3)
+    try {
+      const validation = await realaiLeagueValidate({
+        player: {
+          player_id: match.playerAId,
+          rating_system: 'rackup',
+          discipline: 'pyramid',
+        },
+        payload: {
+          game: 'pyramid',
+          my_score: dto.playerAScore,
+          opp_score: dto.playerBScore,
+          opponent_id: match.playerBId,
+          match_id: match.id,
+          forfeit: false,
+        },
+      });
+      if (!validation.valid) {
+        throw new BadRequestException({
+          code: 'LEAGUE_VALIDATE_FAILED',
+          errors: validation.errors,
+          warnings: validation.warnings,
+        });
+      }
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      // Transport failure: log and continue (score still dual-checked by organizer)
+      this.logger.warn(
+        `league_validate offline season=${seasonId}: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+
     match.playerAScore = dto.playerAScore;
     match.playerBScore = dto.playerBScore;
     match.reportedAt = new Date();
@@ -146,32 +190,36 @@ export class LeaguesV2Service {
     await this.standingRepo.save([aStanding, bStanding]);
 
     const winnerId = aWins ? match.playerAId : bWins ? match.playerBId : null;
-    if (winnerId) {
-      const loserId = winnerId === match.playerAId ? match.playerBId : match.playerAId;
-      await this.ratingService.applyMatchResult(winnerId, loserId).catch((e) =>
-        this.logger.warn(`league rating failed: ${e}`),
-      );
-    }
 
-    await this.scorekeeping.emitScoreUpdate({
+    await this.scorekeepingV2.processReport({
       domain: 'league_v2',
-      entityId: seasonId,
       matchId: match.id,
+      entityId: seasonId,
       playerAId: match.playerAId,
       playerBId: match.playerBId,
       aScore: dto.playerAScore,
       bScore: dto.playerBScore,
       winnerId,
+      gameType: season.name,
+      skipMemories: true,
+      skipElo: !winnerId,
+      reportingPlayerId: organizerId,
     });
 
-    void this.realaiV2
-      .submitSummaryJob({
-        matchId: match.id,
-        context: `league_v2:${seasonId}`,
-      })
-      .catch((e) => this.logger.warn(`league summary job: ${e}`));
-
     return { success: true };
+  }
+
+  /**
+   * Resolve season id from V1 league id (or identity if already V2).
+   * Prevents empty standings when UI still passes V1 league ids.
+   */
+  async resolveSeasonId(leagueOrSeasonId: string): Promise<string> {
+    return this.idBridge.resolveV2OrSelf('league', leagueOrSeasonId);
+  }
+
+  async getStandingsForAnyId(leagueOrSeasonId: string) {
+    const seasonId = await this.resolveSeasonId(leagueOrSeasonId);
+    return this.getStandings(seasonId);
   }
 
   async importExternalRatings(_organizerId: string, dto: RatingsImportV2Dto): Promise<{ success: true }> {

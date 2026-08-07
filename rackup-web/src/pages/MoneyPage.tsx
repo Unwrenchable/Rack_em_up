@@ -60,7 +60,9 @@ export function MoneyPage() {
       </div>
 
       <div className="banner banner-info">
-        Both sides confirm before it goes ACTIVE. Report scores when the set is done.
+        <strong>Dual confirm + escrow:</strong> (1) both players confirm stakes → ACTIVE and stakes
+        held in escrow (mock by default). (2) both submit the <em>same</em> final scores → complete,
+        release escrow to winner, Elo/memories/RealAI. Disputes go to an arbiter (hall owner / admin).
       </div>
 
       <div className="section-title">
@@ -83,7 +85,12 @@ export function MoneyPage() {
               {m.game} · Race to {m.raceTo}
             </h3>
             <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
-              Confirm A {m.aConfirmed ? '✓' : '…'} · B {m.bConfirmed ? '✓' : '…'}
+              Stakes A {m.aConfirmed ? '✓' : '…'} · B {m.bConfirmed ? '✓' : '…'}
+              {m.escrowStatus ? ` · Escrow ${m.escrowStatus}` : ''}
+              {m.escrowProvider ? ` (${m.escrowProvider})` : ''}
+              {m.resultJson?.pendingResult
+                ? ` · Result pending ${m.resultJson.pendingResult.aScore}–${m.resultJson.pendingResult.bScore} (${m.resultJson.pendingResult.confirmedBy?.length ?? 0}/2)`
+                : ''}
               {m.livestreamUrl ? ' · Stream linked' : ''}
             </p>
             <div className="row" style={{ marginTop: 14 }}>
@@ -158,8 +165,15 @@ export function MoneyPage() {
         )}
       </div>
 
-      <Modal open={!!reportMatch} title="Report result" onClose={() => setReportMatch(null)}>
+      <Modal open={!!reportMatch} title="Report result (dual confirm)" onClose={() => setReportMatch(null)}>
         <div className="stack">
+          {reportMatch?.resultJson?.pendingResult && (
+            <div className="banner banner-info">
+              Pending proposal: {reportMatch.resultJson.pendingResult.aScore}–
+              {reportMatch.resultJson.pendingResult.bScore}. Confirm with the same scores, or submit
+              different scores to reset the proposal.
+            </div>
+          )}
           <div className="grid-2">
             <div className="field">
               <label>A score</label>
@@ -199,13 +213,25 @@ export function MoneyPage() {
                   (list ?? []).map((x) => (x.id === reportMatch.id ? { ...x, ...updated } : x)),
                 );
                 setReportMatch(null);
-                push('Result recorded', 'ok');
+                if (updated.status === 'COMPLETED') {
+                  push('Result dual-confirmed — Elo & RealAI fired', 'ok');
+                } else if (updated.resultJson?.pendingResult) {
+                  const n = updated.resultJson.pendingResult.confirmedBy?.length ?? 1;
+                  push(
+                    n < 2
+                      ? 'Score proposed — waiting for opponent to confirm same scores'
+                      : 'Result updated',
+                    'ok',
+                  );
+                } else {
+                  push('Result recorded', 'ok');
+                }
               } catch (e) {
                 push(e instanceof Error ? e.message.slice(0, 120) : 'Complete failed', 'err');
               }
             }}
           >
-            Submit scores
+            Submit / confirm scores
           </button>
         </div>
       </Modal>

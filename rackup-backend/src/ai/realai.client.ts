@@ -1,11 +1,14 @@
 /**
- * RealAI provider client — OpenAI-compatible HTTP surface.
+ * RealAI provider client — OpenAI-compatible HTTP surface (+ health).
  *
- * Scope source: Unwrenchable/realai `analysis-clean` (provider-grade /v1 contract).
- * Default local: http://localhost:8000  →  POST /v1/chat/completions
+ * For **rackup-coach abilities** (rating, moderation, SOTD, pyramid, …) use
+ * `realai-coach.client.ts` → POST /v1/plugins/rackup-coach
+ * (REALAI_RACKUP_WIRING_CONTRACT.md).
+ *
+ * This file remains for general /v1/chat/completions (training fallbacks).
+ * Default local: http://127.0.0.1:8000
  *
  * RealAI stays a separate process. RackUp never vendors that monorepo.
- * When RealAI is down, callers should use rule-based fallbacks.
  */
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };

@@ -23,8 +23,9 @@ export type ScoreUpdateEvent = {
 };
 
 /**
- * Domain-neutral score event bus for V1/V2 report paths.
- * Persists a short Redis stream/list and invalidates domain caches.
+ * Legacy thin Redis event bus.
+ * Prefer ScorekeepingServiceV2.processReport for full report lifecycle.
+ * Kept for backward-compatible emit-only callers.
  */
 @Injectable()
 export class ScorekeepingService {
@@ -58,7 +59,6 @@ export class ScorekeepingService {
         await redis.del(keyForHallV2(payload.hallId, 'leaderboard'));
       }
     } catch (err) {
-      // Best-effort: never fail the match report if Redis is down.
       this.logger.warn(
         `emitScoreUpdate redis failed: ${err instanceof Error ? err.message : String(err)}`,
       );

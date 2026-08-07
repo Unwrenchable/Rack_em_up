@@ -6,9 +6,16 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // REST API
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
+      },
+      // Socket.IO (websocket + polling) — fixes ERR_CONNECTION_REFUSED when FE uses relative host
+      '/socket.io': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        ws: true,
       },
     },
   },

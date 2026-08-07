@@ -3,6 +3,8 @@ import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 export enum TournamentBracketSide {
   WINNERS = 'WINNERS',
   LOSERS = 'LOSERS',
+  /** Double-elim championship (and optional reset series game 2) */
+  GRAND_FINAL = 'GRAND_FINAL',
 }
 
 export enum TournamentMatchStatus {
