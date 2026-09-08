@@ -1,28 +1,27 @@
+# LOCAL ONLY — for laptop development.
+# Render deploys from .render.yaml (Blueprint), not this file.
+
 services:
-  postgres:
+  rackup-db:
     image: postgres:15
-    container_name: rackup-db
     environment:
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: rackup
-      POSTGRES_USER: postgres
     ports:
       - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d rackup"]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 5s
+      retries: 5
 
-  redis:
+  rackup-redis:
     image: redis:7
-    container_name: rackup-redis
     ports:
       - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 3s
+      timeout: 5s
+      retries: 5
