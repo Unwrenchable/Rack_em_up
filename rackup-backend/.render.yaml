@@ -6,8 +6,6 @@ services:
     region: oregon
     plan: starter
     rootDir: .
-    # NODE_ENV=production would skip devDependencies (incl. @types/*) and break nest build.
-    # --include=dev keeps TypeScript / Express typings available for compilation.
     buildCommand: npm ci --include=dev || npm install --include=dev && npm run build
     startCommand: npm start
     autoDeploy: true
@@ -15,8 +13,10 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 8080
+        value: "8080"
+      # Paste the Internal Database URL from the Render Postgres service.
+      # Must start with postgres:// or postgresql:// — never host=base.
       - key: DATABASE_URL
-        value: your-database-url-here
+        sync: false
       - key: REDIS_URL
-        value: your-redis-url-here
+        sync: false
