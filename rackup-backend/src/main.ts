@@ -3,7 +3,7 @@ dotenv.config();
 
 // Force Express HTTP stack on Node 20+ (global Fetch API present).
 // Nest must not type middleware against undici Request/Response.
-// Note: do NOT clear globalThis.fetch — several services use fetch() (Stripe, RealAI, FCM, S3).
+// Note: do NOT clear globalThis.fetch - several services use fetch() (Stripe, RealAI, FCM, S3).
 
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -12,6 +12,20 @@ import express from 'express';
 import * as path from 'path';
 import { AppModule } from './app.module';
 import { WebsocketAdapter } from './websocket/websocket.adapter';
+
+function safeDbHint(): string {
+  const raw = (process.env.DATABASE_URL ?? '').trim();
+  if (/^postgres(ql)?:\/\//i.test(raw)) {
+    try {
+      const u = new URL(raw);
+      return `${u.hostname}${u.pathname}`;
+    } catch {
+      return 'DATABASE_URL(unparseable)';
+    }
+  }
+  const host = process.env.DB_HOST ?? 'localhost';
+  return `DB_HOST=${host}`;
+}
 
 async function bootstrap(): Promise<void> {
   const server = express();
@@ -53,17 +67,26 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  const port = process.env.PORT || 3000;
+  const port = Number(process.env.PORT || 3000);
   await app.listen(port, '0.0.0.0');
 
   logger.log(`RackUp backend running on http://0.0.0.0:${port}/api/v1`);
   logger.log(`Socket.IO path=/socket.io (chat + score_update + /tv namespace)`);
   logger.log(
-    `dotenv loaded; DB_HOST=${process.env.DB_HOST ?? 'localhost'} REDIS=${process.env.REDIS_URL ?? 'redis://localhost:6379'}`,
+    `db=${safeDbHint()} REDIS=${process.env.REDIS_URL ? 'set' : 'unset'}`,
   );
   logger.log(
     `synchronize=${process.env.TYPEORM_SYNC ?? '(dev default)'} NODE_ENV=${process.env.NODE_ENV ?? 'undefined'}`,
   );
 }
 
-bootstrap();
+bootstrap().catch((err: unknown) => {
+  const logger = new Logger('Bootstrap');
+  const message = err instanceof Error ? err.message : String(err);
+  logger.error(
+    `Boot failed before port bind: ${message}. ` +
+      'On Render, set DATABASE_URL to the Postgres Internal Database URL (postgres://…), ' +
+      'confirm the DB is Available, and unset DB_HOST/DB_USERNAME leftovers.',
+  );
+  process.exit(1);
+});
