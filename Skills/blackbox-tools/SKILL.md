@@ -1,10 +1,10 @@
 ---
 name: blackbox-tools
-description: Create manage and extend generic Blackbox repo tools (files, git, test, agents). RealAI monorepo scanners live only in references/realai-tool-map.md and must never run against RackUp. Trigger on tool skills, repo tools, blackbox tools, complete tools, repo-wide abilities, or /tool commands.
+description: Deprecated pointer. RealAI tools live in realai-tools. Do not use Blackbox-branded repo tools against RackUp. Trigger on leftover blackbox-tools mentions so the agent redirects.
 ---
 
-# Blackbox Tools
+# Deprecated — use realai-tools
 
-**Workspace fence**
-- RackUp repo → use rackup-tools + rackup-grok-bot. No cavity / phase / monorepo scanners.
-- RealAI is `POST /v1/plugins/rackup-coach` only.
+This pack was a Blackbox wrapper. Construction is RealAI.
+
+Load **realai-tools** instead.
