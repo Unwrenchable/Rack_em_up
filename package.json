@@ -1,12 +1,10 @@
 {
-  "devDependencies": {
-    "@nestjs/cli": "^11.0.24",
-    "@types/express": "^5.0.6",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3"
-  },
-  "dependencies": {
-    "typescri": "^0.0.1-security",
-    "typescript": "^7.0.2"
+  "name": "rack-em-up",
+  "private": true,
+  "description": "RackUp monorepo. Apps live in rackup-backend and rackup-web. Do not install Express or TypeScript at the root.",
+  "scripts": {
+    "backend": "npm --prefix rackup-backend start",
+    "backend:dev": "npm --prefix rackup-backend run start:dev",
+    "web": "npm --prefix rackup-web run dev"
   }
 }
