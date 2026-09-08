@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Simple demonstration of a RackUp match flow (dry-run style).
-This is a skeleton agents can expand into real tools.
+"""Dry-run RackUp match flow skeleton.
+
+Does not call RealAI. Rating writes in production go through
+POST /v1/plugins/rackup-coach ability=rating_update after dual confirm.
 """
 from __future__ import annotations
 
@@ -10,7 +12,6 @@ from typing import Any
 
 
 def find_nearby_players(lat: float, lng: float, game_type: str = "any", radius_km: float = 15) -> list[dict]:
-    """Stub — replace with real geo + rating query."""
     return [
         {
             "player_id": "p_1001",
@@ -19,38 +20,8 @@ def find_nearby_players(lat: float, lng: float, game_type: str = "any", radius_k
             "distance_km": 2.4,
             "preferred_games": ["9-ball", "10-ball"],
             "is_checked_in": True,
-        },
-        {
-            "player_id": "p_1042",
-            "display_name": "RackAttack",
-            "rating": 561,
-            "distance_km": 5.1,
-            "preferred_games": ["8-ball"],
-            "is_checked_in": False,
-        },
+        }
     ]
-
-
-def create_match(
-    player_a: str,
-    player_b: str,
-    game_type: str,
-    race_to: int,
-    stakes: str = "friendly",
-    dry_run: bool = True,
-) -> dict[str, Any]:
-    match = {
-        "match_id": "m_" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
-        "player_a": player_a,
-        "player_b": player_b,
-        "game_type": game_type,
-        "race_to": race_to,
-        "stakes": stakes,
-        "status": "pending",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "dry_run": dry_run,
-    }
-    return match
 
 
 def report_result(
@@ -70,18 +41,10 @@ def report_result(
         "confirmed_by": confirmed_by,
         "status": "completed" if not dry_run else "dry_run_completed",
         "stats_updated": not dry_run,
+        "rating_owner": "realai_rating_update",
+        "note": "Do not apply local Elo unless REALAI_FALLBACK_LOCAL_ELO=1",
     }
 
 
 if __name__ == "__main__":
-    nearby = find_nearby_players(36.1699, -115.1398, game_type="9-ball")
-    print("Nearby players:")
-    print(json.dumps(nearby, indent=2))
-
-    match = create_match("p_1001", "p_1042", "9-ball", race_to=7, stakes="friendly", dry_run=True)
-    print("\nCreated match (dry-run):")
-    print(json.dumps(match, indent=2))
-
-    result = report_result(match["match_id"], "p_1001", 7, 4, confirmed_by=["p_1001", "p_1042"], dry_run=True)
-    print("\nResult (dry-run):")
-    print(json.dumps(result, indent=2))
+    print(json.dumps(report_result("m_demo", "p_1001", 7, 4, ["p_1001", "p_1042"], True), indent=2))
