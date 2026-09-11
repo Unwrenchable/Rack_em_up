@@ -32,7 +32,28 @@ import type {
 } from './types';
 import { DEMO_SHOT_OF_DAY } from './demo-shots';
 
-const API = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+/** Strip accidental `VITE_FOO=` prefixes from mis-pasted Render/env values. */
+function scrubEnv(raw: unknown, keys: string[]): string {
+  let v = String(raw ?? '').trim();
+  for (const key of keys) {
+    const re = new RegExp('^' + key + '=', 'i');
+    if (re.test(v)) v = v.replace(re, '').trim();
+  }
+  return v;
+}
+
+function resolveApiBase(): string {
+  const raw = scrubEnv(
+    import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
+    ['VITE_API_URL', 'VITE_API_BASE_URL'],
+  );
+  if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, '');
+  if (raw.startsWith('/')) return raw;
+  // Last resort: never allow a relative junk path like "VITE_API_URL=https://..."
+  return '/api/v1';
+}
+
+const API = resolveApiBase();
 const TOKEN_KEY = 'rackup_token';
 const USER_KEY = 'rackup_user';
 const DEMO_KEY = 'rackup_demo';
@@ -43,7 +64,7 @@ const REFRESH_KEY = 'rackup_refresh';
  * Priority: VITE_WS_URL → VITE_API_URL (strip /api/v1) → same origin (Vite proxies /socket.io).
  */
 export function getSocketUrl(): string {
-  const ws = import.meta.env.VITE_WS_URL as string | undefined;
+  const ws = scrubEnv(import.meta.env.VITE_WS_URL, ['VITE_WS_URL']);
   if (ws && /^wss?:\/\//i.test(ws)) {
     // Allow wss://host or https://host — strip path after host
     return ws
@@ -54,9 +75,9 @@ export function getSocketUrl(): string {
   if (ws && /^https?:\/\//i.test(ws)) {
     return ws.replace(/\/socket\.io\/?$/i, '').replace(/\/$/, '');
   }
-  const base = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? '';
-  if (base && /^https?:\/\//i.test(String(base))) {
-    return String(base).replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+  const base = resolveApiBase();
+  if (base && /^https?:\/\//i.test(base)) {
+    return base.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
   }
   // Same-origin → Vite dev proxy /socket.io → :3000
   if (typeof window !== 'undefined') return window.location.origin;
@@ -110,12 +131,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   if (token && token !== 'demo') headers.Authorization = `Bearer ${token}`;
 
+  if (!/^https?:\/\//i.test(API) && !API.startsWith('/')) {
+    throw new Error(`Misconfigured API base: ${API}`);
+  }
   const res = await fetch(`${API}${path}`, { ...init, headers });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(text || res.statusText || `HTTP ${res.status}`);
   }
-  if (res.status === 204 || !text.trim()) return undefined as T;
+  if (res.status === 204) return undefined as T;
+  if (!text.trim()) {
+    throw new Error(`Empty response from ${path} (check VITE_API_URL build env)`);
+  }
   try {
     return JSON.parse(text) as T;
   } catch {
@@ -180,6 +207,9 @@ export async function signup(email: string, password: string, displayName: strin
       method: 'POST',
       body,
     });
+    if (!data?.user || !data.accessToken) {
+      throw new Error('Signup response missing user/token');
+    }
     const user = normalizeUser(data.user);
     setSession(data.accessToken, user, false);
     if (data.refreshToken) localStorage.setItem(REFRESH_KEY, data.refreshToken);
@@ -193,6 +223,9 @@ export async function signup(email: string, password: string, displayName: strin
         method: 'POST',
         body,
       });
+      if (!data?.user || !data.accessToken) {
+        throw new Error('Signup response missing user/token');
+      }
       const user = normalizeUser(data.user);
       setSession(data.accessToken, user, false);
       return user;

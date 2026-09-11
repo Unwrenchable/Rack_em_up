@@ -8,8 +8,14 @@ services:
     buildCommand: npm ci || npm install && npm run build
     staticPublishPath: dist
     autoDeployTrigger: commit
+    # SPA: client routes like /auth must rewrite to index.html (else hard 404).
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
-      # Baked into the Vite client at build time — must match api.ts (VITE_API_URL / VITE_WS_URL).
+      # Baked into the Vite client at build time - values must be URLs ONLY
+      # (not "VITE_API_URL=https://..."). api.ts + vite.config also scrub a bad paste.
       - key: VITE_API_URL
         value: https://api.rackofchampions.com/api/v1
       - key: VITE_WS_URL
