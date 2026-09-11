@@ -32,7 +32,7 @@ import type {
 } from './types';
 import { DEMO_SHOT_OF_DAY } from './demo-shots';
 
-const API = import.meta.env.VITE_API_URL ?? '/api/v1';
+const API = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 const TOKEN_KEY = 'rackup_token';
 const USER_KEY = 'rackup_user';
 const DEMO_KEY = 'rackup_demo';
@@ -54,7 +54,7 @@ export function getSocketUrl(): string {
   if (ws && /^https?:\/\//i.test(ws)) {
     return ws.replace(/\/socket\.io\/?$/i, '').replace(/\/$/, '');
   }
-  const base = import.meta.env.VITE_API_URL ?? '';
+  const base = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? '';
   if (base && /^https?:\/\//i.test(String(base))) {
     return String(base).replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
   }

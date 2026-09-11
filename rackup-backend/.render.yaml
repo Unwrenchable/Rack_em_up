@@ -43,3 +43,5 @@ services:
           name: rackup-redis
           type: keyvalue
           property: connectionString
+      - key: CORS_ORIGIN
+        value: https://www.rackofchampions.com,https://rackofchampions.com,https://roc-xsnc.onrender.com
