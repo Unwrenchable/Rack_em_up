@@ -10,7 +10,9 @@ import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
 import express from 'express';
 import * as path from 'path';
+import { DataSource } from 'typeorm';
 import { AppModule } from './app.module';
+import { ensureAuthSchema } from './config/ensure-auth-schema';
 import { WebsocketAdapter } from './websocket/websocket.adapter';
 
 function safeDbHint(): string {
@@ -66,6 +68,8 @@ async function bootstrap(): Promise<void> {
       forbidNonWhitelisted: true,
     }),
   );
+
+  await ensureAuthSchema(app.get(DataSource));
 
   const port = Number(process.env.PORT || 3000);
   await app.listen(port, '0.0.0.0');

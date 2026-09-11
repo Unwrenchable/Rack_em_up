@@ -111,12 +111,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (token && token !== 'demo') headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API}${path}`, { ...init, headers });
+  const text = await res.text();
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || res.statusText);
+    throw new Error(text || res.statusText || `HTTP ${res.status}`);
   }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  if (res.status === 204 || !text.trim()) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Bad JSON from ${path}: ${text.slice(0, 120)}`);
+  }
 }
 
 function normalizeUser(raw: Record<string, unknown>): User {
@@ -162,6 +166,11 @@ export async function login(email: string, password: string) {
 }
 
 export async function signup(email: string, password: string, displayName: string) {
+  const body = JSON.stringify({
+    email,
+    password,
+    display_name: displayName,
+  });
   try {
     const data = await request<{
       user: Record<string, unknown>;
@@ -169,31 +178,28 @@ export async function signup(email: string, password: string, displayName: strin
       refreshToken?: string;
     }>('/auth/v2/signup', {
       method: 'POST',
-      body: JSON.stringify({
-        email,
-        password,
-        display_name: displayName,
-      }),
+      body,
     });
     const user = normalizeUser(data.user);
     setSession(data.accessToken, user, false);
     if (data.refreshToken) localStorage.setItem(REFRESH_KEY, data.refreshToken);
     return user;
-  } catch {
-    const data = await request<{
-      user: Record<string, unknown>;
-      accessToken: string;
-    }>('/auth/signup', {
-      method: 'POST',
-      body: JSON.stringify({
-        email,
-        password,
-        display_name: displayName,
-      }),
-    });
-    const user = normalizeUser(data.user);
-    setSession(data.accessToken, user, false);
-    return user;
+  } catch (v2Err) {
+    try {
+      const data = await request<{
+        user: Record<string, unknown>;
+        accessToken: string;
+      }>('/auth/signup', {
+        method: 'POST',
+        body,
+      });
+      const user = normalizeUser(data.user);
+      setSession(data.accessToken, user, false);
+      return user;
+    } catch (v1Err) {
+      // Prefer the first (v2) server message — empty catch was masking real 500s.
+      throw v2Err instanceof Error ? v2Err : v1Err;
+    }
   }
 }
 
