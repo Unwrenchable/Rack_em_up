@@ -246,6 +246,12 @@ export function describeDrillProvider(
   const p = (provider || '').toLowerCase();
   if (p === 'demo' || p === '…' || p === 'checking' || p === 'error') return provider;
   if (health?.reachable === true) {
+    if (p === 'realai' || p === 'rackup-coach' || p.startsWith('realai-')) {
+      if (p.includes('parse')) {
+        return 'RealAI online · coach drill text failed (showing rules drills)';
+      }
+      return 'RealAI';
+    }
     if (p.includes('parse') || p.includes('realai-parse-fallback') || p === 'rules-fallback-parse') {
       return 'RealAI online · coach drill text failed (showing rules drills)';
     }

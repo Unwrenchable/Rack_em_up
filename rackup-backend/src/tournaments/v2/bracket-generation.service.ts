@@ -6,6 +6,7 @@ import { TournamentV2, TournamentV2Mode } from './entities/tournament-v2.entity'
 import { TournamentMatchV2, TournamentBracketSide, TournamentMatchStatus } from './entities/tournament-match-v2.entity';
 import { BracketRound } from './entities/bracket-round.entity';
 import { BracketNode } from './entities/bracket-node.entity';
+import { nextPowerOfTwo } from './bracket-advance';
 
 @Injectable()
 export class BracketGenerationService {
@@ -44,7 +45,10 @@ export class BracketGenerationService {
       return;
     }
 
-    if (tournament.mode === TournamentV2Mode.SWISS) {
+    if (
+      tournament.mode === TournamentV2Mode.SWISS ||
+      tournament.mode === TournamentV2Mode.CHIP_RACE
+    ) {
       await this.generateSwissRound(tournament, entrants, 1);
       return;
     }
@@ -93,29 +97,27 @@ export class BracketGenerationService {
     if (nodes.length) await this.nodeRepo.save(nodes);
   }
 
-  private nextPowerOfTwo(n: number): number {
-    let p = 1;
-    while (p < n) p *= 2;
-    return p;
-  }
-
   private async generateSingleElimination(tournament: TournamentV2, entrants: string[]) {
-    const size = this.nextPowerOfTwo(entrants.length || 1);
+    const size = nextPowerOfTwo(entrants.length || 1);
     const seeded = [...entrants, ...new Array(size - entrants.length).fill(null)];
 
-    const round = await this.roundRepo.save(
+    await this.roundRepo.save(
       this.roundRepo.create({ tournamentId: tournament.id, roundNumber: 1 }),
     );
 
     const matches: TournamentMatchV2[] = [];
     for (let i = 0; i < seeded.length; i += 2) {
+      const playerAId = seeded[i];
+      const playerBId = seeded[i + 1];
+      // Skip empty bye-vs-bye slots (odd fields pad to next power of two).
+      if (!playerAId && !playerBId) continue;
       matches.push(
         this.matchRepo.create({
           tournamentId: tournament.id,
           round: 1,
           matchIndex: i / 2 + 1,
-          playerAId: seeded[i],
-          playerBId: seeded[i + 1],
+          playerAId,
+          playerBId,
           status: TournamentMatchStatus.ACTIVE,
           bracket: TournamentBracketSide.WINNERS,
         }),
@@ -143,7 +145,7 @@ export class BracketGenerationService {
    * - Higher losers/winners rounds are created on report via advanceWinner.
    */
   private async generateDoubleEliminationBaseline(tournament: TournamentV2, entrants: string[]) {
-    const size = this.nextPowerOfTwo(entrants.length || 1);
+    const size = nextPowerOfTwo(entrants.length || 1);
     const seeded = [...entrants, ...new Array(size - entrants.length).fill(null)];
 
     await this.roundRepo.save(
@@ -152,13 +154,16 @@ export class BracketGenerationService {
 
     const winners: TournamentMatchV2[] = [];
     for (let i = 0; i < seeded.length; i += 2) {
+      const playerAId = seeded[i];
+      const playerBId = seeded[i + 1];
+      if (!playerAId && !playerBId) continue;
       winners.push(
         this.matchRepo.create({
           tournamentId: tournament.id,
           round: 1,
           matchIndex: i / 2 + 1,
-          playerAId: seeded[i],
-          playerBId: seeded[i + 1],
+          playerAId,
+          playerBId,
           status: TournamentMatchStatus.ACTIVE,
           bracket: TournamentBracketSide.WINNERS,
         }),

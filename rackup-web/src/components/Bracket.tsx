@@ -6,6 +6,7 @@ type MatchRow = {
   aScore: number | null;
   bScore: number | null;
   status: string;
+  bracket?: string;
 };
 
 export function Bracket({ matches }: { matches: MatchRow[] }) {
@@ -33,6 +34,9 @@ export function Bracket({ matches }: { matches: MatchRow[] }) {
                 width: '180px',
               }}
             >
+              {match.bracket && (
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{match.bracket}</div>
+              )}
               <div>A: {match.playerAId ?? 'TBD'}</div>
               <div>B: {match.playerBId ?? 'TBD'}</div>
               <div>

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MatchMemory } from '../memories/match-memory.entity';
@@ -7,20 +7,20 @@ import {
   getRealAiStatus,
   realAiChatOrFallback,
 } from '../ai/realai.client';
+import { realaiCoach } from '../ai/realai-coach.client';
 import { AnalyzeShotDto } from './dto/analyze-shot.dto';
+import {
+  drillsFromChatContent,
+  drillsFromCoachResult,
+  type DrillPlan,
+} from './parse-coach-drills';
 
-export type DrillPlan = {
-  id: string;
-  title: string;
-  focus: string;
-  minutes: number;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
-  description: string;
-  source: 'rules' | 'realai';
-};
+export type { DrillPlan } from './parse-coach-drills';
 
 @Injectable()
 export class TrainingService {
+  private readonly logger = new Logger(TrainingService.name);
+
   constructor(
     @InjectRepository(MatchMemory)
     private readonly memoriesRepo: Repository<MatchMemory>,
@@ -52,6 +52,44 @@ export class TrainingService {
       )
       .join('; ');
 
+    // Canonical path: POST /v1/plugins/rackup-coach ability=coach (not chat/completions).
+    try {
+      const result = await realaiCoach({
+        ability: 'coach',
+        goal: "Today's 3 focused practice drills",
+        player: {
+          player_id: userId,
+          display_name: user?.displayName,
+          rating,
+          rd: user?.rd,
+          volatility: user?.volatility,
+          rating_system: 'rackup',
+          skill_level: user?.ratingBand ?? undefined,
+          discipline: (games[0] as string | undefined) ?? 'nine_ball',
+          locale: 'en',
+        },
+        payload: {
+          mode: 'practice_plan',
+          minutes: 60,
+          count: 3,
+          recent_results: summary || 'none',
+        },
+      });
+      const drills = drillsFromCoachResult(result);
+      if (drills?.length) {
+        return { drills, provider: 'realai' };
+      }
+      this.logger.warn(
+        'rackup-coach returned a result but no drills were extractable; trying chat harvest',
+      );
+    } catch (e) {
+      this.logger.warn(
+        `rackup-coach drills failed: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+
+    // Secondary harvest: OpenAI-compatible chat, with a tolerant parser
+    // (fenced JSON / practice_plan / numbered prose) — not a bare-array parse.
     const ai = await realAiChatOrFallback(
       [
         {
@@ -72,24 +110,13 @@ export class TrainingService {
       return { drills: rulesDrills, provider: 'offline-rules-fallback' };
     }
 
-    try {
-      const parsed = JSON.parse(this.extractJson(ai.content)) as Array<Record<string, unknown>>;
-      const drills: DrillPlan[] = parsed.slice(0, 3).map((d, i) => ({
-        id: `ai-${i + 1}`,
-        title: String(d.title ?? `Drill ${i + 1}`),
-        focus: String(d.focus ?? 'Fundamentals'),
-        minutes: Number(d.minutes ?? 10),
-        difficulty: (['Easy', 'Medium', 'Hard'].includes(String(d.difficulty))
-          ? d.difficulty
-          : 'Medium') as DrillPlan['difficulty'],
-        description: String(d.description ?? ''),
-        source: 'realai',
-      }));
-      return { drills, provider: ai.model };
-    } catch {
-      // RealAI answered, but the drill JSON was unreadable — not a total outage.
-      return { drills: rulesDrills, provider: 'realai-parse-fallback' };
+    const fromChat = drillsFromChatContent(ai.content);
+    if (fromChat?.length) {
+      return { drills: fromChat, provider: ai.model || 'realai' };
     }
+
+    this.logger.warn('RealAI chat answered but drill text was unreadable — rules fallback');
+    return { drills: rulesDrills, provider: 'realai-parse-fallback' };
   }
 
   async analyzeShot(userId: string, dto: AnalyzeShotDto) {
@@ -242,12 +269,5 @@ export class TrainingService {
       '',
       'When RealAI is online, this endpoint upgrades to provider analysis automatically.',
     ].join('\n');
-  }
-
-  private extractJson(text: string): string {
-    const start = text.indexOf('[');
-    const end = text.lastIndexOf(']');
-    if (start >= 0 && end > start) return text.slice(start, end + 1);
-    return text;
   }
 }

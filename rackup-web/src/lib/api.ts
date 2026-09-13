@@ -1395,7 +1395,16 @@ export async function hallV2Feed(hallId: string): Promise<unknown> {
 
 /** Tournament V2 — list / create / start / bracket / report / admin / TV */
 export async function tournamentV2List(): Promise<
-  Array<{ id: string; name: string; game: string; mode: string; status: string }>
+  Array<{
+    id: string;
+    name: string;
+    game: string;
+    mode: string;
+    status: string;
+    chipBySkill?: boolean;
+    chipStacks?: Record<string, number>;
+    formatConfigJson?: Record<string, unknown>;
+  }>
 > {
   if (isDemoMode()) {
     return [{ id: 'demo-t', name: 'Demo Open', game: '9-ball', mode: 'SINGLE_ELIMINATION', status: 'DRAFT' }];
@@ -1409,12 +1418,25 @@ export async function tournamentV2Create(body: {
   mode: string;
   seed_strategy?: 'manual' | 'random' | 'elo';
   format_config?: Record<string, unknown>;
-}): Promise<{ id: string; name: string; status: string }> {
+  chipBySkill?: boolean;
+}): Promise<{
+  id: string;
+  name: string;
+  status: string;
+  chipBySkill?: boolean;
+  chipStacks?: Record<string, number>;
+}> {
   if (isDemoMode()) return { id: `demo-${Date.now()}`, name: body.name, status: 'DRAFT' };
   return request('/tournaments/v2/create', { method: 'POST', body: JSON.stringify(body) });
 }
 
-export async function tournamentV2Register(tournamentId: string): Promise<unknown> {
+export async function tournamentV2Register(tournamentId: string): Promise<{
+  success: boolean;
+  chipBySkill?: boolean;
+  chips?: number;
+  ratingBand?: string;
+  formula?: string;
+}> {
   if (isDemoMode()) return { success: true };
   return request('/tournaments/v2/register', {
     method: 'POST',

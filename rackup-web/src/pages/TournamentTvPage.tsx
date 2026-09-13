@@ -25,11 +25,16 @@ type TvPayload = {
     mode: string;
     status: string;
     entrantCount?: number;
+    chipBySkill?: boolean;
+    chipFormula?: string;
+    championId?: string;
   };
   matches: TvMatch[];
-  standings: Array<{ playerId: string; wins: number }>;
+  standings: Array<{ playerId: string; wins: number; chips?: number; ratingBand?: string }>;
   activeMatches: TvMatch[];
   completedCount: number;
+  chipBySkill?: boolean;
+  chipStacks?: Record<string, number>;
 };
 
 export function TournamentTvPage() {
@@ -113,6 +118,7 @@ export function TournamentTvPage() {
           <p style={{ color: '#aaa', marginTop: 8 }}>
             {t.game} · {t.mode} · {t.status}
             {typeof t.entrantCount === 'number' ? ` · ${t.entrantCount} players` : ''}
+            {data.chipBySkill ? ' · skill chips' : ''}
           </p>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -192,7 +198,11 @@ export function TournamentTvPage() {
                 <span style={{ color: i < 3 ? '#c9a227' : '#ccc' }}>
                   {(s.playerId ?? '').slice(0, 8)}
                 </span>
-                <span style={{ float: 'right', color: '#888' }}>{s.wins}W</span>
+                <span style={{ float: 'right', color: '#888' }}>
+                  {s.chips != null ? `${s.chips.toLocaleString()} · ` : ''}
+                  {s.wins}W
+                  {s.ratingBand ? ` · ${s.ratingBand}` : ''}
+                </span>
               </li>
             ))}
           </ol>

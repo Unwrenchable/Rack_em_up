@@ -110,11 +110,18 @@ export function TournamentsPage() {
   const tournament = data.tournament as TournamentRow & {
     mode?: string;
     organizerId?: string;
+    chipBySkill?: boolean;
+    chipStacks?: Record<string, number>;
+    formatConfigJson?: { chipBySkill?: boolean; chipStacks?: Record<string, number> };
+    championId?: string;
   };
   const matches = data.matches ?? [];
   const entrants = tournament.entrants ?? tournament.configJson?.entrants ?? [];
   const isOrganizer = !!(user && tournament.organizerId === user.id);
-  const isSwiss = tournament.mode === 'SWISS';
+  const isSwiss = tournament.mode === 'SWISS' || tournament.mode === 'CHIP_RACE';
+  const chipStacks =
+    tournament.chipStacks ?? tournament.formatConfigJson?.chipStacks ?? {};
+  const chipBySkill = !!(tournament.chipBySkill || tournament.formatConfigJson?.chipBySkill);
 
   return (
     <div className="page stack" style={{ gap: 16, padding: 20 }}>
@@ -125,6 +132,8 @@ export function TournamentsPage() {
         </h1>
         <p className="muted" style={{ marginTop: 6 }}>
           {tournament.game ?? 'Pool'} · {tournament.mode ?? ''} · {tournament.status ?? '—'}
+          {chipBySkill ? ' · skill chips' : ''}
+          {tournament.championId ? ` · champ ${tournament.championId.slice(0, 8)}` : ''}
           {data.resolvedFrom ? ` · bridged from ${data.resolvedFrom.slice(0, 8)}…` : ''}
         </p>
         {liveScore && (
@@ -236,7 +245,7 @@ export function TournamentsPage() {
                   }
                 }}
               >
-                Advance Swiss round
+                {tournament.mode === 'CHIP_RACE' ? 'Advance chip round' : 'Advance Swiss round'}
               </button>
             )}
           </div>
@@ -249,6 +258,7 @@ export function TournamentsPage() {
         {entrants.map((e) => (
           <div key={e} className="muted" style={{ fontSize: '0.85rem' }}>
             {e}
+            {chipBySkill && chipStacks[e] != null ? ` · ${Number(chipStacks[e]).toLocaleString()} chips` : ''}
           </div>
         ))}
       </div>
