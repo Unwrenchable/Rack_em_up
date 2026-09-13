@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { GetTheApp } from '../components/GetTheApp';
 import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
 
@@ -68,6 +69,8 @@ export function SettingsPage() {
           </label>
         ))}
       </div>
+
+      <GetTheApp />
 
       <div className="section-title">
         <h2>Safety</h2>

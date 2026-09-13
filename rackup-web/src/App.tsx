@@ -1,4 +1,6 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { titleForPath } from './lib/brand';
 import { AuthProvider, useAuth } from './lib/auth-context';
 import { ToastProvider } from './lib/toast-context';
 import { Layout } from './components/Layout';
@@ -29,43 +31,54 @@ function Protected({ children }: { children: React.ReactNode }) {
   return children;
 }
 
+function PageTitle() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    document.title = titleForPath(pathname);
+  }, [pathname]);
+  return null;
+}
+
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/auth" element={<AuthPage />} />
-      {/* Public TV board — no shell / no auth for hall displays */}
-      <Route path="tournaments/:id/tv" element={<TournamentTvPage />} />
+    <>
+      <PageTitle />
+      <Routes>
+        <Route path="/auth" element={<AuthPage />} />
+        {/* Public TV board — no shell / no auth for hall displays */}
+        <Route path="tournaments/:id/tv" element={<TournamentTvPage />} />
 
-      <Route
-        element={
-          <Protected>
-            <Layout />
-          </Protected>
-        }
-      >
-        <Route index element={<HomePage />} />
-        <Route path="find" element={<FindPage />} />
-        <Route path="play" element={<PlayPage />} />
-        <Route path="money" element={<MoneyPage />} />
-        <Route path="social" element={<SocialPage />} />
-        <Route path="chat" element={<ChatPage />} />
-        <Route path="halls" element={<HallsPage />} />
-        <Route path="coach" element={<CoachPage />} />
-        <Route path="shots" element={<ShotsCatalogPage />} />
-        <Route path="memories" element={<MemoriesPage />} />
-        <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="wallet" element={<WalletPage />} />
+        <Route
+          element={
+            <Protected>
+              <Layout />
+            </Protected>
+          }
+        >
+          <Route index element={<HomePage />} />
+          <Route path="find" element={<FindPage />} />
+          <Route path="play" element={<PlayPage />} />
+          <Route path="money" element={<MoneyPage />} />
+          <Route path="social" element={<SocialPage />} />
+          <Route path="chat" element={<ChatPage />} />
+          <Route path="halls" element={<HallsPage />} />
+          <Route path="coach" element={<CoachPage />} />
+          <Route path="shots" element={<ShotsCatalogPage />} />
+          <Route path="memories" element={<MemoriesPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="wallet" element={<WalletPage />} />
 
-        <Route path="tournaments" element={<TournamentsListPage />} />
-        <Route path="tournaments/:id" element={<TournamentsPage />} />
-        <Route path="scorekeeping" element={<ScorekeepingPage />} />
-        <Route path="pyramid" element={<PyramidPage />} />
-      </Route>
+          <Route path="tournaments" element={<TournamentsListPage />} />
+          <Route path="tournaments/:id" element={<TournamentsPage />} />
+          <Route path="scorekeeping" element={<ScorekeepingPage />} />
+          <Route path="pyramid" element={<PyramidPage />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 

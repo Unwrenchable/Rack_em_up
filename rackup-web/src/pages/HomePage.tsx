@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { fetchLiveHalls, fetchNotificationsApi, fetchShotOfTheDay } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import type { LiveHall, ShotOfTheDay } from '../lib/types';
+import { GetTheApp } from '../components/GetTheApp';
 import {
   IconBell,
   IconBolt,
@@ -97,6 +98,8 @@ export function HomePage() {
           </div>
         </div>
       </div>
+
+      <GetTheApp variant="compact" />
 
       <div className="quick-actions" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <Link to="/find" className="quick-action">

@@ -37,7 +37,10 @@ export function AuthPage() {
           <p className="eyebrow">
             <span className="dot-live" /> Pool players network
           </p>
-          <h1 className="logo-mark">RACKUP</h1>
+          <div className="auth-brand">
+            <img className="brand-mark brand-mark-lg" src="/icon-192.png" width={64} height={64} alt="" />
+            <h1 className="logo-mark">RACKUP</h1>
+          </div>
           <p className="muted" style={{ marginTop: 8, maxWidth: 320 }}>
             Find action. Check halls. Protect the money. Look good doing it.
           </p>
@@ -118,6 +121,10 @@ export function AuthPage() {
               Open demo
             </button>
           </div>
+          <p className="muted" style={{ textAlign: 'center', fontSize: '0.78rem' }}>
+            After you enter, Settings → Get the app walks through Add to Home Screen.
+            Store listings are coming later.
+          </p>
         </div>
       </div>
     </div>
