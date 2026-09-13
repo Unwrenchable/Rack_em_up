@@ -361,6 +361,7 @@ describe('V2 route inventory', () => {
     'GET /halls/v2/feed/:hallId',
     'GET /halls/v2/photos/:hallId',
     'POST /tournaments/v2/create',
+    'GET /tournaments/v2',
     'POST /tournaments/v2/register',
     'POST /tournaments/v2/start',
     'POST /tournaments/v2/report-match',
@@ -434,6 +435,7 @@ describe('V2 route inventory', () => {
 
   it('lists expected V2 + health surfaces', () => {
     expect(routes.length).toBeGreaterThanOrEqual(15);
+    expect(routes.some((r) => r === 'GET /tournaments/v2')).toBe(true);
     expect(routes.some((r) => r.includes('sotd/maps'))).toBe(true);
     expect(routes.some((r) => r.includes('report-match'))).toBe(true);
     expect(routes.some((r) => r.includes('/health'))).toBe(true);

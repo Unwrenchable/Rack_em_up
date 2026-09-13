@@ -10,6 +10,7 @@ import { TournamentsService } from './tournaments.service';
 import { CreateTournamentDto } from './dto/create-tournament.dto';
 import { RegisterTournamentDto } from './dto/register-tournament.dto';
 import { ReportTournamentMatchDto } from './dto/report-tournament-match.dto';
+import { TOURNAMENT_V1_UUID_PARAM } from './tournament-route.constants';
 
 @Controller('tournaments')
 export class TournamentsController {
@@ -25,12 +26,12 @@ export class TournamentsController {
     return this.tournamentsService.createTournament(dto);
   }
 
-  @Get(':id')
+  @Get(TOURNAMENT_V1_UUID_PARAM)
   async getTournament(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.tournamentsService.getTournament(id);
   }
 
-  @Post(':id/register')
+  @Post(`${TOURNAMENT_V1_UUID_PARAM}/register`)
   async register(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: RegisterTournamentDto,
@@ -38,7 +39,7 @@ export class TournamentsController {
     return this.tournamentsService.registerToTournament(id, dto);
   }
 
-  @Post(':id/report-match')
+  @Post(`${TOURNAMENT_V1_UUID_PARAM}/report-match`)
   async reportMatch(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ReportTournamentMatchDto,
@@ -47,13 +48,13 @@ export class TournamentsController {
   }
 
   // ⭐ NEW — bracket visualizer
-  @Get(':id/bracket')
+  @Get(`${TOURNAMENT_V1_UUID_PARAM}/bracket`)
   async bracket(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.tournamentsService.generateBracket(id);
   }
 
   // ⭐ NEW — advance round
-  @Post(':id/advance')
+  @Post(`${TOURNAMENT_V1_UUID_PARAM}/advance`)
   async advance(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: { round: number },
