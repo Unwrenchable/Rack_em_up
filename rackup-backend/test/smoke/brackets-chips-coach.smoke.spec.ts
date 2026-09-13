@@ -10,6 +10,7 @@ import {
 import {
   classifyMatchSlots,
   dropsLoserToLosers,
+  feederMatchIndices,
   isEliminationMode,
   isSingleElimFinal,
   losersDropPlacement,
@@ -173,5 +174,206 @@ describe('Chip-by-skill band_v1', () => {
   it('caps match pot at the loser stack', () => {
     expect(chipTransferAmount(400, CHIP_MATCH_POT)).toBe(400);
     expect(chipTransferAmount(5000)).toBe(CHIP_MATCH_POT);
+  });
+});
+
+/** In-memory report-match — same placement rules as TournamentsV2Service. */
+type SimMatch = {
+  id: string;
+  round: number;
+  matchIndex: number;
+  playerAId: string | null;
+  playerBId: string | null;
+  bracket: 'WINNERS' | 'LOSERS' | 'GRAND_FINAL';
+  status: 'ACTIVE' | 'COMPLETED';
+  winnerId: string | null;
+};
+
+function pairRound1(entrants: string[]): SimMatch[] {
+  const size = nextPowerOfTwo(entrants.length || 1);
+  const seeded = [...entrants, ...new Array(size - entrants.length).fill(null)];
+  const matches: SimMatch[] = [];
+  for (let i = 0; i < seeded.length; i += 2) {
+    if (!seeded[i] && !seeded[i + 1]) continue;
+    matches.push({
+      id: `w1-${i / 2 + 1}`,
+      round: 1,
+      matchIndex: i / 2 + 1,
+      playerAId: seeded[i],
+      playerBId: seeded[i + 1],
+      bracket: 'WINNERS',
+      status: 'ACTIVE',
+      winnerId: null,
+    });
+  }
+  return matches;
+}
+
+function place(
+  matches: SimMatch[],
+  round: number,
+  matchIndex: number,
+  playerId: string,
+  bracket: SimMatch['bracket'],
+) {
+  const { nextRound, nextMatchIndex, asPlayerA } = nextMatchPlacement(round, matchIndex);
+  let next = matches.find(
+    (m) => m.round === nextRound && m.matchIndex === nextMatchIndex && m.bracket === bracket,
+  );
+  if (!next) {
+    next = {
+      id: `${bracket}-${nextRound}-${nextMatchIndex}`,
+      round: nextRound,
+      matchIndex: nextMatchIndex,
+      playerAId: null,
+      playerBId: null,
+      bracket,
+      status: 'ACTIVE',
+      winnerId: null,
+    };
+    matches.push(next);
+  }
+  if (asPlayerA) next.playerAId = playerId;
+  else next.playerBId = playerId;
+}
+
+function hasPendingFeeder(matches: SimMatch[], m: SimMatch): boolean {
+  const feed = feederMatchIndices(m.round, m.matchIndex);
+  if (!feed) return false;
+  const emptyA = !m.playerAId;
+  const emptyB = !m.playerBId;
+  for (const idx of feed.indices) {
+    const feeder = matches.find(
+      (x) => x.round === feed.prevRound && x.matchIndex === idx && x.bracket === m.bracket,
+    );
+    if (!feeder) continue;
+    if (feeder.status !== 'COMPLETED') {
+      const fillsA = idx % 2 === 1;
+      if (fillsA && emptyA) return true;
+      if (!fillsA && emptyB) return true;
+    }
+  }
+  return false;
+}
+
+function resolveByes(matches: SimMatch[], mode: TournamentV2Mode, n: number): string | null {
+  let champion: string | null = null;
+  let progressed = true;
+  let guard = 0;
+  while (progressed && guard++ < 16) {
+    progressed = false;
+    for (const m of [...matches]) {
+      if (m.status !== 'ACTIVE') continue;
+      const kind = classifyMatchSlots(m.playerAId, m.playerBId);
+      if (kind !== 'bye-a' && kind !== 'bye-b') continue;
+      if (hasPendingFeeder(matches, m)) continue;
+      const winner = kind === 'bye-a' ? m.playerAId : m.playerBId;
+      if (!winner) continue;
+      m.status = 'COMPLETED';
+      m.winnerId = winner;
+      progressed = true;
+      if (isSingleElimFinal(mode, m.bracket, m.round, n)) {
+        champion = winner;
+      } else {
+        place(matches, m.round, m.matchIndex, winner, m.bracket);
+      }
+    }
+  }
+  return champion;
+}
+
+function reportSim(
+  matches: SimMatch[],
+  matchId: string,
+  winnerId: string,
+  mode: TournamentV2Mode,
+  n: number,
+): { champion: string | null } {
+  const match = matches.find((m) => m.id === matchId);
+  if (!match) throw new Error('missing match');
+  match.status = 'COMPLETED';
+  match.winnerId = winnerId;
+  if (isSingleElimFinal(mode, match.bracket, match.round, n)) {
+    return { champion: winnerId };
+  }
+  place(matches, match.round, match.matchIndex, winnerId, match.bracket);
+  if (match.bracket === 'WINNERS' && dropsLoserToLosers(mode)) {
+    const loser = winnerId === match.playerAId ? match.playerBId : match.playerAId;
+    if (loser) {
+      const slot = losersDropPlacement(match.round, match.matchIndex);
+      let next = matches.find(
+        (m) =>
+          m.round === slot.losersRound &&
+          m.matchIndex === slot.losersMatchIndex &&
+          m.bracket === 'LOSERS',
+      );
+      if (!next) {
+        next = {
+          id: `L-${slot.losersRound}-${slot.losersMatchIndex}`,
+          round: slot.losersRound,
+          matchIndex: slot.losersMatchIndex,
+          playerAId: null,
+          playerBId: null,
+          bracket: 'LOSERS',
+          status: 'ACTIVE',
+          winnerId: null,
+        };
+        matches.push(next);
+      }
+      if (slot.asPlayerA) next.playerAId = loser;
+      else next.playerBId = loser;
+    }
+  }
+  const champ = resolveByes(matches, mode, n);
+  return { champion: champ };
+}
+
+describe('In-memory report-match (live SE3 / DE4 repro)', () => {
+  it('SINGLE_ELIMINATION with 3 entrants never grows a LOSERS match and completes', () => {
+    const entrants = ['p1', 'p2', 'p3'];
+    const matches = pairRound1(entrants);
+    resolveByes(matches, TournamentV2Mode.SINGLE_ELIMINATION, 3);
+
+    const playable = matches.find(
+      (m) => m.status === 'ACTIVE' && m.playerAId && m.playerBId,
+    );
+    expect(playable).toBeTruthy();
+    reportSim(
+      matches,
+      playable!.id,
+      playable!.playerAId!,
+      TournamentV2Mode.SINGLE_ELIMINATION,
+      3,
+    );
+    expect(matches.filter((m) => m.bracket === 'LOSERS')).toHaveLength(0);
+
+    const final = matches.find((m) => m.round === 2 && m.status === 'ACTIVE');
+    expect(final?.playerAId && final?.playerBId).toBeTruthy();
+    const done = reportSim(
+      matches,
+      final!.id,
+      final!.playerAId!,
+      TournamentV2Mode.SINGLE_ELIMINATION,
+      3,
+    );
+    expect(done.champion).toBe(final!.playerAId);
+    expect(matches.some((m) => m.bracket === 'LOSERS')).toBe(false);
+  });
+
+  it('DOUBLE_ELIMINATION with 4 entrants keeps losers and reaches both sides', () => {
+    const entrants = ['a', 'b', 'c', 'd'];
+    const matches = pairRound1(entrants);
+    expect(matches.filter((m) => m.bracket === 'WINNERS')).toHaveLength(2);
+
+    for (const m of [...matches].filter((x) => x.round === 1 && x.bracket === 'WINNERS')) {
+      reportSim(matches, m.id, m.playerAId!, TournamentV2Mode.DOUBLE_ELIMINATION, 4);
+    }
+
+    const losers = matches.filter((m) => m.bracket === 'LOSERS');
+    expect(losers.length).toBeGreaterThanOrEqual(1);
+    expect(losers.some((m) => m.playerAId && m.playerBId)).toBe(true);
+
+    const winnersFinal = matches.find((m) => m.round === 2 && m.bracket === 'WINNERS');
+    expect(winnersFinal?.playerAId && winnersFinal?.playerBId).toBeTruthy();
   });
 });
