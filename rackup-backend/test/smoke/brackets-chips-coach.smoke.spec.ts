@@ -2,6 +2,7 @@
  * Coach drill parser + elimination / chip-by-skill helpers (no live DB).
  * Run: npm run test:smoke
  */
+import * as http from 'http';
 import {
   drillsFromChatContent,
   drillsFromCoachResult,
@@ -44,11 +45,20 @@ import {
   LIVE_DEFAULT_LLM_PLACEHOLDER,
   sanitizePublicAnalyze,
 } from '../../src/training/analyze-response';
+import { invokeRackupCoach } from '../../src/ai/realai-coach.client';
+import { TrainingService } from '../../src/training/training.service';
 import {
   REALAI_ALIAS_COACH_PATH,
   REALAI_CANONICAL_COACH_PATH,
+  REALAI_HIVE_RACKUP_TOOL,
+  REALAI_TOOLS_EXECUTE_PATH,
+  buildHiveToolsExecuteBody,
   buildRackupCoachEnvelope,
   isForbiddenRealAiUiHost,
+  isHiveToolsFallbackEnabled,
+  isMissingPluginRoute,
+  isRenderRealAiHost,
+  normalizeHiveToolsExecuteResponse,
   realAiCoachPaths,
   renderCloudKeyHint,
   resolveRealAiBaseUrl,
@@ -174,6 +184,454 @@ describe('RealAI rackup-coach wiring contract', () => {
     expect(renderCloudKeyHint('https://realai-api.onrender.com')).toMatch(
       /OPENAI_API_KEY/,
     );
+  });
+
+  it('enables Hive tools/execute fallback only for local / orchestrator', () => {
+    const prev = process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    expect(isHiveToolsFallbackEnabled('http://127.0.0.1:8001')).toBe(true);
+    expect(isHiveToolsFallbackEnabled('http://localhost:8001')).toBe(true);
+    expect(isHiveToolsFallbackEnabled('http://hive.local:8001')).toBe(true);
+    expect(isRenderRealAiHost('https://realai-api.onrender.com')).toBe(true);
+    expect(isHiveToolsFallbackEnabled('https://realai-api.onrender.com')).toBe(
+      false,
+    );
+    expect(isMissingPluginRoute(404)).toBe(true);
+    expect(isMissingPluginRoute(500)).toBe(false);
+    process.env.REALAI_HIVE_TOOLS_FALLBACK = '0';
+    expect(isHiveToolsFallbackEnabled('http://127.0.0.1:8001')).toBe(false);
+    process.env.REALAI_HIVE_TOOLS_FALLBACK = '1';
+    expect(isHiveToolsFallbackEnabled('https://example.com')).toBe(true);
+    if (prev == null) delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    else process.env.REALAI_HIVE_TOOLS_FALLBACK = prev;
+  });
+
+  it('builds rackup_invoke tools/execute body from the same envelope', () => {
+    const envelope = buildRackupCoachEnvelope({
+      ability: 'video_analysis',
+      player: { player_id: 'u1', rating: 500, rating_system: 'rackup' },
+      payload: { observations: 'cue-ball-control' },
+    });
+    const body = buildHiveToolsExecuteBody(envelope);
+    expect(body.name).toBe(REALAI_HIVE_RACKUP_TOOL);
+    expect(body.tool).toBe('rackup_invoke');
+    expect(body.arguments).toEqual(envelope);
+    expect(body.arguments.ability).toBe('video_analysis');
+    expect(body.arguments.player.player_id).toBe('u1');
+    expect(REALAI_TOOLS_EXECUTE_PATH).toBe('/v1/tools/execute');
+  });
+
+  it('unwraps Hive { tool, result } into a rackup-coach envelope', () => {
+    const liveInner = {
+      ok: true,
+      plugin: 'rackup-coach',
+      ability: 'video_analysis',
+      result: {
+        expectation: 'Connect stroke quality to a planned CB landing zone.',
+        findings: [{ area: 'general', finding: 'Refine tempo.', fix: 'PSR.' }],
+      },
+    };
+    const normalized = normalizeHiveToolsExecuteResponse(
+      { tool: 'rackup_invoke', result: liveInner },
+      'video_analysis',
+    );
+    expect(normalized.ok).toBe(true);
+    expect(normalized.plugin).toBe('rackup-coach');
+    expect(normalized.ability).toBe('video_analysis');
+    expect((normalized.result as { expectation: string }).expectation).toMatch(
+      /CB landing zone/,
+    );
+  });
+});
+
+describe('Hive tools-execute invoke fallback', () => {
+  const origFetch = global.fetch;
+  const saved = {
+    base: process.env.REALAI_BASE_URL,
+    flag: process.env.REALAI_HIVE_TOOLS_FALLBACK,
+  };
+
+  afterEach(() => {
+    global.fetch = origFetch;
+    if (saved.base == null) delete process.env.REALAI_BASE_URL;
+    else process.env.REALAI_BASE_URL = saved.base;
+    if (saved.flag == null) delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    else process.env.REALAI_HIVE_TOOLS_FALLBACK = saved.flag;
+  });
+
+  const request = {
+    ability: 'video_analysis' as const,
+    player: { player_id: 'u1', rating: 500, rating_system: 'rackup' },
+    payload: {
+      video_url: 'https://youtube.com/shorts/b3ZlStHTwKc',
+      observations: 'Long straight missed thin',
+    },
+  };
+
+  function jsonResponse(status: number, body: unknown) {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  it('falls back to rackup_invoke when local Hive plugin path 404s', async () => {
+    process.env.REALAI_BASE_URL = 'http://127.0.0.1:8001';
+    delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    const urls: string[] = [];
+    global.fetch = (async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes('/v1/plugins/rackup-coach') || url.includes('/v1/rackup/coach')) {
+        return jsonResponse(404, { error: 'not_found', path: '/v1/plugins/rackup-coach' });
+      }
+      if (url.includes('/v1/tools/execute')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as {
+          name?: string;
+          tool?: string;
+          arguments?: { ability?: string; player?: { player_id?: string } };
+        };
+        expect(body.name).toBe('rackup_invoke');
+        expect(body.tool).toBe('rackup_invoke');
+        expect(body.arguments?.ability).toBe('video_analysis');
+        expect(body.arguments?.player?.player_id).toBe('u1');
+        return jsonResponse(200, {
+          tool: 'rackup_invoke',
+          result: {
+            ok: true,
+            plugin: 'rackup-coach',
+            ability: 'video_analysis',
+            result: {
+              expectation: 'Connect stroke quality to a planned CB landing zone.',
+              findings: [],
+              recommended_drills: ['20-ball PSR set'],
+            },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }) as typeof fetch;
+
+    const res = await invokeRackupCoach(request, { retries: 0 });
+    expect(res.ok).toBe(true);
+    expect(res.plugin).toBe('rackup-coach');
+    expect(res.ability).toBe('video_analysis');
+    expect(res.result).toMatchObject({
+      expectation: expect.stringMatching(/CB landing zone/),
+    });
+    expect(urls.some((u) => u.endsWith('/v1/plugins/rackup-coach'))).toBe(true);
+    expect(urls.some((u) => u.endsWith('/v1/tools/execute'))).toBe(true);
+  });
+
+  it('keeps Render plugin-first (no tools/execute on plugin 404)', async () => {
+    process.env.REALAI_BASE_URL = 'https://realai-api.onrender.com';
+    delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    const urls: string[] = [];
+    global.fetch = (async (input: string | URL) => {
+      const url = String(input);
+      urls.push(url);
+      return jsonResponse(404, { error: 'not_found' });
+    }) as typeof fetch;
+
+    await expect(invokeRackupCoach(request, { retries: 0 })).rejects.toThrow(/404/);
+    expect(urls.some((u) => u.includes('/v1/plugins/rackup-coach'))).toBe(true);
+    expect(urls.some((u) => u.includes('/v1/tools/execute'))).toBe(false);
+  });
+
+  it('uses the plugin path when present and skips tools/execute', async () => {
+    process.env.REALAI_BASE_URL = 'http://127.0.0.1:8001';
+    const urls: string[] = [];
+    global.fetch = (async (input: string | URL) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes('/v1/plugins/rackup-coach')) {
+        return jsonResponse(200, {
+          ok: true,
+          plugin: 'rackup-coach',
+          ability: 'video_analysis',
+          result: { expectation: 'Plugin path won.' },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }) as typeof fetch;
+
+    const res = await invokeRackupCoach(request, { retries: 0 });
+    expect(res.ok).toBe(true);
+    expect(res.result).toMatchObject({ expectation: 'Plugin path won.' });
+    expect(urls.some((u) => u.includes('/v1/tools/execute'))).toBe(false);
+  });
+
+  it('Nest analyzeShot publishes rackup-coach text via Hive tools fallback', async () => {
+    process.env.REALAI_BASE_URL = 'http://127.0.0.1:8001';
+    delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    const urls: string[] = [];
+    global.fetch = (async (input: string | URL) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes('/v1/plugins/rackup-coach') || url.includes('/v1/rackup/coach')) {
+        return jsonResponse(404, { error: 'not_found' });
+      }
+      if (url.includes('/v1/tools/execute')) {
+        return jsonResponse(200, {
+          tool: 'rackup_invoke',
+          result: {
+            ok: true,
+            plugin: 'rackup-coach',
+            ability: 'video_analysis',
+            result: {
+              expectation: 'Connect stroke quality to a planned CB landing zone.',
+              findings: [
+                {
+                  area: 'general',
+                  finding: 'No critical flags — refine tempo and PSR.',
+                  fix: 'Keep pre-shot routine fixed.',
+                },
+              ],
+              recommended_drills: ['20-ball PSR set'],
+            },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }) as typeof fetch;
+
+    const svc = new TrainingService(
+      { find: async () => [] } as never,
+      {
+        findOne: async () => ({
+          id: 'u1',
+          displayName: 'Travis',
+          rating: 500,
+          rd: 175,
+          volatility: 0.06,
+          ratingBand: 'Advanced',
+        }),
+      } as never,
+      {
+        putBytes: async () => ({
+          url: 'file://analyses/u1/x.json',
+          key: 'analyses/u1/x.json',
+          backend: 'local',
+        }),
+      } as never,
+    );
+
+    const out = await svc.analyzeShot('u1', {
+      videoUrl: 'https://youtube.com/shorts/b3ZlStHTwKc',
+      notes: 'Long straight missed thin',
+      game: '9-ball',
+      focus: 'stroke',
+    });
+
+    expect(out.provider).toBe('realai');
+    expect(out.offlineFallback).toBe(false);
+    expect(out.status).toBe('realai');
+    expect(out.model).toBe('rackup-coach');
+    expect(out.analysis).toMatch(/CB landing zone/);
+    expect(out.analysis).not.toMatch(/default_llm/);
+    expect(out.ability).toBe('video_analysis');
+    expect(urls.some((u) => u.includes('/v1/tools/execute'))).toBe(true);
+  });
+});
+
+/**
+ * Real HTTP Hive stub: plugin 404 is expected; LIVE path is tools/execute
+ * + rackup_invoke. Prefers 127.0.0.1:8001 (operator REALAI_BASE_URL).
+ */
+describe('Nest analyze against Hive stub (real fetch)', () => {
+  const saved = {
+    base: process.env.REALAI_BASE_URL,
+    flag: process.env.REALAI_HIVE_TOOLS_FALLBACK,
+  };
+  let server: http.Server | undefined;
+  let baseUrl = 'http://127.0.0.1:8001';
+  let seen: Array<{ path: string; name?: string; ability?: string }> = [];
+
+  function startHiveStub(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      seen = [];
+      const stub = http.createServer((req, res) => {
+        const path = (req.url ?? '').split('?')[0];
+        const send = (status: number, body: unknown) => {
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(body));
+        };
+        if (req.method === 'GET' && path === '/health') {
+          send(200, { ok: true, service: 'v3_orchestrator' });
+          return;
+        }
+        if (
+          path === '/v1/plugins/rackup-coach' ||
+          path === '/v1/rackup/coach'
+        ) {
+          seen.push({ path });
+          send(404, { error: 'not_found', path });
+          return;
+        }
+        if (req.method === 'POST' && path === '/v1/tools/execute') {
+          const chunks: Buffer[] = [];
+          req.on('data', (c) => chunks.push(Buffer.from(c)));
+          req.on('end', () => {
+            let body: {
+              name?: string;
+              tool?: string;
+              arguments?: { ability?: string };
+            } = {};
+            try {
+              body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+            } catch {
+              send(400, { error: 'invalid_json' });
+              return;
+            }
+            const name = body.name || body.tool;
+            const ability = body.arguments?.ability ?? 'coach';
+            seen.push({ path, name, ability });
+            if (name !== 'rackup_invoke') {
+              send(200, { tool: name, result: { ok: false, error: 'unknown_tool' } });
+              return;
+            }
+            send(200, {
+              tool: 'rackup_invoke',
+              result: {
+                ok: true,
+                plugin: 'rackup-coach',
+                ability,
+                result:
+                  ability === 'video_analysis'
+                    ? {
+                        expectation:
+                          'Connect stroke quality to a planned CB landing zone.',
+                        findings: [
+                          {
+                            area: 'general',
+                            finding: 'Refine tempo and PSR.',
+                            fix: 'Keep pre-shot routine fixed.',
+                          },
+                        ],
+                        recommended_drills: ['20-ball PSR set'],
+                      }
+                    : {
+                        analysis:
+                          'Pause on the last alignment. Three drills: stop, follow, draw.',
+                      },
+              },
+            });
+          });
+          return;
+        }
+        send(404, { error: 'not_found', path });
+      });
+
+      const onError = (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          stub.off('error', onError);
+          stub.listen(0, '127.0.0.1', () => {
+            const addr = stub.address();
+            const port = typeof addr === 'object' && addr ? addr.port : 0;
+            server = stub;
+            resolve(`http://127.0.0.1:${port}`);
+          });
+          return;
+        }
+        reject(err);
+      };
+      stub.on('error', onError);
+      stub.listen(8001, '127.0.0.1', () => {
+        stub.off('error', onError);
+        server = stub;
+        resolve('http://127.0.0.1:8001');
+      });
+    });
+  }
+
+  beforeAll(async () => {
+    baseUrl = await startHiveStub();
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => {
+      if (!server) return resolve();
+      server.close(() => resolve());
+    });
+  });
+
+  afterEach(() => {
+    if (saved.base == null) delete process.env.REALAI_BASE_URL;
+    else process.env.REALAI_BASE_URL = saved.base;
+    if (saved.flag == null) delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    else process.env.REALAI_HIVE_TOOLS_FALLBACK = saved.flag;
+  });
+
+  function trainingService() {
+    return new TrainingService(
+      { find: async () => [] } as never,
+      {
+        findOne: async () => ({
+          id: 'u1',
+          displayName: 'Travis',
+          rating: 500,
+          rd: 175,
+          volatility: 0.06,
+          ratingBand: 'Advanced',
+        }),
+      } as never,
+      {
+        putBytes: async () => ({
+          url: 'file://analyses/u1/x.json',
+          key: 'analyses/u1/x.json',
+          backend: 'local',
+        }),
+      } as never,
+    );
+  }
+
+  it('analyzeShot video_analysis uses tools/execute when plugin 404s', async () => {
+    process.env.REALAI_BASE_URL = baseUrl;
+    delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    seen = [];
+    const out = await trainingService().analyzeShot('u1', {
+      videoUrl: 'https://youtube.com/shorts/b3ZlStHTwKc',
+      notes: 'Long straight missed thin',
+      game: '9-ball',
+      focus: 'stroke',
+    });
+    expect(baseUrl.startsWith('http://127.0.0.1:')).toBe(true);
+    expect(out.provider).toBe('realai');
+    expect(out.offlineFallback).toBe(false);
+    expect(out.status).toBe('realai');
+    expect(out.ability).toBe('video_analysis');
+    expect(out.analysis).toMatch(/CB landing zone/);
+    expect(out.analysis).not.toMatch(/default_llm/);
+    expect(seen.some((s) => s.path === '/v1/plugins/rackup-coach')).toBe(true);
+    expect(
+      seen.some(
+        (s) => s.path === '/v1/tools/execute' && s.name === 'rackup_invoke',
+      ),
+    ).toBe(true);
+  });
+
+  it('analyzeShot coach ability uses the same Hive LIVE path', async () => {
+    process.env.REALAI_BASE_URL = baseUrl;
+    delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    seen = [];
+    const out = await trainingService().analyzeShot('u1', {
+      notes: 'Long straight missed thin',
+      game: '9-ball',
+      focus: 'stroke',
+    });
+    expect(out.provider).toBe('realai');
+    expect(out.offlineFallback).toBe(false);
+    expect(out.ability).toBe('coach');
+    expect(out.analysis).toMatch(/last alignment/);
+    expect(out.analysis).not.toMatch(/default_llm/);
+    expect(
+      seen.some(
+        (s) =>
+          s.path === '/v1/tools/execute' &&
+          s.name === 'rackup_invoke' &&
+          s.ability === 'coach',
+      ),
+    ).toBe(true);
   });
 });
 
