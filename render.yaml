@@ -63,7 +63,7 @@ services:
     region: oregon
     plan: starter
     rootDir: rackup-web
-    buildCommand: npm ci || npm install && npm run build
+    buildCommand: npm ci --include=dev || npm install --include=dev && npm run build
     staticPublishPath: dist
     autoDeployTrigger: commit
     routes:

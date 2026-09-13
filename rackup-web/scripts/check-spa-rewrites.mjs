@@ -45,6 +45,7 @@ if (!rootWeb) {
   mustInclude('root render.yaml rackup-web', rootWeb, 'runtime: static');
   mustInclude('root render.yaml rackup-web', rootWeb, 'rootDir: rackup-web');
   mustInclude('root render.yaml rackup-web', rootWeb, 'staticPublishPath: dist');
+  mustInclude('root render.yaml rackup-web', rootWeb, '--include=dev');
   mustInclude('root render.yaml rackup-web', rootWeb, 'type: rewrite');
   mustInclude('root render.yaml rackup-web', rootWeb, 'source: /*');
   mustInclude('root render.yaml rackup-web', rootWeb, 'destination: /index.html');
@@ -58,6 +59,7 @@ if (!nestedWeb) {
   failures.push('rackup-web/.render.yaml has no rackup-web service');
 } else {
   mustInclude('rackup-web/.render.yaml', nestedWeb, 'rootDir: rackup-web');
+  mustInclude('rackup-web/.render.yaml', nestedWeb, '--include=dev');
   mustInclude('rackup-web/.render.yaml', nestedWeb, 'type: rewrite');
   mustInclude('rackup-web/.render.yaml', nestedWeb, 'source: /*');
   mustInclude('rackup-web/.render.yaml', nestedWeb, 'destination: /index.html');
