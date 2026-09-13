@@ -256,24 +256,28 @@ export const DEMO_FRIENDS: FriendCard[] = [
     rating: 640,
     status: 'at_hall',
     hallName: 'Midnight Rack',
+    avatarUrl: null,
   },
   {
     id: 'p2',
     displayName: 'BankShot_B',
     rating: 575,
     status: 'online',
+    avatarUrl: null,
   },
   {
     id: 'p3',
     displayName: 'SoftBreak',
     rating: 510,
     status: 'offline',
+    avatarUrl: null,
   },
   {
     id: 'p4',
     displayName: 'RailRunner',
     rating: 700,
     status: 'online',
+    avatarUrl: null,
   },
 ];
 
