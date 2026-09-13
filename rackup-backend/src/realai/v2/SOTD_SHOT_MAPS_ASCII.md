@@ -2,6 +2,9 @@
 
 Coordinate system: x 0–100 head→foot, y 0–50 bottom→top.
 
+Live geometry (and a fresh `ascii_table`) lives on each map in `sotd-shot-maps.ts`.
+This file is a sketch of shot identity; do not treat the drawings as the catalogue source of truth.
+
 ## sotd-01 — Rail-First Bank Cross
 
 - Difficulty: Medium (2/4)

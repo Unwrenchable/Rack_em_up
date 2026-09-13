@@ -53,7 +53,7 @@ export class SotdLandingZoneDto extends SotdPointDto {
 
 /**
  * Full structured Shot-of-the-Day map payload.
- * Served from catalog fallback; optional RealAI enrichment may set source='realai'.
+ * Served from the static Rack catalogue. RealAI is never used to generate diagrams.
  */
 export class SotdShotMapDto {
   @IsString()
@@ -98,7 +98,7 @@ export class SotdShotMapDto {
   coordinate_system!: { x: string; y: string; units: string };
 
   @IsString()
-  source!: 'catalog_fallback' | 'realai';
+  source!: 'catalogue' | 'realai';
 
   @IsString()
   ascii_table!: string;

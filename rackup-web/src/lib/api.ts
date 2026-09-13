@@ -841,7 +841,7 @@ export async function fetchShotOfTheDay(): Promise<ShotOfTheDay> {
   }
 }
 
-/** Structured SOTD map — catalog fallback works with RealAI offline. */
+/** Structured SOTD map — static catalogue works with RealAI offline. */
 export async function fetchSotdMap(shotId: string): Promise<SotdShotMap | null> {
   if (isDemoMode()) {
     return {
@@ -875,7 +875,7 @@ export async function fetchSotdMap(shotId: string): Promise<SotdShotMap | null> 
         y: 'near rail to far rail',
         units: 'table percent',
       },
-      source: 'catalog_fallback',
+      source: 'catalogue',
       ascii_table: '',
       realaiReachable: false,
     };

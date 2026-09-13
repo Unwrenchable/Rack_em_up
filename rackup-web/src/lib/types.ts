@@ -299,7 +299,7 @@ export type SotdShotMap = {
   landing_zones: Array<SotdPoint & { label: string }>;
   pocket_target: SotdPoint;
   coordinate_system: { x: string; y: string; units: string };
-  source: 'catalog_fallback' | 'realai';
+  source: 'catalogue' | 'realai';
   ascii_table: string;
   realaiReachable?: boolean;
 };

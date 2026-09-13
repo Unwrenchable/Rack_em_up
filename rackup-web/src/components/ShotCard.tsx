@@ -91,6 +91,9 @@ export function ShotCard({
         <span className="chip chip-live">Shot of the Day</span>
         <span className="chip chip-gold">{shot.difficulty}</span>
         <span className="chip">{humanCategory(shot.category)}</span>
+        {map && (
+          <span className="chip">{map.source === 'catalogue' ? 'Catalogue' : 'RealAI'}</span>
+        )}
       </div>
 
       <div>
