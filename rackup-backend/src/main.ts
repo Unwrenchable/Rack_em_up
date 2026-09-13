@@ -48,6 +48,11 @@ async function bootstrap(): Promise<void> {
     : path.join(process.cwd(), 'uploads');
   app.useStaticAssets(uploadRoot, { prefix: '/uploads/' });
 
+  // Hall photos + avatars post data-URLs. Default Express JSON is ~100kb and
+  // rejects typical 2 MB images before the avatar size check runs.
+  app.useBodyParser('json', { limit: '3mb' });
+  app.useBodyParser('urlencoded', { limit: '3mb', extended: true });
+
   app.setGlobalPrefix('api/v1');
 
   app.enableCors({

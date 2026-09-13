@@ -11,8 +11,10 @@ import { MatchmakingGateway } from './matchmaking.gateway';
 import { ChatService } from '../chat/chat.service';
 import { UsersService } from '../users/users.service';
 import {
+  LOOKING_BOARD_LIMIT,
   LOOKING_TTL_MS,
   LookingBoardRow,
+  keepDiscoverableRows,
   mergeLookingByUser,
   rankLookingCandidate,
 } from './looking-board.util';
@@ -57,8 +59,9 @@ export class MatchmakingService {
       existing.maxRating = dto.max_rating;
       existing.expiresAt = expiresAt;
       const saved = await this.matchmakingRepo.save(existing);
-      this.matchmakingGateway.emitRequestCreated(uid, saved);
-      return saved;
+      const winner = (await this.keepNewestLookingRow(uid)) ?? saved;
+      this.matchmakingGateway.emitRequestCreated(uid, winner);
+      return winner;
     }
 
     const entity = this.matchmakingRepo.create({
@@ -72,9 +75,30 @@ export class MatchmakingService {
       expiresAt,
     });
 
-    const saved = await this.matchmakingRepo.save(entity);
-    this.matchmakingGateway.emitRequestCreated(uid, saved);
-    return saved;
+    await this.matchmakingRepo.save(entity);
+    const winner = (await this.keepNewestLookingRow(uid)) ?? entity;
+    this.matchmakingGateway.emitRequestCreated(uid, winner);
+    return winner;
+  }
+
+  /**
+   * Concurrent POSTs can both insert. Always keep the newest row by created_at
+   * so two cleanups cannot delete each other and leave the user invisible.
+   */
+  private async keepNewestLookingRow(userId: string): Promise<MatchmakingRequest | null> {
+    const newest = await this.matchmakingRepo.findOne({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+    if (!newest) return null;
+    await this.matchmakingRepo
+      .createQueryBuilder()
+      .delete()
+      .from(MatchmakingRequest)
+      .where('user_id = :userId', { userId })
+      .andWhere('id != :keepId', { keepId: newest.id })
+      .execute();
+    return newest;
   }
 
   async cancelRequest(id: string, userId: string) {
@@ -99,10 +123,52 @@ export class MatchmakingService {
     return result.affected ?? 0;
   }
 
-  async search(dto: SearchMatchmakingDto): Promise<LookingBoardRow[]> {
+  async search(
+    dto: SearchMatchmakingDto,
+    opts?: { excludeUserId?: string },
+  ): Promise<LookingBoardRow[]> {
     const v1 = await this.searchV1(dto);
     const v2 = await this.searchV2Pending(dto);
-    return mergeLookingByUser([...v1, ...v2]);
+    const hide = await this.recentlyMatchedUserIds();
+    return keepDiscoverableRows(mergeLookingByUser([...v1, ...v2]), hide)
+      .filter((row) => row.user_id !== opts?.excludeUserId)
+      .slice(0, LOOKING_BOARD_LIMIT);
+  }
+
+  /** V2 pairing marks only V2 rows MATCHED; hide those users from the V1 leftover card. */
+  private async recentlyMatchedUserIds(): Promise<Set<string>> {
+    const since = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const rows = await this.v2RequestsRepo
+      .createQueryBuilder('v2')
+      .select('v2.user_id', 'userId')
+      .where('v2.status = :st', { st: 'MATCHED' })
+      .andWhere('v2.updated_at > :since', { since })
+      .getRawMany<{ userId: string }>();
+    return new Set(
+      rows
+        .map((r) => r.userId ?? (r as { userid?: string }).userid)
+        .filter((id): id is string => !!id),
+    );
+  }
+
+  async leaveQueue(userId: string) {
+    const uid = String(userId);
+    const v1 = await this.matchmakingRepo.delete({ userId: uid });
+    this.matchmakingGateway.emitRequestCancelled(uid, { id: 'all' });
+
+    const v2 = await this.v2RequestsRepo
+      .createQueryBuilder()
+      .update(MatchmakingRequestV2)
+      .set({ status: 'CANCELLED' })
+      .where('user_id = :uid', { uid })
+      .andWhere('status = :st', { st: 'PENDING' })
+      .execute();
+
+    return {
+      cancelled: true,
+      v1Removed: v1.affected ?? 0,
+      v2Cancelled: v2.affected ?? 0,
+    };
   }
 
   private async searchV1(dto: SearchMatchmakingDto): Promise<LookingBoardRow[]> {
@@ -237,8 +303,8 @@ export class MatchmakingService {
     };
   }
 
-  async findBestMatch(dto: SearchMatchmakingDto) {
-    const results = await this.search(dto);
+  async findBestMatch(dto: SearchMatchmakingDto, excludeUserId?: string) {
+    const results = await this.search(dto, { excludeUserId });
     return results[0] ?? null;
   }
 
@@ -248,7 +314,7 @@ export class MatchmakingService {
     raceTo: number,
     hallId?: string,
   ) {
-    const best = await this.findBestMatch(dto);
+    const best = await this.findBestMatch(dto, requestingUserId);
     if (!best) {
       throw new NotFoundException('No suitable opponent found');
     }
@@ -287,6 +353,12 @@ export class MatchmakingService {
     const raceTo = dto.raceTo ?? 5;
     const stakes = dto.stakes ?? 'casual';
 
+    // Block check (and DM thread) before creating a match so a blocked
+    // challenge cannot leave an orphaned PENDING pool match.
+    const thread = await this.chat.getOrCreateDm(userId, dto.opponentId, {
+      allowNonFriends: true,
+    });
+
     const match = await this.matchesService.create({
       playerAId: userId,
       playerBId: dto.opponentId,
@@ -294,11 +366,7 @@ export class MatchmakingService {
       raceTo,
     });
 
-    let threadId: string | null = null;
     try {
-      const thread = await this.chat.getOrCreateDm(userId, dto.opponentId, {
-        allowNonFriends: true,
-      });
       await this.chat.send(
         userId,
         thread.id,
@@ -312,10 +380,10 @@ export class MatchmakingService {
           opponentId: dto.opponentId,
         },
       );
-      threadId = thread.id;
     } catch {
-      /* match still stands if DM is blocked */
+      /* thread exists; do not fail the challenge after the match is created */
     }
+    const threadId = thread.id;
 
     this.matchmakingGateway.emitMatchFound(String(userId), {
       opponent: { user_id: dto.opponentId, displayName: opponent.displayName },

@@ -99,3 +99,18 @@ export function isLookingRequestActive(expiresAt: Date, now: Date = new Date()):
 }
 
 export const LOOKING_TTL_MS = 30 * 60 * 1000;
+/** Cap the discovery board so polls do not hydrate every live row worldwide. */
+export const LOOKING_BOARD_LIMIT = 50;
+
+/**
+ * After V2 pairing, leftover V1 cards should drop off. A brand-new V2 PENDING
+ * row (Go live again) must stay visible.
+ */
+export function keepDiscoverableRows(
+  rows: LookingBoardRow[],
+  recentlyMatchedUserIds: Set<string>,
+): LookingBoardRow[] {
+  return rows.filter(
+    (row) => row.source !== 'v1' || !recentlyMatchedUserIds.has(row.user_id),
+  );
+}

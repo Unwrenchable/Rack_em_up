@@ -499,7 +499,7 @@ export async function createMoneyMatch(body: {
 /** Shared default origin for Find discovery + Go live (Vegas). */
 export const DEFAULT_FIND_ORIGIN = { lat: 36.1699, lon: -115.1398 };
 /** Wide enough that two live looking rows are not hidden by a city-level radius. */
-export const FIND_DISCOVERY_RADIUS_M = 20_000_000;
+export const FIND_DISCOVERY_RADIUS_M = 21_000_000;
 
 export async function fetchLookingPlayers(opts?: {
   lat?: number;
@@ -1515,6 +1515,18 @@ export async function mmV2Cancel(body: { sessionId: string }): Promise<unknown> 
   return request('/matchmaking/v2/cancel', {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function leaveLookingQueue(body?: { requestId?: string }): Promise<{
+  cancelled: boolean;
+  v1Removed?: number;
+  v2Cancelled?: number;
+}> {
+  if (isDemoMode()) return { cancelled: true, v1Removed: 0, v2Cancelled: 0 };
+  return request('/matchmaking/leave', {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
   });
 }
 

@@ -530,6 +530,7 @@ describe('V2 route inventory', () => {
     'GET /matchmaking/search',
     'POST /matchmaking/request',
     'POST /matchmaking/challenge',
+    'POST /matchmaking/leave',
     'POST /matchmaking/v2/search',
     'POST /realai/v2/coach',
     'GET /realai/v2/sotd/maps',
@@ -627,6 +628,7 @@ describe('V2 route inventory', () => {
     expect(routes).toContain('GET /matchmaking/search');
     expect(routes).toContain('POST /matchmaking/request');
     expect(routes).toContain('POST /matchmaking/challenge');
+    expect(routes).toContain('POST /matchmaking/leave');
     expect(routes).toContain('POST /users/me/avatar');
   });
 });

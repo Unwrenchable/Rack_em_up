@@ -7,6 +7,7 @@ import {
   fetchFriends,
   fetchLookingPlayers,
   goLiveLooking,
+  leaveLookingQueue,
   mmV2Cancel,
   mmV2Confirm,
   mmV2Search,
@@ -201,16 +202,19 @@ export function FindPage() {
   }
 
   async function cancelSession() {
-    if (!mm?.sessionId) {
-      setMm(null);
-      push('Left queue (no session to cancel)', 'info');
-      return;
-    }
     setMmBusy(true);
     try {
-      await mmV2Cancel({ sessionId: mm.sessionId });
+      await leaveLookingQueue({ requestId: mm?.requestId });
+      if (mm?.sessionId) {
+        try {
+          await mmV2Cancel({ sessionId: mm.sessionId });
+        } catch {
+          /* request-level leave already cancelled PENDING V2 */
+        }
+      }
       setMm(null);
-      push('Matchmaking cancelled', 'ok');
+      push('Left the looking board', 'ok');
+      await refreshBoard();
     } catch (e) {
       push(e instanceof Error ? e.message.slice(0, 120) : 'Cancel failed', 'err');
     } finally {
