@@ -764,7 +764,16 @@ export async function blockUser(userId: string) {
 }
 
 export async function fetchChatThreads() {
-  if (isDemoMode()) return [];
+  if (isDemoMode()) {
+    return DEMO_FRIENDS.map((f) => ({
+      id: `demo-thread-${f.id}`,
+      kind: 'DM' as const,
+      title: f.displayName,
+      lastMessageAt: null,
+      lastMessagePreview: null,
+      createdById: DEMO_USER.id,
+    }));
+  }
   try {
     return await request<
       Array<{

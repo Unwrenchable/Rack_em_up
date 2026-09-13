@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import {
   fetchChatThreads,
@@ -9,64 +9,110 @@ import {
   sendThreadMessage,
   TOKEN_REFRESHED_EVENT,
 } from '../lib/api';
+import { chatThreadPath, conversationLabel } from '../lib/chat-labels';
 import { useAuth } from '../lib/auth-context';
 import type { ChatMessage } from '../lib/types';
+
+const LOBBY_WELCOME: ChatMessage = {
+  id: 'welcome',
+  sender: 'system',
+  text: 'Welcome to RackUp live chat. Keep it clean — trash talk optional.',
+  createdAt: new Date().toISOString(),
+};
 
 export function ChatPage() {
   const { user, demo } = useAuth();
   const [params] = useSearchParams();
   const threadId = params.get('thread');
+  const nameParam = params.get('name');
 
   const [online, setOnline] = useState(0);
   const [connected, setConnected] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [text, setText] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      sender: 'system',
-      text: 'Welcome to RackUp live chat. Keep it clean — trash talk optional.',
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([LOBBY_WELCOME]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const myNameRef = useRef(user?.displayName ?? '');
-  const [threads, setThreads] = useState<Array<{ id: string; title: string | null; kind: string }>>(
-    [],
-  );
+  const threadIdRef = useRef(threadId);
+  const [threads, setThreads] = useState<
+    Array<{ id: string; title: string | null; kind: string; lastMessagePreview: string | null }>
+  >([]);
+  const activeThread = threads.find((t) => t.id === threadId);
+  const heading = threadId
+    ? conversationLabel({
+        title: nameParam || activeThread?.title,
+        kind: activeThread?.kind ?? 'DM',
+        lastMessagePreview: activeThread?.lastMessagePreview,
+      })
+    : 'Table chat';
 
   useEffect(() => {
     myNameRef.current = user?.displayName ?? '';
   }, [user?.displayName]);
 
   useEffect(() => {
-    if (demo) return;
-    fetchChatThreads().then((rows) =>
-      setThreads(rows.map((t) => ({ id: t.id, title: t.title, kind: t.kind }))),
-    );
-  }, [demo]);
+    threadIdRef.current = threadId;
+  }, [threadId]);
 
   useEffect(() => {
-    if (!threadId || demo) return;
+    fetchChatThreads().then((rows) =>
+      setThreads(
+        rows.map((t) => ({
+          id: t.id,
+          title: t.title,
+          kind: t.kind,
+          lastMessagePreview: t.lastMessagePreview,
+        })),
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!threadId) {
+      setMessages([LOBBY_WELCOME]);
+      return;
+    }
+    const peerLabel = conversationLabel({
+      title: nameParam || activeThread?.title,
+      kind: activeThread?.kind ?? 'DM',
+      lastMessagePreview: activeThread?.lastMessagePreview,
+    });
+    if (demo) {
+      setMessages([
+        {
+          id: 'welcome-dm',
+          sender: 'system',
+          text: `Chat with ${peerLabel}.`,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      return;
+    }
     fetchThreadMessages(threadId)
       .then((rows) => {
+        const chronological = [...rows].reverse();
         setMessages(
-          rows.map((m) => ({
+          chronological.map((m) => ({
             id: m.id,
-            sender: m.senderId === user?.id ? user.displayName : m.senderId.slice(0, 8),
-            text:
-              m.body ||
-              (m.type === 'MATCH_INVITE' ? 'Match invite' : ''),
+            sender: m.senderId === user?.id ? (user.displayName ?? 'You') : peerLabel,
+            text: m.body || (m.type === 'MATCH_INVITE' ? 'Match invite' : ''),
             createdAt: m.createdAt,
             mine: m.senderId === user?.id,
           })),
         );
       })
       .catch(() => {
-        /* keep welcome */
+        setMessages([
+          {
+            id: 'welcome-dm',
+            sender: 'system',
+            text: `Chat with ${peerLabel}.`,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
       });
-  }, [threadId, demo, user?.id, user?.displayName]);
+  }, [threadId, demo, user?.id, user?.displayName, nameParam, activeThread?.title]);
 
   useEffect(() => {
     if (demo) {
@@ -120,6 +166,7 @@ export function ChatPage() {
     socket.on(
       'message',
       (payload: { sender?: string; senderId?: string; text?: string; createdAt?: string }) => {
+        if (threadIdRef.current) return;
         setMessages((m) => [
           ...m,
           {
@@ -212,18 +259,20 @@ export function ChatPage() {
     <div className="page chat-page">
       <header className="row-between" style={{ marginBottom: 12 }}>
         <div>
-          <p className="eyebrow">Live</p>
-          <h1 className="h2">{threadId ? 'Direct message' : 'Table chat'}</h1>
+          <p className="eyebrow">{threadId ? 'Chat' : 'Live'}</p>
+          <h1 className="h2">{heading}</h1>
         </div>
-        <span className={`chip${connected ? ' chip-live' : ' chip-quiet'}`}>
-          {connected ? (
-            <>
-              <span className="dot-live" /> {online || '…'} online
-            </>
-          ) : (
-            'Connecting…'
-          )}
-        </span>
+        {!threadId && (
+          <span className={`chip${connected ? ' chip-live' : ' chip-quiet'}`}>
+            {connected ? (
+              <>
+                <span className="dot-live" /> {online || '…'} online
+              </>
+            ) : (
+              'Connecting…'
+            )}
+          </span>
+        )}
       </header>
 
       {authError && !threadId && (
@@ -233,37 +282,39 @@ export function ChatPage() {
       )}
 
       {threads.length > 0 && (
-        <div className="row" style={{ flexWrap: 'wrap', marginBottom: 12, gap: 8 }}>
-          <a href="/chat" className={`chip${!threadId ? ' chip-gold' : ''}`}>
+        <div className="chat-convos" aria-label="Conversations">
+          <Link to="/chat" className={`chip${!threadId ? ' chip-gold' : ''}`}>
             Lobby
-          </a>
+          </Link>
           {threads.map((t) => (
-            <a
+            <Link
               key={t.id}
-              href={`/chat?thread=${t.id}`}
+              to={chatThreadPath(t.id, t.title)}
               className={`chip${threadId === t.id ? ' chip-gold' : ''}`}
             >
-              {t.title || (t.kind === 'DM' ? 'DM' : 'Group')}
-            </a>
+              {conversationLabel(t)}
+            </Link>
           ))}
         </div>
       )}
 
       <div className="chat-log card">
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`chat-bubble${m.mine ? ' mine' : ''}${
-              m.sender === 'system' ? ' system' : ''
-            }`}
-          >
-            {m.sender !== 'system' && !m.mine && (
-              <div className="chat-meta">{m.sender.slice(0, 8)}</div>
-            )}
-            <div>{m.text}</div>
-          </div>
-        ))}
-        <div ref={bottomRef} />
+        <div className="chat-log-inner">
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={`chat-bubble${m.mine ? ' mine' : ''}${
+                m.sender === 'system' ? ' system' : ''
+              }`}
+            >
+              {m.sender !== 'system' && !m.mine && (
+                <div className="chat-meta">{m.sender}</div>
+              )}
+              <div>{m.text}</div>
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
       <form className="chat-compose" onSubmit={send}>

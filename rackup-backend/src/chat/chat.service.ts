@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ChatThread } from './entities/chat-thread.entity';
 import { ChatThreadMember } from './entities/chat-thread-member.entity';
 import { ChatMessage, ChatMessageType } from './entities/chat-message.entity';
@@ -144,14 +144,53 @@ export class ChatService {
       .addOrderBy('t.created_at', 'DESC')
       .getMany();
 
+    const titles = await this.displayTitlesFor(userId, threads);
+
     return threads.map((t) => ({
       id: t.id,
       kind: t.kind,
-      title: t.title,
+      title: titles.get(t.id) ?? t.title,
       lastMessageAt: t.lastMessageAt,
       lastMessagePreview: t.lastMessagePreview,
       createdById: t.createdById,
     }));
+  }
+
+  /** DM rows store title=null; show the other person's name so Chat tabs are not identical "DM" pills. */
+  private async displayTitlesFor(
+    userId: string,
+    threads: ChatThread[],
+  ): Promise<Map<string, string | null>> {
+    const titles = new Map<string, string | null>();
+    const untitledDms = threads.filter((t) => t.kind === 'DM' && !t.title).map((t) => t.id);
+    const members = untitledDms.length
+      ? await this.members.find({
+          where: { threadId: In(untitledDms), leftAt: IsNull() },
+        })
+      : [];
+
+    const peerByThread = new Map<string, string>();
+    const peerIds = new Set<string>();
+    for (const m of members) {
+      if (m.userId === userId) continue;
+      peerByThread.set(m.threadId, m.userId);
+      peerIds.add(m.userId);
+    }
+
+    const users = peerIds.size
+      ? await this.users.find({ where: { id: In([...peerIds]) } })
+      : [];
+    const nameById = new Map(users.map((u) => [u.id, u.displayName]));
+
+    for (const t of threads) {
+      if (t.title) {
+        titles.set(t.id, t.title);
+        continue;
+      }
+      const peerId = peerByThread.get(t.id);
+      titles.set(t.id, (peerId && nameById.get(peerId)) || null);
+    }
+    return titles;
   }
 
   async assertMember(userId: string, threadId: string): Promise<ChatThreadMember> {

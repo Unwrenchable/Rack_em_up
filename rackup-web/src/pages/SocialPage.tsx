@@ -15,6 +15,7 @@ import {
   searchUsers,
   type PublicUserProfile,
 } from '../lib/api';
+import { chatThreadPath, conversationLabel } from '../lib/chat-labels';
 import { useToast } from '../lib/toast-context';
 import type { ActionPost, FriendCard } from '../lib/types';
 import { Modal } from '../components/Modal';
@@ -109,7 +110,7 @@ export function SocialPage() {
   async function messageFriend(f: FriendCard) {
     try {
       const thread = await openDmThread(f.id);
-      navigate(`/chat?thread=${thread.id}`);
+      navigate(chatThreadPath(thread.id, f.displayName));
     } catch {
       navigate('/chat');
       push('Open chat to message', 'ok');
@@ -121,7 +122,7 @@ export function SocialPage() {
       const res = await challengePlayer({ opponentId: f.id });
       setChallengedIds((m) => ({ ...m, [f.id]: true }));
       push(`Challenge sent to ${f.displayName}`, 'ok');
-      if (res.threadId) navigate(`/chat?thread=${res.threadId}`);
+      if (res.threadId) navigate(chatThreadPath(res.threadId, f.displayName));
     } catch (err) {
       push(err instanceof Error ? err.message.slice(0, 120) : 'Challenge failed', 'err');
     }
@@ -344,20 +345,20 @@ export function SocialPage() {
             </Link>
           </div>
           {threads.length === 0 && (
-            <p className="muted">No DM threads yet — add a friend from Find or search above.</p>
+            <p className="muted">No conversations yet — add a friend from Find or search above.</p>
           )}
           {threads.map((t) => (
             <article key={t.id} className="card">
               <div className="row-between">
                 <div>
-                  <div style={{ fontWeight: 600 }}>{t.title || (t.kind === 'DM' ? 'Direct message' : 'Group')}</div>
+                  <div style={{ fontWeight: 600 }}>{conversationLabel(t)}</div>
                   {t.lastMessagePreview && (
                     <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
                       {t.lastMessagePreview}
                     </p>
                   )}
                 </div>
-                <Link to={`/chat?thread=${t.id}`} className="btn btn-secondary btn-sm">
+                <Link to={chatThreadPath(t.id, t.title)} className="btn btn-secondary btn-sm">
                   Open
                 </Link>
               </div>
