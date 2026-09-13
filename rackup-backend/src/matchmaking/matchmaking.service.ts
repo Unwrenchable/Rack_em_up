@@ -78,37 +78,11 @@ export class MatchmakingService {
       dto.max_rating ?? 1000,
     );
 
+    // Haversine in app code — no PostGIS required on Render Postgres.
     const qb = this.matchmakingRepo
       .createQueryBuilder('lfm')
       .leftJoinAndSelect('lfm.user', 'user')
-      .where('lfm.expires_at > NOW()')
-      .andWhere(
-        `
-        ST_DWithin(
-          ST_MakePoint(lfm.lon, lfm.lat)::geography,
-          ST_MakePoint(:lon, :lat)::geography,
-          :radius
-        )
-        `,
-        {
-          lon: dto.lon,
-          lat: dto.lat,
-          radius: dto.radius,
-        },
-      )
-      .addSelect(
-        `
-        ST_DistanceSphere(
-          ST_MakePoint(lfm.lon, lfm.lat),
-          ST_MakePoint(:lon, :lat)
-        )
-        `,
-        'distance_meters',
-      )
-      .setParameters({
-        lon: dto.lon,
-        lat: dto.lat,
-      });
+      .where('lfm.expires_at > NOW()');
 
     if (dto.game) qb.andWhere('lfm.game = :game', { game: dto.game });
     if (dto.stakes) qb.andWhere('lfm.stakes = :stakes', { stakes: dto.stakes });
@@ -125,13 +99,17 @@ export class MatchmakingService {
       });
     }
 
-    qb.orderBy('distance_meters', 'ASC');
-
-    const { entities, raw } = await qb.getRawAndEntities();
+    const entities = await qb.getMany();
+    const radius = Number(dto.radius) || 0;
 
     return entities
-      .map((entity, index) => {
-        const distanceMeters = Number(raw[index]?.distance_meters ?? 0);
+      .map((entity) => {
+        const distanceMeters = this.haversineMeters(
+          dto.lat,
+          dto.lon,
+          Number(entity.lat),
+          Number(entity.lon),
+        );
 
         const candidateRatingCenter = this.avg(
           entity.minRating,
@@ -165,6 +143,7 @@ export class MatchmakingService {
           expires_at: entity.expiresAt,
         };
       })
+      .filter((row) => radius <= 0 || row.distance_meters <= radius)
       .sort((a, b) => a.rank_score - b.rank_score);
   }
 
@@ -203,5 +182,24 @@ export class MatchmakingService {
 
   private avg(a: number, b: number): number {
     return (a + b) / 2;
+  }
+
+  /** Great-circle distance in meters (WGS84 sphere). */
+  private haversineMeters(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6_371_000;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const φ1 = toRad(lat1);
+    const φ2 = toRad(lat2);
+    const Δφ = toRad(lat2 - lat1);
+    const Δλ = toRad(lon2 - lon1);
+    const a =
+      Math.sin(Δφ / 2) ** 2 +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
   }
 }

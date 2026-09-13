@@ -21,6 +21,7 @@ import { RefreshTokenService } from './services/refresh-token.service';
 import { DeviceSessionsService } from './services/device-sessions.service';
 import { EmailVerificationService } from './services/email-verification.service';
 import { PasswordResetService } from './services/password-reset.service';
+import { jwtAccessExpires } from '../../common/jwt-expires';
 
 @Injectable()
 export class AuthV2Service {
@@ -88,7 +89,7 @@ export class AuthV2Service {
     const payload = this.buildAccessPayload(user);
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: process.env.JWT_SECRET ?? 'dev_access_secret',
-      expiresIn: '15m',
+      expiresIn: jwtAccessExpires(),
     });
 
     const { refreshToken: newRefreshToken } = await this.refreshTokenService.issueNewRefreshTokenRaw(user, rt.deviceSessionId);
@@ -162,7 +163,7 @@ export class AuthV2Service {
 
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: process.env.JWT_SECRET ?? 'dev_access_secret',
-      expiresIn: '15m',
+      expiresIn: jwtAccessExpires(),
     });
 
     const deviceSession = await this.deviceSessionsService.createSession(user.id, {

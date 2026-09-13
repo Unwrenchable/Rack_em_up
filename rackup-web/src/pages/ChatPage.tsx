@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { getSocketUrl, getToken } from '../lib/api';
+import { getSocketUrl, getToken, TOKEN_REFRESHED_EVENT } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import type { ChatMessage } from '../lib/types';
 
@@ -94,7 +94,17 @@ export function ChatPage() {
       },
     );
 
+    const onTokenRefresh = () => {
+      const next = getToken();
+      if (!next || next === 'demo') return;
+      socket.auth = { token: next };
+      if (socket.connected) socket.disconnect();
+      socket.connect();
+    };
+    window.addEventListener(TOKEN_REFRESHED_EVENT, onTokenRefresh);
+
     return () => {
+      window.removeEventListener(TOKEN_REFRESHED_EVENT, onTokenRefresh);
       socket.disconnect();
     };
   }, [demo, user?.id]);

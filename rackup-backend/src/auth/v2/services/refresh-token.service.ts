@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { DeviceSessionsService } from './device-sessions.service';
 import { User } from '../../../users/users.entity';
+import { jwtRefreshExpires } from '../../../common/jwt-expires';
 
 @Injectable()
 export class RefreshTokenService {
@@ -27,10 +28,19 @@ export class RefreshTokenService {
   }
 
   async issueNewRefreshTokenRaw(user: User, deviceSessionId: string): Promise<{ refreshToken: string }> {
-    const raw = crypto.randomBytes(64).toString('hex');
-    const hashed = await this.hashToken(raw);
+    const rawToken = crypto.randomBytes(64).toString('hex');
+    const hashed = await this.hashToken(rawToken);
 
-    const expiresDays = 7;
+    const ttlRaw = jwtRefreshExpires().toLowerCase();
+    const m = ttlRaw.match(/^(\d+)\s*([dhms])?$/);
+    let expiresDays = 30;
+    if (m) {
+      const n = Number(m[1]);
+      const unit = m[2] ?? 'd';
+      if (unit === 'd') expiresDays = Math.max(1, n);
+      else if (unit === 'h') expiresDays = Math.max(1, Math.ceil(n / 24));
+      else expiresDays = 1;
+    }
     const expiresAt = new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000);
 
     const entity = this.refreshTokens.create({
@@ -42,7 +52,7 @@ export class RefreshTokenService {
     });
 
     await this.refreshTokens.save(entity);
-    return { refreshToken: raw };
+    return { refreshToken: rawToken };
   }
 
   async consumeRotation(params: {

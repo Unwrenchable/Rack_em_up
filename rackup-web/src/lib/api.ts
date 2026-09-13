@@ -123,7 +123,47 @@ export function enterDemoMode(): User {
   return DEMO_USER;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** Single-flight silent refresh so parallel 401s share one /auth/v2/refresh. */
+let refreshInFlight: Promise<boolean> | null = null;
+
+export const TOKEN_REFRESHED_EVENT = 'rackup:token-refreshed';
+
+async function trySilentRefresh(): Promise<boolean> {
+  const refresh = localStorage.getItem(REFRESH_KEY);
+  if (!refresh) return false;
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        if (!/^https?:\/\//i.test(API) && !API.startsWith('/')) return false;
+        const res = await fetch(`${API}/auth/v2/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: refresh }),
+        });
+        const text = await res.text();
+        if (!res.ok || !text.trim()) return false;
+        const data = JSON.parse(text) as {
+          accessToken?: string;
+          refreshToken?: string;
+        };
+        if (!data.accessToken) return false;
+        localStorage.setItem(TOKEN_KEY, data.accessToken);
+        if (data.refreshToken) localStorage.setItem(REFRESH_KEY, data.refreshToken);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(TOKEN_REFRESHED_EVENT));
+        }
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+  }
+  return refreshInFlight;
+}
+
+async function request<T>(path: string, init?: RequestInit, _retried = false): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(init?.headers as Record<string, string> | undefined),
@@ -136,6 +176,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   const res = await fetch(`${API}${path}`, { ...init, headers });
   const text = await res.text();
+
+  if (
+    res.status === 401 &&
+    !_retried &&
+    token &&
+    token !== 'demo' &&
+    !path.includes('/auth/')
+  ) {
+    const ok = await trySilentRefresh();
+    if (ok) return request<T>(path, init, true);
+    clearSession();
+  }
+
   if (!res.ok) {
     throw new Error(text || res.statusText || `HTTP ${res.status}`);
   }
