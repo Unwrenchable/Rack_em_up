@@ -39,14 +39,18 @@ export class ChatService {
     return [a, b].sort().join(':');
   }
 
-  async getOrCreateDm(userId: string, friendId: string): Promise<ChatThread> {
+  async getOrCreateDm(
+    userId: string,
+    friendId: string,
+    opts?: { allowNonFriends?: boolean },
+  ): Promise<ChatThread> {
     if (userId === friendId) {
       throw new BadRequestException('Cannot DM yourself');
     }
     await this.friends.assertNotBlocked(userId, friendId);
 
     const areFriends = await this.friends.areFriends(userId, friendId);
-    if (!areFriends) {
+    if (!areFriends && !opts?.allowNonFriends) {
       const pref = await this.settings.getOrCreate(friendId);
       if (!pref.allowDmFromNonFriends) {
         throw new ForbiddenException('DMs require friendship');

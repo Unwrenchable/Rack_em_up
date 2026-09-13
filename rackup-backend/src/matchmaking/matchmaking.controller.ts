@@ -12,6 +12,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { CreateMatchmakingRequestDto } from './dto/create-matchmaking-request.dto';
 import { SearchMatchmakingDto } from './dto/search-matchmaking.dto';
+import { ChallengePlayerDto } from './dto/challenge-player.dto';
 import { MatchmakingService } from './matchmaking.service';
 
 @Controller('matchmaking')
@@ -52,6 +53,13 @@ export class MatchmakingController {
   async cleanupExpired() {
     const removed = await this.matchmakingService.cleanupExpired();
     return { removed };
+  }
+
+  /** Direct challenge / match invite from Find or Friends. */
+  @UseGuards(AuthGuard('jwt'))
+  @Post('challenge')
+  async challenge(@Req() req: any, @Body() body: ChallengePlayerDto) {
+    return this.matchmakingService.challenge(req.user.id, body);
   }
 
   // 🔥 Auto-match: find best opponent and create a PoolMatch

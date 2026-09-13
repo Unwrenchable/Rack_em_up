@@ -13,6 +13,7 @@ import {
   getToken,
   isDemoMode,
   login as apiLogin,
+  persistUser,
   signup as apiSignup,
 } from './api';
 import type { User } from './types';
@@ -25,6 +26,7 @@ type AuthState = {
   signup: (email: string, password: string, displayName: string) => Promise<void>;
   startDemo: () => void;
   logout: () => void;
+  updateUser: (patch: Partial<User>) => void;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -62,9 +64,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setDemo(false);
   }, []);
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      persistUser(next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo(
-    () => ({ user, token, demo, login, signup, startDemo, logout }),
-    [user, token, demo, login, signup, startDemo, logout],
+    () => ({ user, token, demo, login, signup, startDemo, logout, updateUser }),
+    [user, token, demo, login, signup, startDemo, logout, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

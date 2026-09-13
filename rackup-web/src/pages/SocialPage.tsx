@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   acceptFriend,
+  challengePlayer,
   createActionPost,
   declineFriend,
   fetchActionBoard,
@@ -9,7 +10,6 @@ import {
   fetchFriends,
   fetchPendingFriendsIncoming,
   formatRelative,
-  initials,
   openDmThread,
   requestFriend,
   searchUsers,
@@ -18,6 +18,7 @@ import {
 import { useToast } from '../lib/toast-context';
 import type { ActionPost, FriendCard } from '../lib/types';
 import { Modal } from '../components/Modal';
+import { UserAvatar } from '../components/UserAvatar';
 
 type Tab = 'friends' | 'board' | 'chat';
 
@@ -27,6 +28,7 @@ type PendingFriend = {
   displayName: string;
   rating: number;
   online: boolean;
+  avatarUrl?: string | null;
 };
 
 export function SocialPage() {
@@ -44,6 +46,7 @@ export function SocialPage() {
   const [findResults, setFindResults] = useState<PublicUserProfile[] | null>(null);
   const [findBusy, setFindBusy] = useState(false);
   const [requestedIds, setRequestedIds] = useState<Record<string, boolean>>({});
+  const [challengedIds, setChallengedIds] = useState<Record<string, boolean>>({});
   const [threads, setThreads] = useState<
     Array<{ id: string; kind: string; title: string | null; lastMessagePreview: string | null }>
   >([]);
@@ -110,6 +113,17 @@ export function SocialPage() {
     } catch {
       navigate('/chat');
       push('Open chat to message', 'ok');
+    }
+  }
+
+  async function challengeFriend(f: FriendCard) {
+    try {
+      const res = await challengePlayer({ opponentId: f.id });
+      setChallengedIds((m) => ({ ...m, [f.id]: true }));
+      push(`Challenge sent to ${f.displayName}`, 'ok');
+      if (res.threadId) navigate(`/chat?thread=${res.threadId}`);
+    } catch (err) {
+      push(err instanceof Error ? err.message.slice(0, 120) : 'Challenge failed', 'err');
     }
   }
 
@@ -183,11 +197,14 @@ export function SocialPage() {
               const sent = requestedIds[p.id];
               return (
                 <div key={p.id} className="row-between" style={{ gap: 8 }}>
-                  <div>
+                  <div className="row" style={{ gap: 10 }}>
+                    <UserAvatar name={p.displayName} avatarUrl={p.avatarUrl} />
+                    <div>
                     <div style={{ fontWeight: 600 }}>{p.displayName}</div>
                     <p className="muted" style={{ fontSize: '0.82rem' }}>
                       ★ {p.rating}
                     </p>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -207,12 +224,15 @@ export function SocialPage() {
               {pending.map((p) => (
                 <article key={p.friendshipId} className="card">
                   <div className="row-between">
-                    <div>
+                    <div className="row" style={{ gap: 10 }}>
+                      <UserAvatar name={p.displayName} avatarUrl={p.avatarUrl} />
+                      <div>
                       <h3 style={{ fontWeight: 600 }}>{p.displayName}</h3>
                       <p className="muted" style={{ fontSize: '0.85rem' }}>
                         ★ {p.rating}
                         {p.online ? ' · Online' : ''}
                       </p>
+                      </div>
                     </div>
                     <div className="row" style={{ gap: 8 }}>
                       <button
@@ -241,7 +261,7 @@ export function SocialPage() {
           {friends?.map((f) => (
             <article key={f.id} className="card">
               <div className="row">
-                <div className="avatar">{initials(f.displayName)}</div>
+                <UserAvatar name={f.displayName} avatarUrl={f.avatarUrl} />
                 <div style={{ flex: 1 }}>
                   <div className="row-between">
                     <h3 style={{ fontWeight: 600 }}>{f.displayName}</h3>
@@ -273,9 +293,10 @@ export function SocialPage() {
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  onClick={() => push(`Challenge sent to ${f.displayName}`, 'ok')}
+                  disabled={!!challengedIds[f.id]}
+                  onClick={() => challengeFriend(f)}
                 >
-                  Challenge
+                  {challengedIds[f.id] ? 'Challenged' : 'Challenge'}
                 </button>
               </div>
             </article>

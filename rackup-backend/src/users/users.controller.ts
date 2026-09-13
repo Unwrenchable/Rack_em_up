@@ -16,6 +16,7 @@ import { StatsService } from './stats.service';
 import { UsersService } from './users.service';
 import { RatingService } from './rating.service';
 import { toGlickoPublic } from './rating-display';
+import { UploadAvatarDto } from './dto/upload-avatar.dto';
 
 class SeedRatingDto {
   @IsString()
@@ -81,6 +82,13 @@ export class UsersController {
       from_value: body.from_value,
       from_scale: body.from_scale,
     });
+  }
+
+  /** Profile picture — JSON data-URL, same pattern as halls/v2/photos/upload. */
+  @UseGuards(AuthGuard('jwt'))
+  @Post('me/avatar')
+  async uploadAvatar(@Req() req: any, @Body() dto: UploadAvatarDto) {
+    return this.usersService.uploadAvatar(req.user.id, dto);
   }
 
   /** P3 — set premium tier (ADMIN only via role check in service later; open for demo) */

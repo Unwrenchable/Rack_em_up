@@ -662,6 +662,30 @@ img {
   font-size: 1.4rem;
 }
 
+img.avatar {
+  object-fit: cover;
+  padding: 0;
+  overflow: hidden;
+}
+
+.avatar-upload {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.avatar-upload .avatar-upload-hint {
+  position: absolute;
+  inset: auto 0 -4px;
+  font-size: 0.72rem;
+  color: var(--gold);
+  font-weight: 600;
+}
+
 .rating-ring {
   display: inline-flex;
   align-items: center;

@@ -55,7 +55,9 @@ export function ChatPage() {
           rows.map((m) => ({
             id: m.id,
             sender: m.senderId === user?.id ? user.displayName : m.senderId.slice(0, 8),
-            text: m.body ?? '',
+            text:
+              m.body ||
+              (m.type === 'MATCH_INVITE' ? 'Match invite' : ''),
             createdAt: m.createdAt,
             mine: m.senderId === user?.id,
           })),

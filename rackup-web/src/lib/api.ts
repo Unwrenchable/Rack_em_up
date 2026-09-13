@@ -63,6 +63,17 @@ const REFRESH_KEY = 'rackup_refresh';
  * Socket.IO origin (no path).
  * Priority: VITE_WS_URL → VITE_API_URL (strip /api/v1) → same origin (Vite proxies /socket.io).
  */
+/** Same-origin or API host so /uploads/... avatars resolve in prod and Vite. */
+export function resolveAssetUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
+  if (url.startsWith('/')) {
+    const origin = getSocketUrl();
+    return `${origin}${url}`;
+  }
+  return url;
+}
+
 export function getSocketUrl(): string {
   const ws = scrubEnv(import.meta.env.VITE_WS_URL, ['VITE_WS_URL']);
   if (ws && /^wss?:\/\//i.test(ws)) {
@@ -485,9 +496,30 @@ export async function createMoneyMatch(body: {
   return request('/money-matches', { method: 'POST', body: JSON.stringify(body) });
 }
 
-export async function fetchLookingPlayers(): Promise<LookingPlayer[]> {
+/** Shared default origin for Find discovery + Go live (Vegas). */
+export const DEFAULT_FIND_ORIGIN = { lat: 36.1699, lon: -115.1398 };
+/** Wide enough that two live looking rows are not hidden by a city-level radius. */
+export const FIND_DISCOVERY_RADIUS_M = 20_000_000;
+
+export async function fetchLookingPlayers(opts?: {
+  lat?: number;
+  lon?: number;
+  radius?: number;
+  game?: string;
+  stakes?: string;
+}): Promise<LookingPlayer[]> {
   if (isDemoMode()) return DEMO_PLAYERS;
   try {
+    const lat = opts?.lat ?? DEFAULT_FIND_ORIGIN.lat;
+    const lon = opts?.lon ?? DEFAULT_FIND_ORIGIN.lon;
+    const radius = opts?.radius ?? FIND_DISCOVERY_RADIUS_M;
+    const qs = new URLSearchParams({
+      lat: String(lat),
+      lon: String(lon),
+      radius: String(radius),
+    });
+    if (opts?.game && opts.game !== 'All') qs.set('game', opts.game);
+    if (opts?.stakes) qs.set('stakes', opts.stakes);
     const raw = await request<
       Array<{
         id: string;
@@ -498,25 +530,75 @@ export async function fetchLookingPlayers(): Promise<LookingPlayer[]> {
         min_rating: number;
         max_rating: number;
         rank_score: number;
+        source?: 'v1' | 'v2';
       }>
-    >('/matchmaking/search?lat=36.17&lon=-115.14&radius=20000&game=9-ball');
+    >(`/matchmaking/search?${qs.toString()}`);
     if (!Array.isArray(raw)) return [];
     const profiles = await fetchUserProfiles(raw.map((r) => r.user_id));
     return raw.map((r) => {
       const p = profiles.get(r.user_id);
       return {
         id: r.id,
+        userId: r.user_id,
         displayName: p?.displayName ?? `Player ${r.user_id.slice(0, 6)}`,
         rating: p?.rating ?? Math.round((r.min_rating + r.max_rating) / 2),
         game: r.game,
         stakes: r.stakes,
         distanceKm: Math.round((r.distance_meters ?? 0) / 100) / 10,
         reputation: p?.reputation ?? 0,
+        avatarUrl: p?.avatarUrl ?? null,
+        source: r.source,
       };
     });
   } catch {
     return [];
   }
+}
+
+export async function challengePlayer(payload: {
+  opponentId: string;
+  game?: string;
+  stakes?: string;
+  raceTo?: number;
+}): Promise<{
+  matchId: string;
+  threadId: string | null;
+  opponentId: string;
+  opponentName?: string;
+  status: string;
+}> {
+  if (isDemoMode()) {
+    return {
+      matchId: `demo-match-${Date.now()}`,
+      threadId: `demo-thread-${payload.opponentId}`,
+      opponentId: payload.opponentId,
+      status: 'PENDING',
+    };
+  }
+  return request('/matchmaking/challenge', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchMe(): Promise<User> {
+  const raw = await request<Record<string, unknown>>('/users/me');
+  return normalizeUser(raw);
+}
+
+export async function uploadAvatar(photoBase64: string): Promise<{ avatarUrl: string }> {
+  if (isDemoMode()) {
+    return { avatarUrl: photoBase64 };
+  }
+  return request('/users/me/avatar', {
+    method: 'POST',
+    body: JSON.stringify({ photoBase64 }),
+  });
+}
+
+export function persistUser(user: User) {
+  const token = getToken();
+  setSession(token, user, isDemoMode());
 }
 
 export async function goLiveLooking(payload: {
@@ -644,6 +726,7 @@ export async function fetchPendingFriendsIncoming() {
         displayName: string;
         rating: number;
         online: boolean;
+        avatarUrl?: string | null;
       }>
     >('/friends/pending/incoming');
   } catch {
@@ -714,6 +797,7 @@ export async function fetchThreadMessages(threadId: string, limit = 50) {
       type: string;
       body: string | null;
       createdAt: string;
+      payloadJson?: Record<string, unknown> | null;
     }>
   >(`/chat/threads/${threadId}/messages?limit=${limit}`);
 }
