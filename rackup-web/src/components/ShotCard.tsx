@@ -44,6 +44,7 @@ export function ShotCard({
 
   useEffect(() => {
     let cancelled = false;
+    setMap(null);
     fetchSotdMap(shot.id).then((m) => {
       if (!cancelled) setMap(m);
     });
@@ -154,7 +155,7 @@ export function ShotCard({
         </div>
 
         {map ? (
-          <ShotMapDiagram map={map} tableSize={tableSize} />
+          <ShotMapDiagram key={`${map.id}-${tableSize}`} map={map} tableSize={tableSize} />
         ) : (
           <div className="banner banner-info" style={{ margin: 0 }}>
             Loading table diagram…

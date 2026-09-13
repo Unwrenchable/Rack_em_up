@@ -300,6 +300,42 @@ export function isPathContact(ball: SotdGeomPoint, pts: SotdGeomPoint[], pad = 3
   return pts.some((p) => dist(p, ball) <= pad);
 }
 
+export function nearestPathIndex(
+  p: SotdGeomPoint,
+  pts: SotdGeomPoint[],
+): { idx: number; dist: number } {
+  let idx = 0;
+  let best = Infinity;
+  pts.forEach((pt, i) => {
+    const d = dist(p, pt);
+    if (d < best) {
+      best = d;
+      idx = i;
+    }
+  });
+  return { idx, dist: best };
+}
+
+/**
+ * Object/helper balls the intended path actually visits, in travel order.
+ * Used for combo transfer checks (centers must line up).
+ */
+export function orderComboBalls(
+  map: SotdGeomMap,
+  pts?: SotdGeomPoint[],
+  pad = 3.4,
+): SotdGeomBall[] {
+  const path = pts ?? pathPoints(map.intended_path ?? []);
+  const objects = (map.object_ball_positions ?? []).filter(
+    (b) => !b.role || b.role === 'object' || b.role === 'helper',
+  );
+  return objects
+    .map((b) => ({ b, ...nearestPathIndex(b, path) }))
+    .filter((x) => x.dist <= pad)
+    .sort((a, c) => a.idx - c.idx)
+    .map((x) => x.b);
+}
+
 export type SotdGeomIssue = { code: string; message: string };
 
 export type SotdGeomReport = {
@@ -313,6 +349,8 @@ const PATH_CUE_NEAR = 3.5;
 const PATH_OB_NEAR = 6.5;
 const PATH_POCKET_NEAR = 8;
 const REFLECT_MAX_DEG = 32;
+/** Max bend at a combo contact — the driven ball must leave along the line of centers. */
+export const COMBO_ALIGN_MAX_DEG = 14;
 /** Half-width of the travel corridor a parked ball may not occupy. */
 export const LANE_CLEARANCE = 2.4;
 
@@ -471,14 +509,51 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
   }
 
   if (cat === 'combo') {
-    const objects = (map.object_ball_positions ?? []).filter(
-      (b) => !b.role || b.role === 'object' || b.role === 'helper',
-    );
-    const visited = objects.filter((b) => pts.some((p) => dist(p, b) <= PATH_OB_NEAR));
-    if (visited.length < 2) {
+    const along = orderComboBalls(map, pts);
+    if (along.length < 2) {
       issues.push(
-        issue('combo_needs_two_balls', 'combo shots need the path to visit at least two object balls'),
+        issue(
+          'combo_needs_two_balls',
+          'combo shots need the path to visit at least two object balls on the transfer line',
+        ),
       );
+    } else {
+      for (let i = 0; i < along.length - 1; i++) {
+        const a = along[i];
+        const b = along[i + 1];
+        const bIdx = nearestPathIndex(b, pts).idx;
+        const nextPt =
+          i + 2 < along.length ? along[i + 2] : pts[bIdx + 1] ?? pocket ?? pts[pts.length - 1];
+        if (!nextPt) continue;
+        const incoming = sub(b, a);
+        const outgoing = sub(nextPt, b);
+        if (Math.hypot(incoming.x, incoming.y) < 0.8 || Math.hypot(outgoing.x, outgoing.y) < 0.8) {
+          continue;
+        }
+        const ang = unitAngleDeg(incoming, outgoing);
+        if (ang > COMBO_ALIGN_MAX_DEG) {
+          issues.push(
+            issue(
+              'combo_bad_transfer',
+              `combo turn at ball #${b.ballId} is ${ang.toFixed(0)}° — object ball must drive the next ball along the line of centers (not skip past it)`,
+            ),
+          );
+        }
+        for (const other of map.object_ball_positions ?? []) {
+          if (other.ballId === a.ballId && other.x === a.x && other.y === a.y) continue;
+          if (other.ballId === b.ballId && other.x === b.x && other.y === b.y) continue;
+          if (isPathContact(other, [a, b], 2.2)) continue;
+          const d = pointToSegmentDistance(other, a, b);
+          if (d < LANE_CLEARANCE) {
+            issues.push(
+              issue(
+                'combo_blocked',
+                `ball #${other.ballId} sits between combo balls #${a.ballId} and #${b.ballId}`,
+              ),
+            );
+          }
+        }
+      }
     }
   }
 

@@ -22,6 +22,7 @@ import {
   clampOnTable,
   dist,
   findRailChain,
+  isOnTable,
   isPathContact,
   norm,
   pathFromPoints,
@@ -67,7 +68,10 @@ const FOOT_SPOT: Pt = { x: 75, y: 25 };
 function linedBalls(pocket: Pt, start: Pt, ids: number[], spacing = 12): BallSpec[] {
   const away = norm(sub(start, pocket));
   return ids.map((ballId, i) => {
-    const p = clampOnTable(add(start, scale(away, spacing * i)));
+    const p = add(start, scale(away, spacing * i));
+    if (!isOnTable(p)) {
+      throw new Error(`lined ball #${ballId} off table at ${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+    }
     return { ballId, x: p.x, y: p.y, role: 'object' as const };
   });
 }
@@ -151,10 +155,20 @@ const LAYOUTS: Record<string, Layout> = {
     balls: [{ ballId: 1, x: 84, y: 38, role: 'object' }],
   },
   'sotd-08': (() => {
-    const pocket = POCKETS['foot-far'];
-    const last = { x: 84, y: 41 };
-    const balls = linedBalls(pocket, last, [2, 1], 12).reverse();
-    return { kind: 'line' as const, pocket: 'foot-far' as const, balls, cueGap: 14 };
+    // Classic spot-to-corner: A on the foot spot, B on the same line to the corner.
+    const pocket = 'foot-far' as const;
+    const b1 = { x: FOOT_SPOT.x, y: FOOT_SPOT.y };
+    const toward = norm(sub(POCKETS[pocket], b1));
+    const b2 = add(b1, scale(toward, 12));
+    return {
+      kind: 'line' as const,
+      pocket,
+      balls: [
+        { ballId: 1, x: b1.x, y: b1.y, role: 'object' as const },
+        { ballId: 2, x: b2.x, y: b2.y, role: 'object' as const },
+      ],
+      cueGap: 14,
+    };
   })(),
   'sotd-09': {
     kind: 'carom',
@@ -408,15 +422,25 @@ const LAYOUTS: Record<string, Layout> = {
     rails: ['far', 'foot', 'near', 'head'],
     balls: [{ ballId: 1, x: 70, y: 40, role: 'object' }],
   },
-  'sotd-40': {
-    kind: 'line',
-    pocket: 'foot-far',
-    balls: [
-      { ballId: 1, x: 48, y: 22, role: 'object' },
-      { ballId: 2, x: 64, y: 12, role: 'object' },
-    ],
-    cueGap: 14,
-  },
+  'sotd-40': (() => {
+    // Combo-bank: A drives B along the line of centers into a legal near-rail bank.
+    const pocket = 'foot-far' as const;
+    const b2 = { x: 62, y: 16 };
+    const chain = railChain(b2, POCKETS[pocket], ['near']);
+    if (!chain) throw new Error('sotd-40: no near-rail bank from B');
+    const railHit = chain[1];
+    const b1 = aimBehind(b2, railHit, 14);
+    return {
+      kind: 'line' as const,
+      pocket,
+      balls: [
+        { ballId: 1, x: b1.x, y: b1.y, role: 'object' as const },
+        { ballId: 2, x: b2.x, y: b2.y, role: 'object' as const },
+      ],
+      cueGap: 14,
+      afterObject: [railHit],
+    };
+  })(),
   'sotd-41': {
     kind: 'cut',
     pocket: 'foot-near',
@@ -430,12 +454,12 @@ const LAYOUTS: Record<string, Layout> = {
   },
   'sotd-42': (() => {
     const pocket = POCKETS['foot-far'];
-    const last = { x: 86, y: 42 };
+    const last = { x: 88, y: 43.2 };
     return {
       kind: 'line' as const,
       pocket: 'foot-far' as const,
-      balls: linedBalls(pocket, last, [3, 2, 1], 11).reverse(),
-      cueGap: 13,
+      balls: linedBalls(pocket, last, [4, 3, 2, 1], 3.2).reverse(),
+      cueGap: 12,
     };
   })(),
   'sotd-43': {
@@ -686,21 +710,8 @@ function renderAscii(cue: Pt, balls: BallSpec[], pts: Pt[], pocket: Pt): string 
   return `${rail}\n${inner}\n${rail}\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path`;
 }
 
-function specialAfter(id: string, layout: Layout, built: ReturnType<typeof buildPath>): Pt[] | null {
-  if (id !== 'sotd-40') return null;
-  const b2 = built.balls.find((b) => b.ballId === 2);
-  if (!b2) return null;
-  const chain = railChain({ x: b2.x, y: b2.y }, built.pocket, ['near']);
-  if (!chain) return null;
-  return chain.slice(1, -1);
-}
-
 function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
-  let built = buildPath(layout);
-  const extra = specialAfter(prev.id, layout, built);
-  if (extra) {
-    built = buildPath({ ...layout, afterObject: extra });
-  }
+  const built = buildPath(layout);
   const nudgedBalls = nudgeOffLane(built.balls, built.pts);
   const { cue, pocket, pts } = built;
   const roundedBalls = nudgedBalls.map((b) => ({

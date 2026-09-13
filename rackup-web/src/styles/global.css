@@ -768,6 +768,7 @@ img.avatar {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  isolation: isolate;
 }
 
 .modal-backdrop {
@@ -789,7 +790,8 @@ img.avatar {
   border: 1px solid var(--border);
   border-bottom: none;
   box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5);
-  animation: rise 0.28s ease both;
+  animation: rise 0.28s ease;
+  isolation: isolate;
 }
 
 /* Toast */

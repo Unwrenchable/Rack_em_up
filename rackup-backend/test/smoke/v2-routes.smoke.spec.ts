@@ -332,6 +332,66 @@ describe('SOTD maps catalogue', () => {
     expect(report.issues.some((i) => i.code === 'no_object_balls')).toBe(true);
   });
 
+  it('rejects a combo whose path bends through a ball instead of driving it', () => {
+    const bent = validateSotdShotMap({
+      id: 'combo-bent',
+      name: 'Bent combo',
+      category: 'combo',
+      cue_ball_start: { x: 36, y: 30 },
+      object_ball_positions: [
+        { ballId: 1, x: 48, y: 22, role: 'object' },
+        { ballId: 2, x: 64, y: 12, role: 'object' },
+      ],
+      intended_path: [
+        { from: { x: 36, y: 30 }, to: { x: 48, y: 22 } },
+        { from: { x: 48, y: 22 }, to: { x: 64, y: 12 } },
+        { from: { x: 64, y: 12 }, to: { x: 71, y: 0 } },
+        { from: { x: 71, y: 0 }, to: { x: 100, y: 50 } },
+      ],
+      pocket_target: { x: 100, y: 50 },
+    });
+    expect(bent.ok).toBe(false);
+    expect(bent.issues.some((i) => i.code === 'combo_bad_transfer')).toBe(true);
+  });
+
+  it('rejects a combo path that skips past an intervening object ball', () => {
+    const skipped = validateSotdShotMap({
+      id: 'combo-skip',
+      name: 'Skip combo',
+      category: 'combo',
+      cue_ball_start: { x: 50, y: 20 },
+      object_ball_positions: [
+        { ballId: 1, x: 62, y: 26, role: 'object' },
+        { ballId: 2, x: 74, y: 32, role: 'object' },
+        { ballId: 8, x: 68, y: 29, role: 'object' },
+      ],
+      intended_path: [
+        { from: { x: 50, y: 20 }, to: { x: 62, y: 26 } },
+        { from: { x: 62, y: 26 }, to: { x: 74, y: 32 } },
+        { from: { x: 74, y: 32 }, to: { x: 100, y: 50 } },
+      ],
+      pocket_target: { x: 100, y: 50 },
+    });
+    expect(skipped.ok).toBe(false);
+    expect(skipped.issues.some((i) => i.code === 'combo_blocked' || i.code === 'blocked_lane')).toBe(
+      true,
+    );
+  });
+
+  it('every combo map visits 2+ balls on a colinear transfer line', () => {
+    const combos = listSotdMaps().filter((m) => m.category === 'combo');
+    expect(combos.length).toBeGreaterThanOrEqual(5);
+    for (const m of combos) {
+      const report = validateSotdShotMap(m);
+      expect({ id: m.id, ok: report.ok, issues: report.issues }).toEqual({
+        id: m.id,
+        ok: true,
+        issues: [],
+      });
+      expect(report.issues.some((i) => i.code === 'combo_bad_transfer')).toBe(false);
+    }
+  });
+
   it('every catalogue pocket sits on a real pocket and the path meets cue, OB, pocket', () => {
     const pockets = [
       { x: 0, y: 0 },

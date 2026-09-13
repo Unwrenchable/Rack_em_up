@@ -14,12 +14,24 @@ export type DrillMarker = {
   role: 'start' | 'rail' | 'contact' | 'bank' | 'pocket' | 'finish';
 };
 
+export type ComboLeg = {
+  ballId: number;
+  pts: SotdPoint[];
+};
+
 export type DerivedShotGeometry = {
   primaryObject: SotdObjectBall;
+  /** Ball that actually travels to the pocket (last combo ball, else primary). */
+  pocketObject: SotdObjectBall;
   contactPoint: SotdPoint;
   /** Always: CB → OB (and rail-first segments when present). */
   cueApproach: SotdPoint[];
-  /** Always: OB → pocket (cut angle + target). */
+  /**
+   * Combo hops only: each object ball drives the next (arrow stops at the next ball).
+   * Empty for single-object shots.
+   */
+  comboLegs: ComboLeg[];
+  /** Always: pocketing ball → pocket (cut angle + target). */
   objectPath: SotdPoint[];
   /** Always: CB after impact. */
   cueAfter: SotdPoint[];
@@ -88,6 +100,31 @@ function pickPrimaryObject(map: SotdShotMap): SotdObjectBall {
   return { ballId: 1, x: 50, y: 25, role: 'object' };
 }
 
+function nearestPathIndex(p: SotdPoint, pts: SotdPoint[]): { idx: number; d: number } {
+  let idx = 0;
+  let best = Infinity;
+  pts.forEach((pt, i) => {
+    const d = dist(p, pt);
+    if (d < best) {
+      best = d;
+      idx = i;
+    }
+  });
+  return { idx, d: best };
+}
+
+/** Object/helper balls the path actually visits, in travel order. */
+export function orderComboBalls(map: SotdShotMap, pts: SotdPoint[], pad = 3.4): SotdObjectBall[] {
+  const objects = (map.object_ball_positions ?? []).filter(
+    (b) => !b.role || b.role === 'object' || b.role === 'helper',
+  );
+  return objects
+    .map((b) => ({ b, ...nearestPathIndex(b, pts) }))
+    .filter((x) => x.d <= pad)
+    .sort((a, c) => a.idx - c.idx)
+    .map((x) => x.b);
+}
+
 function dedupePoints(pts: SotdPoint[], eps = 0.8): SotdPoint[] {
   const out: SotdPoint[] = [];
   for (const p of pts) {
@@ -149,20 +186,43 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     cueApproach.push(contactPoint);
   }
 
-  // OB → pocket (always)
-  const afterPts = fullPts.slice(contactIdx + 1);
+  // Combo hops: each object drives the next. Pocket path starts at the last combo ball
+  // so we never draw one ball skipping through / past another.
+  const cat = (map.category || '').toLowerCase();
+  const comboBalls = orderComboBalls(map, fullPts);
+  const isCombo = cat === 'combo' && comboBalls.length >= 2;
+  const pocketObject = isCombo ? comboBalls[comboBalls.length - 1] : primary;
+  const comboLegs: ComboLeg[] = [];
+  if (isCombo) {
+    for (let i = 0; i < comboBalls.length - 1; i++) {
+      comboLegs.push({
+        ballId: comboBalls[i].ballId,
+        pts: [
+          { x: comboBalls[i].x, y: comboBalls[i].y },
+          { x: comboBalls[i + 1].x, y: comboBalls[i + 1].y },
+        ],
+      });
+    }
+  }
+
+  const pocketContact = nearestPathIndex(pocketObject, fullPts);
+  const afterPts = fullPts.slice((isCombo ? pocketContact.idx : contactIdx) + 1);
   let objectPath: SotdPoint[];
   if (afterPts.length >= 1) {
-    objectPath = dedupePoints([{ x: primary.x, y: primary.y }, ...afterPts, { ...pocket }]);
+    objectPath = dedupePoints([
+      { x: pocketObject.x, y: pocketObject.y },
+      ...afterPts,
+      { ...pocket },
+    ]);
     if (dist(objectPath[0], objectPath[objectPath.length - 1]) < 4) {
       objectPath = [
-        { x: primary.x, y: primary.y },
+        { x: pocketObject.x, y: pocketObject.y },
         { ...pocket },
       ];
     }
   } else {
     objectPath = [
-      { x: primary.x, y: primary.y },
+      { x: pocketObject.x, y: pocketObject.y },
       { ...pocket },
     ];
   }
@@ -174,15 +234,16 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     cueAfter.push(add(contactPoint, { x: 2, y: 0 }));
   }
 
-  const toPocket = norm(sub(pocket, primary));
+  const aimTarget = isCombo && comboBalls[1] ? comboBalls[1] : pocket;
+  const toAim = norm(sub(aimTarget, primary));
   const diameter = 4.4;
   const ghostBall: SotdPoint = {
-    x: primary.x - toPocket.x * diameter,
-    y: primary.y - toPocket.y * diameter,
+    x: primary.x - toAim.x * diameter,
+    y: primary.y - toAim.y * diameter,
   };
 
-  const cut = cutAngleDeg(sub(primary, start), sub(pocket, primary));
-  const showGhost = cut > 12 && cut < 78 && !railFirst;
+  const cut = cutAngleDeg(sub(primary, start), sub(aimTarget, primary));
+  const showGhost = !isCombo && cut > 12 && cut < 78 && !railFirst;
   const tip = (map.tip_zone || map.english?.tip_zone || 'center').toLowerCase();
   const stunish = tip.includes('center') || tip === 'stun';
   const showTangent = showGhost && stunish && cut > 18;
@@ -198,7 +259,6 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     };
   }
 
-  const cat = (map.category || '').toLowerCase();
   if ((cat === 'kick' || /rail.?first/i.test(map.name)) && nearRail(fullPts[1] ?? start)) {
     railFirst = true;
   }
@@ -229,8 +289,10 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
 
   return {
     primaryObject: primary,
+    pocketObject,
     contactPoint,
     cueApproach,
+    comboLegs,
     objectPath,
     cueAfter,
     ghostBall: showGhost ? ghostBall : null,
