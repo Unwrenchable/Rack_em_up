@@ -32,6 +32,7 @@ export function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const myNameRef = useRef(user?.displayName ?? '');
+  const threadIdRef = useRef<string | null>(threadId);
   const [threads, setThreads] = useState<Array<{ id: string; title: string | null; kind: string }>>(
     [],
   );
@@ -39,6 +40,10 @@ export function ChatPage() {
   useEffect(() => {
     myNameRef.current = user?.displayName ?? '';
   }, [user?.displayName]);
+
+  useEffect(() => {
+    threadIdRef.current = threadId;
+  }, [threadId]);
 
   useEffect(() => {
     if (demo) return;
@@ -52,7 +57,7 @@ export function ChatPage() {
     fetchThreadMessages(threadId)
       .then((rows) => {
         setMessages(
-          rows.map((m) => ({
+          [...rows].reverse().map((m) => ({
             id: m.id,
             sender: m.senderId === user?.id ? user.displayName : m.senderId.slice(0, 8),
             text: m.body ?? '',
@@ -118,6 +123,7 @@ export function ChatPage() {
     socket.on(
       'message',
       (payload: { sender?: string; senderId?: string; text?: string; createdAt?: string }) => {
+        if (threadIdRef.current) return;
         setMessages((m) => [
           ...m,
           {
@@ -130,6 +136,35 @@ export function ChatPage() {
               payload.senderId === user?.id,
           },
         ]);
+      },
+    );
+
+    socket.on(
+      'thread:message',
+      (payload: {
+        id?: string;
+        threadId?: string;
+        senderId?: string;
+        body?: string;
+        createdAt?: string;
+      }) => {
+        if (!threadIdRef.current || payload.threadId !== threadIdRef.current) return;
+        setMessages((m) => {
+          if (payload.id && m.some((row) => row.id === payload.id)) return m;
+          return [
+            ...m,
+            {
+              id: payload.id ?? `${Date.now()}-${Math.random()}`,
+              sender:
+                payload.senderId === user?.id
+                  ? myNameRef.current
+                  : (payload.senderId ?? 'anon').slice(0, 8),
+              text: payload.body ?? '',
+              createdAt: payload.createdAt ?? new Date().toISOString(),
+              mine: payload.senderId === user?.id,
+            },
+          ];
+        });
       },
     );
 
@@ -147,6 +182,17 @@ export function ChatPage() {
       socket.disconnect();
     };
   }, [demo, user?.id]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || demo || !connected) return;
+    if (threadId) {
+      socket.emit('join_thread', { threadId });
+      return () => {
+        socket.emit('leave_thread', { threadId });
+      };
+    }
+  }, [threadId, demo, connected]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

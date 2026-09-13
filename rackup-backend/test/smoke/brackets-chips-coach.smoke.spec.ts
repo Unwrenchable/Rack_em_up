@@ -26,6 +26,7 @@ import {
   losersDropPlacement,
   nextMatchPlacement,
   nextPowerOfTwo,
+  winnersDropFillsLosersSlot,
   winnersRoundsNeeded,
 } from '../../src/tournaments/v2/bracket-advance';
 import { TournamentV2Mode } from '../../src/tournaments/v2/entities/tournament-v2.entity';
@@ -35,10 +36,14 @@ import {
   CHIP_FORMULA_ID,
   CHIP_MATCH_POT,
   CHIP_SCOPE,
+  activeChipLedgerForMatch,
+  applyChipStacksDelta,
   chipTransferAmount,
   isChipBySkillEnabled,
+  reverseChipStacksDelta,
   startingChipsForSkill,
 } from '../../src/tournaments/v2/chip-by-skill';
+import { normalizeOptionalHttpUrl } from '../../src/common/safe-http-url';
 
 import {
   LIVE_DEFAULT_LLM_PLACEHOLDER,
@@ -305,6 +310,12 @@ describe('Single / double elimination advance rules', () => {
     ).toBe(false);
   });
 
+  it('maps winners drops onto the matching losers slot', () => {
+    expect(winnersDropFillsLosersSlot(1, 1, 1, 1)).toEqual({ fillsA: true });
+    expect(winnersDropFillsLosersSlot(1, 2, 1, 1)).toEqual({ fillsA: false });
+    expect(winnersDropFillsLosersSlot(1, 3, 1, 1)).toBeNull();
+  });
+
   it('places winners in the next slot and DE losers on the losers side', () => {
     expect(nextMatchPlacement(1, 1)).toEqual({
       nextRound: 2,
@@ -361,6 +372,34 @@ describe('Chip-by-skill band_v1', () => {
   it('caps match pot at the loser stack', () => {
     expect(chipTransferAmount(400, CHIP_MATCH_POT)).toBe(400);
     expect(chipTransferAmount(5000)).toBe(CHIP_MATCH_POT);
+  });
+
+  it('reverses a ledger entry without double-paying', () => {
+    let stacks: Record<string, number> = { a: 10_000, b: 10_000 };
+    stacks = applyChipStacksDelta(stacks, 'a', 'b', 1000);
+    expect(stacks).toEqual({ a: 11_000, b: 9_000 });
+    const ledger = [
+      { matchId: 'm1', winnerId: 'a', loserId: 'b', amount: 1000, at: 't' },
+    ];
+    expect(activeChipLedgerForMatch(ledger, 'm1')).toHaveLength(1);
+    stacks = reverseChipStacksDelta(stacks, 'a', 'b', 1000);
+    expect(stacks).toEqual({ a: 10_000, b: 10_000 });
+  });
+});
+
+describe('Livestream URL allow-list', () => {
+  it('accepts http(s) and treats empty as clear', () => {
+    expect(normalizeOptionalHttpUrl('')).toBeNull();
+    expect(normalizeOptionalHttpUrl('  ')).toBeNull();
+    expect(normalizeOptionalHttpUrl('https://twitch.tv/rackup')).toBe(
+      'https://twitch.tv/rackup',
+    );
+  });
+
+  it('rejects javascript and other schemes', () => {
+    expect(() => normalizeOptionalHttpUrl('javascript:alert(1)')).toThrow(/http/);
+    expect(() => normalizeOptionalHttpUrl('data:text/html,hi')).toThrow(/http/);
+    expect(() => normalizeOptionalHttpUrl('not-a-url')).toThrow(/http/);
   });
 });
 

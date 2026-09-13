@@ -18,6 +18,7 @@ import {
   registerForTournament,
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
+import { safeHttpHref } from '../lib/safe-href';
 import { useToast } from '../lib/toast-context';
 import type { League, MoneyMatch, Tournament } from '../lib/types';
 import { Modal } from '../components/Modal';
@@ -244,16 +245,19 @@ export function PlayPage() {
                     Dispute
                   </button>
                 )}
-                {m.livestreamUrl && (
-                  <a
-                    className="btn btn-ghost btn-sm"
-                    href={m.livestreamUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Watch stream
-                  </a>
-                )}
+              {(() => {
+                const href = safeHttpHref(m.livestreamUrl);
+                return href ? (
+                <a
+                  className="btn btn-ghost btn-sm"
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Watch stream
+                </a>
+                ) : null;
+              })()}
                 {user && (m.playerAId === user.id || m.playerBId === user.id) && (
                   <button
                     type="button"

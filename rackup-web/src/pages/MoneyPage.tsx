@@ -12,6 +12,7 @@ import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
 import type { MoneyMatch } from '../lib/types';
 import { Modal } from '../components/Modal';
+import { safeHttpHref } from '../lib/safe-href';
 
 function statusChip(status: MoneyMatch['status']) {
   if (status === 'ACTIVE') return 'chip chip-live';
@@ -159,16 +160,19 @@ export function MoneyPage() {
                   Dispute
                 </button>
               )}
-              {m.livestreamUrl && (
+              {(() => {
+                const href = safeHttpHref(m.livestreamUrl);
+                return href ? (
                 <a
                   className="btn btn-ghost btn-sm"
-                  href={m.livestreamUrl}
+                  href={href}
                   target="_blank"
                   rel="noreferrer"
                 >
                   Watch stream
                 </a>
-              )}
+                ) : null;
+              })()}
               {user && (m.playerAId === user.id || m.playerBId === user.id) && (
                 <button
                   type="button"

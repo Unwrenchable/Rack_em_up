@@ -83,3 +83,46 @@ export function chipTransferAmount(
   const p = Number.isFinite(pot) && pot > 0 ? pot : CHIP_MATCH_POT;
   return Math.min(p, stack);
 }
+
+export type ChipLedgerEntry = {
+  matchId: string;
+  winnerId: string;
+  loserId: string;
+  amount: number;
+  at: string;
+  reversed?: boolean;
+};
+
+export function activeChipLedgerForMatch(
+  ledger: ChipLedgerEntry[] | unknown,
+  matchId: string,
+): ChipLedgerEntry[] {
+  if (!Array.isArray(ledger)) return [];
+  return (ledger as ChipLedgerEntry[]).filter(
+    (e) => e && e.matchId === matchId && !e.reversed,
+  );
+}
+
+export function applyChipStacksDelta(
+  stacks: Record<string, number>,
+  winnerId: string,
+  loserId: string,
+  amount: number,
+): Record<string, number> {
+  const next = { ...stacks };
+  next[winnerId] = Number(next[winnerId] ?? 0) + amount;
+  next[loserId] = Math.max(0, Number(next[loserId] ?? 0) - amount);
+  return next;
+}
+
+export function reverseChipStacksDelta(
+  stacks: Record<string, number>,
+  winnerId: string,
+  loserId: string,
+  amount: number,
+): Record<string, number> {
+  const next = { ...stacks };
+  next[winnerId] = Math.max(0, Number(next[winnerId] ?? 0) - amount);
+  next[loserId] = Number(next[loserId] ?? 0) + amount;
+  return next;
+}

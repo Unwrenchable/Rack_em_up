@@ -74,6 +74,20 @@ export function feederMatchIndices(
 
 export type ByeKind = 'bye-a' | 'bye-b' | 'empty' | 'ready' | 'pending';
 
+/** True when a winners-side result would fill this losers slot. */
+export function winnersDropFillsLosersSlot(
+  winnersRound: number,
+  winnersMatchIndex: number,
+  losersRound: number,
+  losersMatchIndex: number,
+): { fillsA: boolean } | null {
+  const slot = losersDropPlacement(winnersRound, winnersMatchIndex);
+  if (slot.losersRound !== losersRound || slot.losersMatchIndex !== losersMatchIndex) {
+    return null;
+  }
+  return { fillsA: slot.asPlayerA };
+}
+
 export function classifyMatchSlots(
   playerAId?: string | null,
   playerBId?: string | null,

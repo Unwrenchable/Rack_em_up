@@ -73,7 +73,19 @@ export class HallsV2Service {
     const name = dto.name.trim();
     if (!name) throw new BadRequestException('Hall name required');
     const placeKey = `${dto.lat.toFixed(4)}:${dto.lon.toFixed(4)}`;
-    const existing = await this.hallsRepo.findOne({ where: { placeKey } });
+    const existing =
+      (await this.hallsRepo.findOne({ where: { placeKey } })) ??
+      (await this.hallsRepo
+        .createQueryBuilder('h')
+        .where('h.lat BETWEEN :latMin AND :latMax', {
+          latMin: dto.lat - 0.00008,
+          latMax: dto.lat + 0.00008,
+        })
+        .andWhere('h.lon BETWEEN :lonMin AND :lonMax', {
+          lonMin: dto.lon - 0.00008,
+          lonMax: dto.lon + 0.00008,
+        })
+        .getOne());
     if (existing) {
       return { hall: existing, alreadyExisted: true };
     }

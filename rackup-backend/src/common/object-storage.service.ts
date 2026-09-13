@@ -97,17 +97,36 @@ export class ObjectStorageService {
     });
   }
 
+  private uploadMountRoot(): string {
+    return process.env.UPLOAD_DIR
+      ? path.resolve(process.env.UPLOAD_DIR, '..')
+      : path.join(process.cwd(), 'uploads');
+  }
+
+  /** Prefer an absolute URL so RealAI / Hive can fetch clips. */
+  absolutizePublicUrl(pathOrUrl: string): string {
+    if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+    const base = (
+      process.env.PUBLIC_API_URL ||
+      process.env.PUBLIC_BASE_URL ||
+      process.env.RENDER_EXTERNAL_URL ||
+      ''
+    ).replace(/\/$/, '');
+    if (!base) return pathOrUrl;
+    return `${base}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`;
+  }
+
   private async putLocal(key: string, body: Buffer): Promise<PutObjectResult> {
     const filePath = path.join(this.localRoot, key);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, body);
-    const uploadsRoot = path.join(process.cwd(), 'uploads');
-    const rel = path.relative(uploadsRoot, filePath).replace(/\\/g, '/');
+    const rel = path.relative(this.uploadMountRoot(), filePath).replace(/\\/g, '/');
     const publicPath = rel.startsWith('..')
       ? `/uploads/${key.replace(/\\/g, '/')}`
       : `/uploads/${rel}`;
-    this.logger.log(`local put ${publicPath}`);
-    return { backend: 'local', url: publicPath, key };
+    const url = this.absolutizePublicUrl(publicPath);
+    this.logger.log(`local put ${url}`);
+    return { backend: 'local', url, key };
   }
 
   /**

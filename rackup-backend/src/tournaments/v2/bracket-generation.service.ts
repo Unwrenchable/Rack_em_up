@@ -84,6 +84,15 @@ export class BracketGenerationService {
       );
       matchIndex += 1;
     }
+    for (const m of matches) {
+      if (m.playerAId && !m.playerBId) {
+        m.status = TournamentMatchStatus.COMPLETED;
+        m.winnerId = m.playerAId;
+      } else if (m.playerBId && !m.playerAId) {
+        m.status = TournamentMatchStatus.COMPLETED;
+        m.winnerId = m.playerBId;
+      }
+    }
     if (matches.length) await this.matchRepo.save(matches);
 
     const nodes: BracketNode[] = matches.map((m, idx) =>

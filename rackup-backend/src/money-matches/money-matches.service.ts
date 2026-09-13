@@ -20,6 +20,7 @@ import { EscrowService } from './escrow.service';
 import { MoneyAuditService } from './money-audit.service';
 import { User } from '../users/users.entity';
 import { PushService } from '../notifications/push.service';
+import { normalizeOptionalHttpUrl } from '../common/safe-http-url';
 
 export type MoneyMatchFilters = {
   status?: MoneyMatchStatus | string;
@@ -67,7 +68,7 @@ export class MoneyMatchesService {
       game: dto.game,
       raceTo: dto.raceTo,
       amountCents: dto.amountCents,
-      livestreamUrl: dto.livestreamUrl ?? null,
+      livestreamUrl: normalizeOptionalHttpUrl(dto.livestreamUrl),
       status: 'PENDING' as MoneyMatchStatus,
       resultJson: null,
       aConfirmed: false,
@@ -103,8 +104,7 @@ export class MoneyMatchesService {
     if (userId !== match.playerAId && userId !== match.playerBId) {
       throw new ForbiddenException('Only match players can attach a stream');
     }
-    const url = (livestreamUrl ?? '').trim();
-    match.livestreamUrl = url || null;
+    match.livestreamUrl = normalizeOptionalHttpUrl(livestreamUrl);
     const saved = await this.moneyMatchesRepo.save(match);
     await this.audit.record({
       matchId: saved.id,
