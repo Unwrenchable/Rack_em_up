@@ -575,6 +575,8 @@ describe('V2 route inventory', () => {
     'GET /shots/streak',
     // Social layer
     'GET /friends',
+    'GET /friends/list',
+    'GET /friends/pending',
     'GET /friends/pending/incoming',
     'GET /friends/pending/outgoing',
     'POST /friends/request',
@@ -639,6 +641,8 @@ describe('V2 route inventory', () => {
     expect(routes).toContain('GET /halls');
     expect(routes).toContain('POST /halls/:id/verify');
     expect(routes).toContain('GET /friends');
+    expect(routes).toContain('GET /friends/list');
+    expect(routes).toContain('GET /friends/pending');
     expect(routes).toContain('POST /matchmaking/challenge');
   });
 });

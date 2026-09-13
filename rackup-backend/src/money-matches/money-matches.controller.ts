@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -11,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { MoneyMatchesService } from './money-matches.service';
+import { moneyMatchQueryErrors } from './money-match-filters';
 import { CreateMoneyMatchDto } from './dto/create-money-match.dto';
 import { ConfirmMoneyMatchDto } from './dto/confirm-money-match.dto';
 import { DisputeMoneyMatchDto } from './dto/dispute-money-match.dto';
@@ -31,6 +33,8 @@ export class MoneyMatchesController {
     @Query('playerId') playerId?: string,
     @Query('hallId') hallId?: string,
   ) {
+    const errors = moneyMatchQueryErrors({ status, playerId, hallId });
+    if (errors.length) throw new BadRequestException(errors);
     return this.moneyMatchesService.findAll({ status, playerId, hallId });
   }
 

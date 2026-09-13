@@ -101,6 +101,10 @@ export function isLookingRequestActive(expiresAt: Date, now: Date = new Date()):
 export const LOOKING_TTL_MS = 30 * 60 * 1000;
 /** Cap the discovery board so polls do not hydrate every live row worldwide. */
 export const LOOKING_BOARD_LIMIT = 50;
+/** Vegas — same origin as rackup-web DEFAULT_FIND_ORIGIN. */
+export const DEFAULT_SEARCH_ORIGIN = { lat: 36.1699, lon: -115.1398 };
+/** Match Find discovery radius so a coord-less GET still sees the board. */
+export const DEFAULT_SEARCH_RADIUS_M = 21_000_000;
 
 /**
  * After V2 pairing, leftover V1 cards should drop off. A brand-new V2 PENDING

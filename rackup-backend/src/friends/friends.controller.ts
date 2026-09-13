@@ -24,8 +24,20 @@ export class FriendsController {
     return this.friendsService.listFriends(req.user.id);
   }
 
+  /** Alias — probes/old clients hit /friends/list (bare /friends is the real path). */
+  @Get('list')
+  listAlias(@Req() req: { user: { id: string } }) {
+    return this.friendsService.listFriends(req.user.id);
+  }
+
   @Get('pending/incoming')
   pendingIn(@Req() req: { user: { id: string } }) {
+    return this.friendsService.listPendingIncoming(req.user.id);
+  }
+
+  /** Alias — /friends/pending is incoming requests (not /friends/pending/incoming). */
+  @Get('pending')
+  pendingAlias(@Req() req: { user: { id: string } }) {
     return this.friendsService.listPendingIncoming(req.user.id);
   }
 

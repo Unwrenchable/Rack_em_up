@@ -1,6 +1,13 @@
 import { asUuid, isUuid } from '../../src/common/uuid';
 import { normalizeChallengeGame } from '../../src/matchmaking/challenge-game';
-import { sanitizeMoneyMatchFilters } from '../../src/money-matches/money-match-filters';
+import {
+  moneyMatchQueryErrors,
+  sanitizeMoneyMatchFilters,
+} from '../../src/money-matches/money-match-filters';
+import {
+  DEFAULT_SEARCH_ORIGIN,
+  DEFAULT_SEARCH_RADIUS_M,
+} from '../../src/matchmaking/looking-board.util';
 
 describe('UUID helpers', () => {
   it('accepts real player ids and rejects Play demo stubs', () => {
@@ -9,6 +16,17 @@ describe('UUID helpers', () => {
     expect(isUuid('h1')).toBe(false);
     expect(asUuid('h1')).toBeUndefined();
     expect(asUuid('  ')).toBeUndefined();
+  });
+});
+
+describe('moneyMatchQueryErrors', () => {
+  it('400s playerId=not-a-uuid (live probe) instead of letting Postgres 500', () => {
+    expect(moneyMatchQueryErrors({ playerId: 'not-a-uuid' })).toEqual([
+      'playerId must be a UUID',
+    ]);
+    expect(moneyMatchQueryErrors({ hallId: 'h1' })).toEqual(['hallId must be a UUID']);
+    expect(moneyMatchQueryErrors({})).toEqual([]);
+    expect(moneyMatchQueryErrors({ status: 'ACTIVE' })).toEqual([]);
   });
 });
 
@@ -34,6 +52,14 @@ describe('sanitizeMoneyMatchFilters', () => {
     expect(safe.status).toBe('ACTIVE');
     expect(safe.playerId).toBe(id);
     expect(safe.hallId).toBe(id);
+  });
+});
+
+describe('matchmaking search defaults', () => {
+  it('uses Vegas origin + worldwide radius when lat/lon omitted', () => {
+    expect(DEFAULT_SEARCH_ORIGIN.lat).toBeCloseTo(36.1699);
+    expect(DEFAULT_SEARCH_ORIGIN.lon).toBeCloseTo(-115.1398);
+    expect(DEFAULT_SEARCH_RADIUS_M).toBe(21_000_000);
   });
 });
 

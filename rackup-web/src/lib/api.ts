@@ -537,9 +537,11 @@ export async function fetchLookingPlayers(opts?: {
 }): Promise<LookingPlayer[]> {
   if (isDemoMode()) return DEMO_PLAYERS;
   try {
-    const lat = opts?.lat ?? DEFAULT_FIND_ORIGIN.lat;
-    const lon = opts?.lon ?? DEFAULT_FIND_ORIGIN.lon;
-    const radius = opts?.radius ?? FIND_DISCOVERY_RADIUS_M;
+    const lat = Number.isFinite(opts?.lat) ? Number(opts?.lat) : DEFAULT_FIND_ORIGIN.lat;
+    const lon = Number.isFinite(opts?.lon) ? Number(opts?.lon) : DEFAULT_FIND_ORIGIN.lon;
+    const radius = Number.isFinite(opts?.radius) && Number(opts?.radius) > 0
+      ? Number(opts?.radius)
+      : FIND_DISCOVERY_RADIUS_M;
     const qs = new URLSearchParams({
       lat: String(lat),
       lon: String(lon),
@@ -675,7 +677,12 @@ export async function fetchLeagues(): Promise<League[]> {
 /** Accepted friends with online presence + activity (GET /friends). */
 export async function fetchFriends(): Promise<FriendCard[]> {
   if (isDemoMode()) return DEMO_FRIENDS;
-  const raw = await request<unknown>('/friends');
+  let raw: unknown;
+  try {
+    raw = await request<unknown>('/friends');
+  } catch {
+    raw = await request<unknown>('/friends/list');
+  }
   const me = getStoredUser()?.id;
   const mapped = mapFriendCards(raw, me);
   const missingNames = mapped.filter((f) => f.displayName.startsWith('User '));
@@ -703,7 +710,20 @@ export async function fetchPendingFriendsIncoming() {
       }>
     >('/friends/pending/incoming');
   } catch {
-    return [];
+    try {
+      return await request<
+        Array<{
+          friendshipId: string;
+          userId: string;
+          displayName: string;
+          rating: number;
+          online: boolean;
+          avatarUrl?: string | null;
+        }>
+      >('/friends/pending');
+    } catch {
+      return [];
+    }
   }
 }
 
