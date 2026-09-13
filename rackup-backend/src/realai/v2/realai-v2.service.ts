@@ -130,7 +130,8 @@ export class RealaiV2Service {
   }
 
   /**
-   * Structured SOTD map geometry — catalog fallback for offline diagrams.
+   * Structured SOTD map geometry — static Rack catalogue only.
+   * RealAI health is stamped as realaiReachable; diagrams never call RealAI.
    * Coaching content should use shotOfTheDay() (ability shot_of_the_day).
    */
   async getSotdMap(id: string): Promise<SotdShotMap & { realaiReachable: boolean }> {
@@ -140,7 +141,7 @@ export class RealaiV2Service {
     const status = await getRealAiStatus();
     return {
       ...map,
-      source: 'catalog_fallback',
+      source: 'catalogue',
       realaiReachable: status.reachable,
     };
   }
@@ -300,7 +301,7 @@ export class RealaiV2Service {
           null,
       };
     } catch (e) {
-      // Offline: catalog map fallback (geometry only)
+      // Offline: static catalogue geometry only (no live diagram generation)
       const maps = listSotdMaps();
       const pick = maps[Math.floor(Date.now() / 86_400_000) % Math.max(1, maps.length)];
       return {
@@ -310,7 +311,7 @@ export class RealaiV2Service {
         error: e instanceof Error ? e.message : String(e),
         shot: {
           description:
-            'RealAI is unreachable; showing catalog geometry fallback.',
+            'RealAI is unreachable; showing catalogue geometry.',
         },
       };
     }

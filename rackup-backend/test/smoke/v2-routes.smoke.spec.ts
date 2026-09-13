@@ -22,6 +22,7 @@ import {
   UNIFIED_RATING_MIN,
 } from '../../src/leagues/v2/rating/unified-rackup-rating';
 import { listSotdMaps, getSotdMapById, sotdMapCount } from '../../src/realai/v2/sotd-shot-maps';
+import { validateSotdShotMap } from '../../src/realai/v2/sotd-shot-map-geometry';
 import { applySeedStrategy } from '../../src/tournaments/v2/seed-strategy';
 import {
   isSotdCandidateEvent,
@@ -258,7 +259,7 @@ describe('Unified rating normalization', () => {
   });
 });
 
-describe('SOTD maps catalog', () => {
+describe('SOTD maps catalogue', () => {
   it('has 52 maps with required fields', () => {
     expect(sotdMapCount()).toBe(52);
     const maps = listSotdMaps();
@@ -269,7 +270,38 @@ describe('SOTD maps catalog', () => {
     expect(one!.object_ball_positions.length).toBeGreaterThan(0);
     expect(one!.intended_path.length).toBeGreaterThan(0);
     expect(one!.pocket_target).toBeDefined();
-    expect(one!.source).toBe('catalog_fallback');
+    expect(one!.source).toBe('catalogue');
+  });
+
+  it('every map passes local geometry validation', () => {
+    const failures = listSotdMaps()
+      .map((m) => ({ id: m.id, report: validateSotdShotMap(m) }))
+      .filter((x) => !x.report.ok);
+    expect(failures).toEqual([]);
+  });
+
+  it('rejects a mid-rail pocket and a disconnected path', () => {
+    const base = getSotdMapById('sotd-02')!;
+    const midRail = validateSotdShotMap({
+      ...base,
+      pocket_target: { x: 100, y: 25 },
+      intended_path: [
+        { from: base.cue_ball_start, to: base.object_ball_positions[0] },
+        { from: base.object_ball_positions[0], to: { x: 100, y: 25 } },
+      ],
+    });
+    expect(midRail.ok).toBe(false);
+    expect(midRail.issues.some((i) => i.code === 'pocket_not_near')).toBe(true);
+
+    const broken = validateSotdShotMap({
+      ...base,
+      intended_path: [
+        { from: base.cue_ball_start, to: { x: 40, y: 25 } },
+        { from: { x: 80, y: 10 }, to: base.pocket_target },
+      ],
+    });
+    expect(broken.ok).toBe(false);
+    expect(broken.issues.some((i) => i.code === 'path_disconnected')).toBe(true);
   });
 });
 

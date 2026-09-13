@@ -21,7 +21,7 @@ export class RealaiV2Controller {
   constructor(private readonly realaiV2: RealaiV2Service) {}
 
   /**
-   * Public structured maps (catalog fallback) — work when RealAI is offline.
+   * Public structured maps from the static Rack catalogue — work when RealAI is offline.
    */
   @Get('sotd/maps')
   async listSotdMaps() {
