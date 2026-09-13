@@ -3,8 +3,8 @@
  * Run: npx ts-node -T scripts/generate-sotd-maps.ts
  *
  * Layouts keep the intended corridor clear: extras sit off the cue→OB→pocket
- * (or bank/kick) lane unless they are real combo/carom contacts or a
- * jump/curve obstacle the path is drawn around.
+ * (or bank/kick) lane unless they are real combo/carom contacts. Jump hops
+ * go over a blocker on a dashed airborne segment — never a solid zigzag.
  */
 import * as fs from 'fs';
 import * as path from 'path';
@@ -45,7 +45,7 @@ const COORDINATE_SYSTEM = {
 type BallRole = 'object' | 'blocker' | 'prop' | 'helper';
 type BallSpec = { ballId: number; x: number; y: number; role?: BallRole };
 
-type LayoutKind = 'line' | 'cut' | 'bank' | 'kick' | 'carom' | 'curve';
+type LayoutKind = 'line' | 'cut' | 'bank' | 'kick' | 'carom' | 'curve' | 'jump';
 
 type Layout = {
   pocket: PocketId;
@@ -89,6 +89,10 @@ function cutCue(ob: Pt, pocket: Pt, cutDeg: number, gap: number, sign: 1 | -1 = 
 
 function midpoint(a: Pt, b: Pt): Pt {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function lerp(a: Pt, b: Pt, t: number): Pt {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
 /** Arc waypoint so a jump/curve path goes around a blocker on the straight line. */
@@ -217,10 +221,9 @@ const LAYOUTS: Record<string, Layout> = {
     ],
   },
   'sotd-15': {
-    kind: 'curve',
+    kind: 'jump',
     pocket: 'foot-near',
     cue: { x: 30, y: 22 },
-    via: [arcVia({ x: 30, y: 22 }, { x: 78, y: 18 }, 9, -1)],
     balls: [
       { ballId: 1, x: 78, y: 18, role: 'object' },
       { ballId: 7, x: 54, y: 20, role: 'blocker' },
@@ -363,10 +366,9 @@ const LAYOUTS: Record<string, Layout> = {
     };
   })(),
   'sotd-32': {
-    kind: 'curve',
+    kind: 'jump',
     pocket: 'foot-far',
     cue: { x: 24, y: 16 },
-    via: [arcVia({ x: 24, y: 16 }, { x: 76, y: 34 }, 10, 1)],
     balls: [
       { ballId: 1, x: 76, y: 34, role: 'object' },
       { ballId: 7, x: 50, y: 24, role: 'blocker' },
@@ -480,10 +482,9 @@ const LAYOUTS: Record<string, Layout> = {
     balls: [{ ballId: 1, x: 72, y: 36, role: 'object' }],
   },
   'sotd-45': {
-    kind: 'curve',
+    kind: 'jump',
     pocket: 'foot-near',
     cue: { x: 22, y: 28 },
-    via: [arcVia({ x: 22, y: 28 }, { x: 80, y: 16 }, 10, 1)],
     balls: [
       { ballId: 1, x: 80, y: 16, role: 'object' },
       { ballId: 7, x: 50, y: 22, role: 'blocker' },
@@ -522,10 +523,9 @@ const LAYOUTS: Record<string, Layout> = {
     balls: [{ ballId: 1, x: 84, y: 7.5, role: 'object' }],
   },
   'sotd-50': {
-    kind: 'curve',
+    kind: 'jump',
     pocket: 'foot-far',
     cue: { x: 24, y: 14 },
-    via: [arcVia({ x: 24, y: 14 }, { x: 74, y: 34 }, 11, 1)],
     balls: [
       { ballId: 1, x: 74, y: 34, role: 'object' },
       { ballId: 7, x: 48, y: 22, role: 'blocker' },
@@ -567,9 +567,22 @@ function resolveRails(from: Pt, to: Pt, layout: Layout): Pt[] {
   throw new Error(`no ${n}-rail path ${from.x},${from.y} → ${to.x},${to.y}`);
 }
 
-function nudgeOffLane(balls: BallSpec[], pts: Pt[], minDist = LANE_CLEARANCE + 0.8): BallSpec[] {
+function nudgeOffLane(
+  balls: BallSpec[],
+  pts: Pt[],
+  airborneSegs: number[] = [],
+  minDist = LANE_CLEARANCE + 0.8,
+): BallSpec[] {
+  const air = new Set(airborneSegs);
   return balls.map((b) => {
     if (isPathContact(b, pts, 3)) return b;
+    if (b.role === 'blocker') {
+      const underAir = pts.some((_, i) => {
+        if (!air.has(i) || i >= pts.length - 1) return false;
+        return pointToSegmentDistance(b, pts[i], pts[i + 1]) < minDist + 1.2;
+      });
+      if (underAir) return b;
+    }
     let { x, y } = b;
     for (let iter = 0; iter < 10; iter++) {
       let worst: { d: number; nx: number; ny: number } | null = null;
@@ -604,7 +617,13 @@ function placeBlockerOnLine(cue: Pt, ob: Pt, preferred: Pt): Pt {
   return clampOnTable(onLine);
 }
 
-function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pts: Pt[] } {
+function buildPath(layout: Layout): {
+  cue: Pt;
+  pocket: Pt;
+  balls: BallSpec[];
+  pts: Pt[];
+  airborneSegs: number[];
+} {
   const pocket = POCKETS[layout.pocket];
   const balls = layout.balls.map((b) => ({ ...b }));
   const primary = primaryOf(balls);
@@ -615,20 +634,40 @@ function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pt
     const bankPts = resolveRails(ob, pocket, layout);
     const firstHit = bankPts[1] ?? pocket;
     const cue = clampOnTable(layout.cue ?? aimBehind(ob, firstHit, gap));
-    return { cue, pocket, balls, pts: [cue, ...bankPts] };
+    return { cue, pocket, balls, pts: [cue, ...bankPts], airborneSegs: [] };
   }
 
   if (layout.kind === 'kick') {
     const cue = clampOnTable(layout.cue ?? { x: 18, y: 12 });
     const kickPts = resolveRails(cue, ob, layout);
-    return { cue, pocket, balls, pts: [...kickPts, pocket] };
+    return { cue, pocket, balls, pts: [...kickPts, pocket], airborneSegs: [] };
   }
 
   if (layout.kind === 'carom') {
     const helper = balls.find((b) => b.role === 'helper') ?? balls.find((b) => b.ballId !== primary.ballId);
     const helperPt = helper ? { x: helper.x, y: helper.y } : aimBehind(ob, pocket, 12);
     const cue = clampOnTable(layout.cue ?? aimBehind(helperPt, ob, gap));
-    return { cue, pocket, balls, pts: [cue, helperPt, ob, pocket] };
+    return { cue, pocket, balls, pts: [cue, helperPt, ob, pocket], airborneSegs: [] };
+  }
+
+  if (layout.kind === 'jump') {
+    const cue = clampOnTable(layout.cue ?? aimBehind(ob, pocket, gap));
+    const blocker = balls.find((b) => b.role === 'blocker');
+    if (blocker) {
+      const snapped = placeBlockerOnLine(cue, ob, blocker);
+      blocker.x = snapped.x;
+      blocker.y = snapped.y;
+    }
+    // Takeoff before the obstacle, land after it — the hop is a straight dashed airborne.
+    const takeoff = lerp(cue, ob, 0.2);
+    const landing = lerp(cue, ob, 0.74);
+    return {
+      cue,
+      pocket,
+      balls,
+      pts: [cue, takeoff, landing, ob, pocket],
+      airborneSegs: [1],
+    };
   }
 
   if (layout.kind === 'curve') {
@@ -640,14 +679,14 @@ function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pt
       blocker.x = snapped.x;
       blocker.y = snapped.y;
     }
-    return { cue, pocket, balls, pts: [cue, ...via, ob, pocket] };
+    return { cue, pocket, balls, pts: [cue, ...via, ob, pocket], airborneSegs: [] };
   }
 
   if (layout.kind === 'cut') {
     const deg = layout.cutDeg ?? 32;
     const sign = layout.cutSign ?? 1;
     const cue = clampOnTable(layout.cue ?? cutCue(ob, pocket, deg, gap, sign));
-    return { cue, pocket, balls, pts: [cue, ob, pocket] };
+    return { cue, pocket, balls, pts: [cue, ob, pocket], airborneSegs: [] };
   }
 
   const objects = balls.filter((b) => !b.role || b.role === 'object');
@@ -656,7 +695,7 @@ function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pt
   const toward = objectPts[1] ?? pocket;
   const cue = clampOnTable(layout.cue ?? aimBehind(aim, toward, gap));
   const after = layout.afterObject ?? [];
-  return { cue, pocket, balls, pts: [cue, ...objectPts, ...after, pocket] };
+  return { cue, pocket, balls, pts: [cue, ...objectPts, ...after, pocket], airborneSegs: [] };
 }
 
 function estimateCbRest(tip: string, cue: Pt, ob: Pt, pocket: Pt): Pt {
@@ -712,8 +751,8 @@ function renderAscii(cue: Pt, balls: BallSpec[], pts: Pt[], pocket: Pt): string 
 
 function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
   const built = buildPath(layout);
-  const nudgedBalls = nudgeOffLane(built.balls, built.pts);
-  const { cue, pocket, pts } = built;
+  const nudgedBalls = nudgeOffLane(built.balls, built.pts, built.airborneSegs);
+  const { cue, pocket, pts, airborneSegs } = built;
   const roundedBalls = nudgedBalls.map((b) => ({
     ballId: b.ballId,
     x: roundPt(b).x,
@@ -731,7 +770,7 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     tip_zone: prev.tip_zone,
     cue_ball_start: roundPt(cue),
     object_ball_positions: roundedBalls,
-    intended_path: pathFromPoints(pts),
+    intended_path: pathFromPoints(pts, airborneSegs),
     english: prev.english,
     landing_zones: [
       { ...roundPt(pocket), label: 'pocket' },
@@ -763,6 +802,8 @@ export type SotdObjectBall = SotdPoint & {
 export type SotdPathSegment = {
   from: SotdPoint;
   to: SotdPoint;
+  /** Jump hop — renderer draws dashed (airborne), never a solid zigzag. */
+  airborne?: boolean;
 };
 
 export type SotdEnglish = {

@@ -266,16 +266,22 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             solid
           />
 
-          {/* 2) CB → OB */}
-          <PathWithArrow
-            pts={geo.cueApproach}
-            d={pathD(geo.cueApproach)}
-            color="#f5f0e6"
-            width={1.05}
-            sx={sx}
-            sy={sy}
-            solid
-          />
+          {/* CB → OB (airborne hops are dashed so a jump never reads as massé) */}
+          {(geo.cueApproachLegs.length ? geo.cueApproachLegs : [{ pts: geo.cueApproach, airborne: false }]).map(
+            (leg, i) => (
+              <PathWithArrow
+                key={`cue-${map.id}-${i}-${leg.airborne ? 'air' : 'cloth'}`}
+                pts={leg.pts}
+                d={pathD(leg.pts)}
+                color={leg.airborne ? 'rgba(245,240,230,0.92)' : '#f5f0e6'}
+                width={leg.airborne ? 0.95 : 1.05}
+                sx={sx}
+                sy={sy}
+                solid={!leg.airborne}
+                airborne={leg.airborne}
+              />
+            ),
+          )}
 
           {/* 3) CB post-contact — always drawn */}
           <PathWithArrow
@@ -388,6 +394,7 @@ function PathWithArrow({
   sx,
   sy,
   solid,
+  airborne = false,
 }: {
   pts: Pt[];
   d: string;
@@ -396,6 +403,7 @@ function PathWithArrow({
   sx: (x: number) => number;
   sy: (y: number) => number;
   solid: boolean;
+  airborne?: boolean;
 }) {
   if (pts.length < 2 || !d) return null;
   return (
@@ -407,8 +415,8 @@ function PathWithArrow({
         strokeWidth={width}
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeDasharray={solid ? undefined : '1.35 0.95'}
-        opacity={0.95}
+        strokeDasharray={airborne ? '2.1 1.35' : solid ? undefined : '1.35 0.95'}
+        opacity={airborne ? 0.88 : 0.95}
       />
       <ArrowHead from={pts[pts.length - 2]} to={pts[pts.length - 1]} color={color} sx={sx} sy={sy} />
     </>

@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /** Normalized table point: x 0–100 (head→foot), y 0–50 (bottom→top). */
@@ -27,6 +27,11 @@ export class SotdPathSegmentDto {
   @ValidateNested()
   @Type(() => SotdPointDto)
   to!: SotdPointDto;
+
+  /** Jump hop — renderer draws dashed (airborne). */
+  @IsOptional()
+  @IsBoolean()
+  airborne?: boolean;
 }
 
 export class SotdEnglishDto {

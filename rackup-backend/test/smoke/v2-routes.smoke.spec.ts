@@ -378,6 +378,44 @@ describe('SOTD maps catalogue', () => {
     );
   });
 
+  it('rejects a jump path that zigzags around a blocker like a massé', () => {
+    const zigzag = validateSotdShotMap({
+      id: 'jump-zigzag',
+      name: 'Zigzag jump',
+      category: 'jump',
+      cue_ball_start: { x: 30, y: 22 },
+      object_ball_positions: [
+        { ballId: 1, x: 78, y: 18, role: 'object' },
+        { ballId: 7, x: 54, y: 20, role: 'blocker' },
+      ],
+      intended_path: [
+        { from: { x: 30, y: 22 }, to: { x: 53.3, y: 11 } },
+        { from: { x: 53.3, y: 11 }, to: { x: 78, y: 18 } },
+        { from: { x: 78, y: 18 }, to: { x: 100, y: 0 } },
+      ],
+      pocket_target: { x: 100, y: 0 },
+    });
+    expect(zigzag.ok).toBe(false);
+    expect(
+      zigzag.issues.some((i) => i.code === 'jump_zigzag' || i.code === 'jump_needs_airborne'),
+    ).toBe(true);
+  });
+
+  it('every jump map has a straight airborne hop, not a cloth zigzag', () => {
+    const jumps = listSotdMaps().filter((m) => m.category === 'jump');
+    expect(jumps.length).toBeGreaterThanOrEqual(4);
+    for (const m of jumps) {
+      const report = validateSotdShotMap(m);
+      expect({ id: m.id, ok: report.ok, issues: report.issues }).toEqual({
+        id: m.id,
+        ok: true,
+        issues: [],
+      });
+      const air = m.intended_path.some((s) => s.airborne);
+      expect({ id: m.id, airborne: air }).toEqual({ id: m.id, airborne: true });
+    }
+  });
+
   it('every combo map visits 2+ balls on a colinear transfer line', () => {
     const combos = listSotdMaps().filter((m) => m.category === 'combo');
     expect(combos.length).toBeGreaterThanOrEqual(5);

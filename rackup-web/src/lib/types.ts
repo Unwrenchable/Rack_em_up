@@ -279,6 +279,8 @@ export type SotdObjectBall = SotdPoint & {
 export type SotdPathSegment = {
   from: SotdPoint;
   to: SotdPoint;
+  /** Jump hop — renderer draws dashed (airborne), never a solid zigzag. */
+  airborne?: boolean;
 };
 
 export type SotdShotMap = {

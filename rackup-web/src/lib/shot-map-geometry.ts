@@ -19,6 +19,11 @@ export type ComboLeg = {
   pts: SotdPoint[];
 };
 
+export type PathLeg = {
+  pts: SotdPoint[];
+  airborne: boolean;
+};
+
 export type DerivedShotGeometry = {
   primaryObject: SotdObjectBall;
   /** Ball that actually travels to the pocket (last combo ball, else primary). */
@@ -26,6 +31,8 @@ export type DerivedShotGeometry = {
   contactPoint: SotdPoint;
   /** Always: CB → OB (and rail-first segments when present). */
   cueApproach: SotdPoint[];
+  /** Cue approach split so jump hops can be dashed independently. */
+  cueApproachLegs: PathLeg[];
   /**
    * Combo hops only: each object ball drives the next (arrow stops at the next ball).
    * Empty for single-object shots.
@@ -81,15 +88,56 @@ function nearRail(p: SotdPoint, pad = 3): boolean {
   return p.x <= pad || p.x >= TABLE.xMax - pad || p.y <= pad || p.y >= TABLE.yMax - pad;
 }
 
-function pathToPoints(segs: SotdPathSegment[]): SotdPoint[] {
+type FlaggedPt = SotdPoint & { airborneFromPrev?: boolean };
+
+function pathToPoints(segs: SotdPathSegment[]): FlaggedPt[] {
   if (!segs.length) return [];
-  const pts: SotdPoint[] = [{ ...segs[0].from }];
+  const pts: FlaggedPt[] = [{ ...segs[0].from }];
   for (const s of segs) {
     const last = pts[pts.length - 1];
-    if (dist(last, s.from) > 0.4) pts.push({ ...s.from });
-    pts.push({ ...s.to });
+    if (dist(last, s.from) > 0.4) pts.push({ ...s.from, airborneFromPrev: !!s.airborne });
+    pts.push({ ...s.to, airborneFromPrev: !!s.airborne });
   }
   return pts;
+}
+
+function pointToSegmentDistance(p: SotdPoint, a: SotdPoint, b: SotdPoint): number {
+  const ab = sub(b, a);
+  const len2 = ab.x * ab.x + ab.y * ab.y;
+  if (len2 < 1e-8) return dist(p, a);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / len2));
+  return dist(p, { x: a.x + ab.x * t, y: a.y + ab.y * t });
+}
+
+function inferJumpAirborne(pts: FlaggedPt[], map: SotdShotMap): void {
+  if ((map.category || '').toLowerCase() !== 'jump') return;
+  if (pts.some((p) => p.airborneFromPrev)) return;
+  const blockers = (map.object_ball_positions ?? []).filter((b) => b.role === 'blocker');
+  if (!blockers.length) return;
+  for (let i = 1; i < pts.length; i++) {
+    if (blockers.some((b) => pointToSegmentDistance(b, pts[i - 1], pts[i]) < 3.6)) {
+      pts[i].airborneFromPrev = true;
+    }
+  }
+}
+
+function splitAirborneLegs(pts: FlaggedPt[]): PathLeg[] {
+  if (pts.length < 2) return [];
+  const legs: PathLeg[] = [];
+  let cur: PathLeg = { pts: [{ x: pts[0].x, y: pts[0].y }], airborne: false };
+  for (let i = 1; i < pts.length; i++) {
+    const air = !!pts[i].airborneFromPrev;
+    if (cur.pts.length >= 2 && air !== cur.airborne) {
+      legs.push(cur);
+      const last = cur.pts[cur.pts.length - 1];
+      cur = { pts: [{ ...last }], airborne: air };
+    } else if (cur.pts.length === 1) {
+      cur.airborne = air;
+    }
+    cur.pts.push({ x: pts[i].x, y: pts[i].y });
+  }
+  if (cur.pts.length >= 2) legs.push(cur);
+  return legs;
 }
 
 function pickPrimaryObject(map: SotdShotMap): SotdObjectBall {
@@ -147,6 +195,7 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   const primary = pickPrimaryObject(map);
   const segs = map.intended_path ?? [];
   const fullPts = pathToPoints(segs);
+  inferJumpAirborne(fullPts, map);
   const start = map.cue_ball_start;
   const pocket = map.pocket_target;
 
@@ -185,6 +234,20 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   if (cueApproach.length < 2) {
     cueApproach.push(contactPoint);
   }
+
+  const approachFlagged: FlaggedPt[] = [];
+  for (let i = 0; i <= contactIdx && i < fullPts.length; i++) {
+    approachFlagged.push(fullPts[i]);
+  }
+  if (
+    !approachFlagged.length ||
+    dist(approachFlagged[approachFlagged.length - 1], contactPoint) > 0.8
+  ) {
+    approachFlagged.push({ ...contactPoint });
+  }
+  const cueApproachLegs = splitAirborneLegs(
+    approachFlagged.length >= 2 ? approachFlagged : cueApproach,
+  );
 
   // Combo hops: each object drives the next. Pocket path starts at the last combo ball
   // so we never draw one ball skipping through / past another.
@@ -292,6 +355,7 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     pocketObject,
     contactPoint,
     cueApproach,
+    cueApproachLegs,
     comboLegs,
     objectPath,
     cueAfter,
