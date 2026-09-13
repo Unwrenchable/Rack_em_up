@@ -190,7 +190,18 @@ async function request<T>(path: string, init?: RequestInit, _retried = false): P
   }
 
   if (!res.ok) {
-    throw new Error(text || res.statusText || `HTTP ${res.status}`);
+    let msg = text || res.statusText || `HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(text) as { message?: string | string[] };
+      if (typeof parsed?.message === 'string' && parsed.message.trim()) {
+        msg = parsed.message;
+      } else if (Array.isArray(parsed?.message) && parsed.message.length) {
+        msg = parsed.message.map(String).join(', ');
+      }
+    } catch {
+      /* keep raw text */
+    }
+    throw new Error(msg);
   }
   if (res.status === 204) return undefined as T;
   if (!text.trim()) {
