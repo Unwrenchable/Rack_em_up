@@ -3,9 +3,10 @@
  * Canonical: POST {REALAI_BASE_URL}/v1/plugins/rackup-coach
  * Alias:     POST {REALAI_BASE_URL}/v1/rackup/coach
  *
- * Local Hive / v3 orchestrator (:8001) often has no plugin route (404 not_found).
- * Nest then uses POST /v1/tools/execute { name: rackup_invoke, arguments: <envelope> }.
- * Render realai-api stays plugin-first — no tools fallback.
+ * Local Hive / v3 orchestrator (:8001): POST /v1/plugins/rackup-coach is an
+ * **expected 404**. Documented LIVE Nest path is POST /v1/tools/execute
+ * { name: rackup_invoke, arguments: <ability/player/payload envelope> }
+ * for video_analysis / coach. Render api_server stays plugin-first.
  */
 
 export const REALAI_DEFAULT_BASE = 'http://127.0.0.1:8001';

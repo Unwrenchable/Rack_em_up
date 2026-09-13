@@ -4,9 +4,9 @@
  * Contract: REALAI_RACKUP_WIRING_CONTRACT.md (v1.0.0)
  * Canonical: POST {REALAI_BASE_URL}/v1/plugins/rackup-coach
  * Alias:     POST {REALAI_BASE_URL}/v1/rackup/coach
- * Local Hive fallback: POST {REALAI_BASE_URL}/v1/tools/execute
- *   { name: "rackup_invoke", arguments: <same envelope> } when the plugin route 404s.
- * Render stays plugin-first (no tools fallback).
+ * Local Hive LIVE path: POST {REALAI_BASE_URL}/v1/tools/execute
+ *   { name: "rackup_invoke", arguments: <same envelope> } — plugin route 404 is expected.
+ * Render api_server stays plugin-first (no tools fallback).
  *
  * RackUp owns persistence/UI; RealAI owns skill math, moderation, coaching, SOTD, Pyramid rules.
  */
