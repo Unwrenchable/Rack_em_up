@@ -1161,3 +1161,67 @@ select.input {
     max-height: 80vh;
   }
 }
+
+/* Brand / install */
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-gold);
+  flex-shrink: 0;
+  background: #070a09;
+}
+
+.brand-mark-lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+}
+
+.logo-mark-sm {
+  font-size: 1.85rem;
+  line-height: 1;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.get-app-compact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.get-app-compact .get-app-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.get-app-compact h2 {
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.get-app-compact .muted {
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.get-app-steps {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 6px;
+  font-size: 0.88rem;
+}
+
+.get-app-stores {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}

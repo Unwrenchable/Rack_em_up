@@ -17,8 +17,21 @@ function scrubBuildEnv() {
 
 scrubBuildEnv();
 
+const PUBLIC_ORIGIN = (process.env.VITE_PUBLIC_ORIGIN || 'https://www.rackofchampions.com').replace(
+  /\/$/,
+  '',
+);
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'html-public-origin',
+      transformIndexHtml(html) {
+        return html.replaceAll('__PUBLIC_ORIGIN__', PUBLIC_ORIGIN);
+      },
+    },
+  ],
   server: {
     port: 5173,
     proxy: {

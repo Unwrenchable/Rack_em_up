@@ -48,3 +48,5 @@ jobs:
         run: npx tsc -b --pretty false
       - name: Build
         run: npm run build
+      - name: Verify share meta + PWA assets
+        run: npm run check:share-meta
