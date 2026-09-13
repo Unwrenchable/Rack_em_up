@@ -782,6 +782,9 @@ export async function fetchChatThreads() {
 }
 
 export async function openDmThread(friendId: string) {
+  if (isDemoMode()) {
+    return { id: `demo-thread-${friendId}`, kind: 'DM' };
+  }
   return request<{ id: string; kind: string }>('/chat/threads/dm', {
     method: 'POST',
     body: JSON.stringify({ friendId }),
