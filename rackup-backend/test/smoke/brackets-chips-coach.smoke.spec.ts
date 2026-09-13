@@ -34,6 +34,7 @@ import {
   CHIP_BAND_STACKS,
   CHIP_FORMULA_ID,
   CHIP_MATCH_POT,
+  CHIP_SCOPE,
   chipTransferAmount,
   isChipBySkillEnabled,
   startingChipsForSkill,
@@ -252,6 +253,11 @@ describe('Single / double elimination advance rules', () => {
 });
 
 describe('Chip-by-skill band_v1', () => {
+  it('is in-event stacks only (not wallet cash)', () => {
+    expect(CHIP_SCOPE).toBe('in_event_stacks');
+    expect(CHIP_FORMULA_ID).toBe('band_v1');
+  });
+
   it('gives weaker bands more starting chips', () => {
     expect(startingChipsForSkill({ rating: 300, ratingBand: 'Novice' }).chips).toBe(
       CHIP_BAND_STACKS.Novice,

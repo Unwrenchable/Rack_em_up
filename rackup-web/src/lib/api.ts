@@ -1482,6 +1482,7 @@ export async function tournamentV2List(): Promise<
     mode: string;
     status: string;
     chipBySkill?: boolean;
+    chipScope?: 'in_event_stacks';
     chipStacks?: Record<string, number>;
     formatConfigJson?: Record<string, unknown>;
   }>

@@ -21,7 +21,7 @@ export class CreateTournamentV2Dto {
   @IsString()
   seed_strategy?: 'manual' | 'random' | 'elo';
 
-  /** Skill-scaled in-event chip stacks (also implied by CHIP_RACE). */
+  /** In-event stacks only (not wallet). Implied by CHIP_RACE. */
   @IsOptional()
   @IsBoolean()
   chipBySkill?: boolean;

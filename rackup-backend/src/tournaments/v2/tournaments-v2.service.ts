@@ -37,6 +37,7 @@ import {
 import {
   CHIP_FORMULA_ID,
   CHIP_MATCH_POT,
+  CHIP_SCOPE,
   chipTransferAmount,
   isChipBySkillEnabled,
   startingChipsForSkill,
@@ -94,6 +95,7 @@ export class TournamentsV2Service {
         ? {
             chipBySkill: true,
             chipFormula: CHIP_FORMULA_ID,
+            chipScope: CHIP_SCOPE,
             chipPot: Number(dto.format_config?.chipPot) || CHIP_MATCH_POT,
             chipStacks: {},
             chipMeta: {},
@@ -149,6 +151,7 @@ export class TournamentsV2Service {
       ...(chips != null
         ? {
             chipBySkill: true,
+            chipScope: CHIP_SCOPE,
             chips,
             ratingBand,
             formula: CHIP_FORMULA_ID,
@@ -602,6 +605,7 @@ export class TournamentsV2Service {
       tournamentId: resolved,
       standings,
       chipBySkill,
+      chipScope: chipBySkill ? CHIP_SCOPE : undefined,
       chipFormula: chipBySkill
         ? (tournament.formatConfigJson?.chipFormula ?? CHIP_FORMULA_ID)
         : undefined,
@@ -638,6 +642,7 @@ export class TournamentsV2Service {
         status: t.status,
         entrantCount: t.entrants?.length ?? 0,
         chipBySkill: t.chipBySkill,
+        chipScope: t.chipScope,
         chipFormula: t.chipFormula,
         championId: t.championId,
       },
@@ -840,6 +845,7 @@ export class TournamentsV2Service {
       formatConfigJson: t.formatConfigJson ?? {},
       format_config: t.formatConfigJson ?? {},
       chipBySkill,
+      chipScope: chipBySkill ? CHIP_SCOPE : undefined,
       chipStacks: chipBySkill
         ? ((t.formatConfigJson?.chipStacks ?? {}) as Record<string, number>)
         : undefined,
@@ -887,6 +893,7 @@ export class TournamentsV2Service {
       ...(tournament.formatConfigJson ?? {}),
       chipBySkill: true,
       chipFormula: CHIP_FORMULA_ID,
+      chipScope: CHIP_SCOPE,
       chipPot: Number(tournament.formatConfigJson?.chipPot) || CHIP_MATCH_POT,
       chipStacks: stacks,
       chipMeta: meta,
@@ -894,6 +901,7 @@ export class TournamentsV2Service {
     return assigned;
   }
 
+  /** Move in-event stacks only. Never wallet, escrow, or ROC ledger. */
   private async applyChipTransfer(
     tournament: TournamentV2,
     match: TournamentMatchV2,

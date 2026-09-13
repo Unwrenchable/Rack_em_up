@@ -22,6 +22,8 @@
 import { bandForRating, type RocRatingBand } from '../../users/rating-display';
 
 export const CHIP_FORMULA_ID = 'band_v1';
+/** Product lock: chips are tournament counters, never wallet cash. */
+export const CHIP_SCOPE = 'in_event_stacks' as const;
 export const CHIP_BASE_STACK = 10_000;
 export const CHIP_MATCH_POT = 1_000;
 
