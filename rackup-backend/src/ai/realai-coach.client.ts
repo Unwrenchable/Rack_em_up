@@ -9,6 +9,13 @@
  */
 
 import { randomUUID } from 'crypto';
+import { isUnusableCoachEnvelope } from './realai-text-guard';
+import {
+  buildRackupCoachEnvelope,
+  isForbiddenRealAiUiHost,
+  realAiCoachPaths,
+  resolveRealAiBaseUrl,
+} from './realai-endpoint';
 
 // ─── Envelope types ─────────────────────────────────────────────────────────
 
@@ -177,16 +184,26 @@ export type RatingConvertResult = {
 // ─── Config ─────────────────────────────────────────────────────────────────
 
 function baseUrl(): string {
-  return (process.env.REALAI_BASE_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
+  const url = resolveRealAiBaseUrl();
+  if (isForbiddenRealAiUiHost(url)) {
+    throw new RealAiCoachError(
+      'REALAI_BASE_URL must not point at realaiui.vercel.app (UI, not the API)',
+    );
+  }
+  return url;
+}
+
+/** Cloud LLM key for Render/plugin hosts that have no default_llm. Never forces local GGUF. */
+function cloudLlmKey(): string | undefined {
+  return (
+    process.env.REALAI_OPENAI_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    undefined
+  );
 }
 
 function apiKey(): string | undefined {
   return process.env.REALAI_API_KEY || undefined;
-}
-
-function coachPath(): string {
-  // Canonical path per contract §1.2
-  return process.env.REALAI_COACH_PATH ?? '/v1/plugins/rackup-coach';
 }
 
 function tenant(): string | undefined {
@@ -247,7 +264,6 @@ async function invokeOnce(
   body: RackUpCoachRequest,
   requestId: string,
 ): Promise<RackUpCoachResponse> {
-  const url = `${baseUrl()}${coachPath()}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Request-Id': requestId,
@@ -255,43 +271,66 @@ async function invokeOnce(
   };
   const key = apiKey();
   if (key) headers.Authorization = `Bearer ${key}`;
+  const cloudKey = cloudLlmKey();
+  if (cloudKey) {
+    // Do not force local GGUF. Prefer the key on realai-api; Nest may forward.
+    headers['X-OpenAI-Api-Key'] = cloudKey;
+  }
   const t = tenant();
   if (t) headers['X-RackUp-Tenant'] = t;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    signal: AbortSignal.timeout(timeoutMs()),
-    body: JSON.stringify({
-      organs_enabled: body.organs_enabled ?? true,
-      ...body,
-      payload: body.payload ?? {},
-    }),
+  const envelope = buildRackupCoachEnvelope({
+    ability: String(body.ability),
+    player: body.player as unknown as Record<string, unknown>,
+    payload: body.payload,
+    goal: body.goal,
+    organs_enabled: body.organs_enabled,
   });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new RealAiCoachError(
-      `RealAI coach HTTP ${res.status}: ${text.slice(0, 240)}`,
-      res.status,
-      text,
-    );
-  }
+  const paths = realAiCoachPaths();
+  for (let i = 0; i < paths.length; i++) {
+    const path = paths[i];
+    const url = `${baseUrl()}${path}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      signal: AbortSignal.timeout(timeoutMs()),
+      body: JSON.stringify(envelope),
+    });
+    if (res.status === 404 && i < paths.length - 1) {
+      continue;
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new RealAiCoachError(
+        `RealAI coach HTTP ${res.status}: ${text.slice(0, 240)}`,
+        res.status,
+        text,
+      );
+    }
 
-  const json = (await res.json()) as RackUpCoachResponse;
-  if (json == null || typeof json !== 'object') {
-    throw new RealAiCoachError('RealAI coach returned non-object body');
+    const json = (await res.json()) as RackUpCoachResponse;
+    if (json == null || typeof json !== 'object') {
+      throw new RealAiCoachError('RealAI coach returned non-object body');
+    }
+    if (isUnusableCoachEnvelope(json)) {
+      throw new RealAiCoachError(
+        'RealAI plugin returned a local-model placeholder; use rackup-coach with a cloud key on realai-api or Hive GPU',
+        res.status,
+        json,
+      );
+    }
+    return {
+      ok: Boolean(json.ok),
+      plugin: json.plugin ?? 'rackup-coach',
+      ability: json.ability ?? String(body.ability),
+      result: (json.result as Record<string, unknown>) ?? null,
+      organ_trace: json.organ_trace,
+      notes: json.notes,
+      error: json.error ?? null,
+    };
   }
-  // Normalize missing fields
-  return {
-    ok: Boolean(json.ok),
-    plugin: json.plugin ?? 'rackup-coach',
-    ability: json.ability ?? String(body.ability),
-    result: (json.result as Record<string, unknown>) ?? null,
-    organ_trace: json.organ_trace,
-    notes: json.notes,
-    error: json.error ?? null,
-  };
+  throw new RealAiCoachError('RealAI coach path not found');
 }
 
 /** Best-effort invoke; returns null on transport failure. */

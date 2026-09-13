@@ -188,6 +188,112 @@ describeLive('Live API e2e (docker)', () => {
     expect(bracket.body.matches.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('SINGLE_ELIMINATION 3-entrant report never creates LOSERS and can complete', async () => {
+    if (!token) return;
+    const created = await api('/tournaments/v2/create', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({
+        name: `SE3 ${Date.now()}`,
+        game: '9-ball',
+        mode: 'SINGLE_ELIMINATION',
+        seed_strategy: 'manual',
+      }),
+    });
+    expect(created.status).toBeLessThan(300);
+    const tournamentId = created.body?.id as string;
+
+    const extras: string[] = [];
+    for (const label of ['C', 'D']) {
+      const signup = await api('/auth/v2/signup', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: `e2e_se3_${label}_${Date.now()}@rackup.test`,
+          password,
+          display_name: `E2E ${label}`,
+        }),
+      });
+      expect(signup.status).toBeLessThan(300);
+      extras.push(signup.body?.accessToken);
+    }
+
+    await api('/tournaments/v2/register', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ tournamentId }),
+    });
+    for (const tkn of extras) {
+      await api('/tournaments/v2/register', {
+        method: 'POST',
+        token: tkn,
+        body: JSON.stringify({ tournamentId }),
+      });
+    }
+
+    const started = await api('/tournaments/v2/start', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ tournamentId }),
+    });
+    expect(started.status).toBeLessThan(300);
+
+    let bracket = await api(`/tournaments/v2/bracket/${tournamentId}`, { token });
+    expect(bracket.status).toBe(200);
+    const matches = bracket.body?.matches as Array<{
+      id: string;
+      bracket: string;
+      status: string;
+      playerAId: string | null;
+      playerBId: string | null;
+    }>;
+    expect(matches.every((m) => m.bracket !== 'LOSERS')).toBe(true);
+
+    const playable = matches.find((m) => m.status === 'ACTIVE' && m.playerAId && m.playerBId);
+    if (playable) {
+      const reported = await api('/tournaments/v2/report-match', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({
+          tournamentId,
+          matchId: playable.id,
+          aScore: 7,
+          bScore: 3,
+        }),
+      });
+      expect(reported.status).toBeLessThan(300);
+      bracket = await api(`/tournaments/v2/bracket/${tournamentId}`, { token });
+      const after = bracket.body?.matches as Array<{ bracket: string }>;
+      expect(after.every((m) => m.bracket !== 'LOSERS')).toBe(true);
+    }
+  });
+
+  it('CHIP_RACE create/register assigns skill-scaled chips', async () => {
+    if (!token) return;
+    const created = await api('/tournaments/v2/create', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({
+        name: `Chip ${Date.now()}`,
+        game: '9-ball',
+        mode: 'CHIP_RACE',
+        seed_strategy: 'elo',
+        chipBySkill: true,
+      }),
+    });
+    expect(created.status).toBeLessThan(300);
+    expect(created.body?.chipBySkill).toBe(true);
+    const tournamentId = created.body?.id as string;
+
+    const registered = await api('/tournaments/v2/register', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ tournamentId }),
+    });
+    expect(registered.status).toBeLessThan(300);
+    expect(registered.body?.chips).toBeGreaterThan(0);
+    expect(registered.body?.formula).toBe('band_v1');
+  });
+
   it('matchmaking v2 search enqueue', async () => {
     if (!token) return;
     const res = await api('/matchmaking/v2/search', {

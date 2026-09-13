@@ -1,4 +1,4 @@
-import { IsEnum, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsObject, IsOptional, IsString } from 'class-validator';
 
 import { TournamentV2Mode } from '../entities/tournament-v2.entity';
 
@@ -20,5 +20,10 @@ export class CreateTournamentV2Dto {
   @IsOptional()
   @IsString()
   seed_strategy?: 'manual' | 'random' | 'elo';
+
+  /** In-event stacks only (not wallet). Implied by CHIP_RACE. */
+  @IsOptional()
+  @IsBoolean()
+  chipBySkill?: boolean;
 }
 

@@ -27,6 +27,21 @@ import { ScorekeepingServiceV2 } from '../../scorekeeping/scorekeeping-v2.servic
 import { IdBridgeService } from '../../common/id-bridge.service';
 import { applySeedStrategy, parseSeedStrategy } from './seed-strategy';
 import { TvModeGateway } from './tv-mode.gateway';
+import {
+  classifyMatchSlots,
+  dropsLoserToLosers,
+  feederMatchIndices,
+  isEliminationMode,
+  isSingleElimFinal,
+} from './bracket-advance';
+import {
+  CHIP_FORMULA_ID,
+  CHIP_MATCH_POT,
+  CHIP_SCOPE,
+  chipTransferAmount,
+  isChipBySkillEnabled,
+  startingChipsForSkill,
+} from './chip-by-skill';
 
 @Injectable()
 export class TournamentsV2Service {
@@ -59,17 +74,33 @@ export class TournamentsV2Service {
     return this.idBridge.resolveV2OrSelf('tournament', id);
   }
 
-  async list(limit = 40): Promise<TournamentV2[]> {
-    return this.tournamentRepo.find({
+  async list(limit = 40) {
+    const rows = await this.tournamentRepo.find({
       order: { name: 'ASC' },
       take: Math.min(100, Math.max(1, limit)),
     });
+    return rows.map((t) => this.serializeTournament(t));
   }
 
-  async create(userId: string, dto: CreateTournamentV2Dto): Promise<TournamentV2> {
+  async create(userId: string, dto: CreateTournamentV2Dto) {
+    const chipBySkill = isChipBySkillEnabled(dto.mode, {
+      ...(dto.format_config ?? {}),
+      ...(dto.chipBySkill != null ? { chipBySkill: dto.chipBySkill } : {}),
+    });
     const formatConfig = {
       ...(dto.format_config ?? {}),
       ...(dto.seed_strategy ? { seedStrategy: dto.seed_strategy } : {}),
+      ...(dto.chipBySkill != null ? { chipBySkill: dto.chipBySkill } : {}),
+      ...(chipBySkill
+        ? {
+            chipBySkill: true,
+            chipFormula: CHIP_FORMULA_ID,
+            chipScope: CHIP_SCOPE,
+            chipPot: Number(dto.format_config?.chipPot) || CHIP_MATCH_POT,
+            chipStacks: {},
+            chipMeta: {},
+          }
+        : {}),
     };
     const tournament = this.tournamentRepo.create({
       organizerId: userId,
@@ -82,10 +113,19 @@ export class TournamentsV2Service {
     });
 
     const saved = await this.tournamentRepo.save(tournament);
-    return saved;
+    return this.serializeTournament(saved);
   }
 
-  async register(userId: string, dto: RegisterTournamentV2Dto): Promise<{ success: true }> {
+  async register(
+    userId: string,
+    dto: RegisterTournamentV2Dto,
+  ): Promise<{
+    success: true;
+    chipBySkill?: boolean;
+    chips?: number;
+    ratingBand?: string;
+    formula?: string;
+  }> {
     const tournament = await this.tournamentRepo.findOne({ where: { id: dto.tournamentId } });
     if (!tournament) throw new NotFoundException('Tournament not found');
     if (tournament.status !== TournamentV2Status.DRAFT) {
@@ -95,9 +135,29 @@ export class TournamentsV2Service {
     const entrants = new Set<string>(tournament.entrants ?? []);
     entrants.add(userId);
     tournament.entrants = Array.from(entrants);
+
+    let chips: number | undefined;
+    let ratingBand: string | undefined;
+    if (isChipBySkillEnabled(tournament.mode, tournament.formatConfigJson)) {
+      const assigned = await this.assignChipsForPlayers(tournament, [userId]);
+      chips = assigned[userId]?.chips;
+      ratingBand = assigned[userId]?.band;
+    }
+
     await this.tournamentRepo.save(tournament);
 
-    return { success: true };
+    return {
+      success: true,
+      ...(chips != null
+        ? {
+            chipBySkill: true,
+            chipScope: CHIP_SCOPE,
+            chips,
+            ratingBand,
+            formula: CHIP_FORMULA_ID,
+          }
+        : {}),
+    };
   }
 
   async start(userId: string, dto: StartTournamentV2Dto): Promise<{ success: true }> {
@@ -117,10 +177,15 @@ export class TournamentsV2Service {
       };
     }
 
+    if (isChipBySkillEnabled(tournament.mode, tournament.formatConfigJson)) {
+      await this.assignChipsForPlayers(tournament, tournament.entrants ?? []);
+    }
+
     await this.regenerateBracket(tournament);
 
     tournament.status = TournamentV2Status.ACTIVE;
     await this.tournamentRepo.save(tournament);
+    await this.resolveOpeningByes(tournament);
     await this.broadcastTv(tournament.id);
 
     return { success: true };
@@ -154,8 +219,13 @@ export class TournamentsV2Service {
 
     await this.matchRepo.save(match);
 
-    if (match.winnerId && tournament.mode !== TournamentV2Mode.SWISS) {
+    if (match.winnerId && isEliminationMode(tournament.mode)) {
       await this.advanceWinner(match);
+    }
+
+    if (isChipBySkillEnabled(tournament.mode, tournament.formatConfigJson)) {
+      await this.applyChipTransfer(tournament, match);
+      await this.maybeCompleteChipRace(tournament);
     }
 
     // Single report entry point: Elo + Redis + RealAI + socket
@@ -178,8 +248,8 @@ export class TournamentsV2Service {
   }
 
   /**
-   * Advance winner within their bracket; if winners bracket, drop loser into losers.
-   * Odd matchIndex → player A slot; even → player B slot of ceil(index/2).
+   * Advance winner within their bracket.
+   * Losers-bracket drop is DOUBLE_ELIMINATION only — single elim never spawns LOSERS.
    */
   private async advanceWinner(match: TournamentMatchV2): Promise<void> {
     if (!match.winnerId) return;
@@ -195,6 +265,19 @@ export class TournamentsV2Service {
       return;
     }
 
+    if (
+      tournament &&
+      isSingleElimFinal(
+        tournament.mode,
+        bracket,
+        match.round,
+        tournament.entrants?.length ?? 0,
+      )
+    ) {
+      await this.completeTournament(tournament, match.winnerId);
+      return;
+    }
+
     await this.placePlayerInNextMatch(
       match.tournamentId,
       match.round,
@@ -203,7 +286,11 @@ export class TournamentsV2Service {
       bracket,
     );
 
-    if (bracket === TournamentBracketSide.WINNERS) {
+    if (
+      bracket === TournamentBracketSide.WINNERS &&
+      tournament &&
+      dropsLoserToLosers(tournament.mode)
+    ) {
       const loserId =
         match.winnerId === match.playerAId ? match.playerBId : match.playerAId;
       if (loserId) {
@@ -218,6 +305,10 @@ export class TournamentsV2Service {
 
     if (tournament?.mode === TournamentV2Mode.DOUBLE_ELIMINATION) {
       await this.maybeScheduleGrandFinal(match.tournamentId);
+    }
+
+    if (tournament) {
+      await this.resolveOpeningByes(tournament);
     }
 
     this.logger.log(
@@ -339,14 +430,7 @@ export class TournamentsV2Service {
       }
     }
 
-    tournament.status = TournamentV2Status.COMPLETED;
-    tournament.formatConfigJson = {
-      ...(tournament.formatConfigJson ?? {}),
-      championId: match.winnerId,
-      completedAt: new Date().toISOString(),
-    };
-    await this.tournamentRepo.save(tournament);
-    this.logger.log(`tournament COMPLETED champion=${match.winnerId}`);
+    await this.completeTournament(tournament, match.winnerId);
   }
 
   private async placeLoserIntoLosers(
@@ -355,6 +439,9 @@ export class TournamentsV2Service {
     winnersMatchIndex: number,
     loserId: string,
   ): Promise<void> {
+    const tournament = await this.tournamentRepo.findOne({ where: { id: tournamentId } });
+    if (!tournament || !dropsLoserToLosers(tournament.mode)) return;
+
     // Losers round tracks winners round; slot = ceil(matchIndex/2), A/B by odd/even
     const losersRound = winnersRound;
     const losersMatchIndex = Math.ceil(winnersMatchIndex / 2);
@@ -447,7 +534,7 @@ export class TournamentsV2Service {
     const nodes = await this.nodeRepo.find({ where: { tournamentId: resolved } });
 
     return {
-      tournament,
+      tournament: this.serializeTournament(tournament),
       rounds,
       matches,
       nodes,
@@ -485,13 +572,43 @@ export class TournamentsV2Service {
       if (m.winnerId && winCounts[m.winnerId] != null) winCounts[m.winnerId] += 1;
     }
 
+    const stacks = (tournament.formatConfigJson?.chipStacks ?? {}) as Record<string, number>;
+    const meta = (tournament.formatConfigJson?.chipMeta ?? {}) as Record<
+      string,
+      { band?: string; rating?: number; chips?: number }
+    >;
+    const chipBySkill = isChipBySkillEnabled(tournament.mode, tournament.formatConfigJson);
+
     const standings = entrants
-      .map((playerId) => ({ playerId, wins: winCounts[playerId] ?? 0 }))
-      .sort((a, b) => b.wins - a.wins);
+      .map((playerId) => ({
+        playerId,
+        wins: winCounts[playerId] ?? 0,
+        ...(chipBySkill
+          ? {
+              chips: Number(stacks[playerId] ?? 0),
+              startingChips: meta[playerId]?.chips,
+              ratingBand: meta[playerId]?.band,
+              rating: meta[playerId]?.rating,
+            }
+          : {}),
+      }))
+      .sort((a, b) => {
+        if (chipBySkill) {
+          const ca = Number((a as { chips?: number }).chips ?? 0);
+          const cb = Number((b as { chips?: number }).chips ?? 0);
+          if (cb !== ca) return cb - ca;
+        }
+        return b.wins - a.wins;
+      });
 
     return {
       tournamentId: resolved,
       standings,
+      chipBySkill,
+      chipScope: chipBySkill ? CHIP_SCOPE : undefined,
+      chipFormula: chipBySkill
+        ? (tournament.formatConfigJson?.chipFormula ?? CHIP_FORMULA_ID)
+        : undefined,
       ...(resolved !== tournamentId ? { resolvedFrom: tournamentId } : {}),
     };
   }
@@ -500,7 +617,7 @@ export class TournamentsV2Service {
   async getTvPayload(tournamentId: string) {
     const bracket = await this.getBracket(tournamentId);
     const standings = await this.getStandings(tournamentId);
-    const t = bracket.tournament as TournamentV2;
+    const t = bracket.tournament as ReturnType<TournamentsV2Service['serializeTournament']>;
     const matches = (bracket.matches as TournamentMatchV2[]).map((m) => ({
       id: m.id,
       round: m.round,
@@ -524,9 +641,15 @@ export class TournamentsV2Service {
         mode: t.mode,
         status: t.status,
         entrantCount: t.entrants?.length ?? 0,
+        chipBySkill: t.chipBySkill,
+        chipScope: t.chipScope,
+        chipFormula: t.chipFormula,
+        championId: t.championId,
       },
       matches,
       standings: standings.standings,
+      chipStacks: t.chipStacks,
+      chipBySkill: t.chipBySkill,
       activeMatches: matches.filter((m) => m.status === 'ACTIVE' && m.playerAId && m.playerBId),
       completedCount: matches.filter((m) => m.status === 'COMPLETED').length,
     };
@@ -554,8 +677,13 @@ export class TournamentsV2Service {
 
     await this.matchRepo.save(match);
 
-    if (match.winnerId && tournament.mode !== TournamentV2Mode.SWISS) {
+    if (match.winnerId && isEliminationMode(tournament.mode)) {
       await this.advanceWinner(match);
+    }
+
+    if (isChipBySkillEnabled(tournament.mode, tournament.formatConfigJson)) {
+      await this.applyChipTransfer(tournament, match);
+      await this.maybeCompleteChipRace(tournament);
     }
 
     await this.scorekeepingV2.processReport({
@@ -623,17 +751,23 @@ export class TournamentsV2Service {
       tournament.status = TournamentV2Status.ACTIVE;
     }
     await this.tournamentRepo.save(tournament);
+    if (tournament.status === TournamentV2Status.ACTIVE) {
+      await this.resolveOpeningByes(tournament);
+    }
     await this.broadcastTv(tournament.id);
     return { success: true, seedStrategy: tournament.formatConfigJson?.seedStrategy ?? 'manual' };
   }
 
   /**
-   * Swiss: after current round fully completed, pair by wins (adjacent).
+   * Swiss / chip-race: after current round fully completed, pair by wins (or chips).
    */
   async advanceSwissRound(userId: string, tournamentId: string) {
     const tournament = await this.requireOrganizer(userId, tournamentId);
-    if (tournament.mode !== TournamentV2Mode.SWISS) {
-      throw new BadRequestException('Tournament is not SWISS format');
+    if (
+      tournament.mode !== TournamentV2Mode.SWISS &&
+      tournament.mode !== TournamentV2Mode.CHIP_RACE
+    ) {
+      throw new BadRequestException('Tournament is not SWISS or CHIP_RACE format');
     }
 
     const matches = await this.matchRepo.find({
@@ -649,10 +783,15 @@ export class TournamentsV2Service {
     }
 
     const standings = await this.getStandings(tournament.id);
-    const ordered = standings.standings.map((s) => s.playerId);
-    // Include entrants with 0 wins that may not appear if empty entrants list edge
+    const stacks = (tournament.formatConfigJson?.chipStacks ?? {}) as Record<string, number>;
+    const chipEvent = isChipBySkillEnabled(tournament.mode, tournament.formatConfigJson);
+    const ordered = standings.standings
+      .map((s) => s.playerId)
+      .filter((id) => !chipEvent || Number(stacks[id] ?? 0) > 0);
     for (const e of tournament.entrants ?? []) {
-      if (!ordered.includes(e)) ordered.push(e);
+      if (!ordered.includes(e) && (!chipEvent || Number(stacks[e] ?? 0) > 0)) {
+        ordered.push(e);
+      }
     }
 
     await this.bracketGeneration.generateSwissRound(tournament, ordered, lastRound + 1);
@@ -691,6 +830,216 @@ export class TournamentsV2Service {
     const map: Record<string, number> = {};
     for (const u of users) map[u.id] = u.rating ?? 0;
     return map;
+  }
+
+  private serializeTournament(t: TournamentV2) {
+    const chipBySkill = isChipBySkillEnabled(t.mode, t.formatConfigJson);
+    return {
+      id: t.id,
+      organizerId: t.organizerId,
+      name: t.name,
+      game: t.game,
+      mode: t.mode,
+      status: t.status,
+      entrants: t.entrants ?? [],
+      formatConfigJson: t.formatConfigJson ?? {},
+      format_config: t.formatConfigJson ?? {},
+      chipBySkill,
+      chipScope: chipBySkill ? CHIP_SCOPE : undefined,
+      chipStacks: chipBySkill
+        ? ((t.formatConfigJson?.chipStacks ?? {}) as Record<string, number>)
+        : undefined,
+      chipFormula: chipBySkill
+        ? ((t.formatConfigJson?.chipFormula as string | undefined) ?? CHIP_FORMULA_ID)
+        : undefined,
+      championId: t.formatConfigJson?.championId as string | undefined,
+    };
+  }
+
+  private async assignChipsForPlayers(
+    tournament: TournamentV2,
+    playerIds: string[],
+  ): Promise<Record<string, { chips: number; band: string }>> {
+    const unique = [...new Set(playerIds.filter(Boolean))];
+    const users = unique.length
+      ? await this.usersRepo.find({ where: { id: In(unique) } })
+      : [];
+    const byId = Object.fromEntries(users.map((u) => [u.id, u]));
+    const stacks = {
+      ...((tournament.formatConfigJson?.chipStacks ?? {}) as Record<string, number>),
+    };
+    const meta = {
+      ...((tournament.formatConfigJson?.chipMeta ?? {}) as Record<
+        string,
+        { band?: string; rating?: number; chips?: number }
+      >),
+    };
+    const assigned: Record<string, { chips: number; band: string }> = {};
+    for (const id of unique) {
+      if (stacks[id] != null) {
+        assigned[id] = { chips: Number(stacks[id]), band: String(meta[id]?.band ?? '') };
+        continue;
+      }
+      const u = byId[id];
+      const start = startingChipsForSkill({
+        rating: u?.rating,
+        ratingBand: u?.ratingBand,
+      });
+      stacks[id] = start.chips;
+      meta[id] = { rating: start.rating, band: start.band, chips: start.chips };
+      assigned[id] = { chips: start.chips, band: start.band };
+    }
+    tournament.formatConfigJson = {
+      ...(tournament.formatConfigJson ?? {}),
+      chipBySkill: true,
+      chipFormula: CHIP_FORMULA_ID,
+      chipScope: CHIP_SCOPE,
+      chipPot: Number(tournament.formatConfigJson?.chipPot) || CHIP_MATCH_POT,
+      chipStacks: stacks,
+      chipMeta: meta,
+    };
+    return assigned;
+  }
+
+  /** Move in-event stacks only. Never wallet, escrow, or ROC ledger. */
+  private async applyChipTransfer(
+    tournament: TournamentV2,
+    match: TournamentMatchV2,
+  ): Promise<void> {
+    if (!match.winnerId) return;
+    const loserId =
+      match.winnerId === match.playerAId ? match.playerBId : match.playerAId;
+    if (!loserId) return;
+    const cfg = tournament.formatConfigJson ?? {};
+    const stacks = { ...((cfg.chipStacks ?? {}) as Record<string, number>) };
+    const pot = Number(cfg.chipPot) || CHIP_MATCH_POT;
+    const amount = chipTransferAmount(Number(stacks[loserId] ?? 0), pot);
+    stacks[match.winnerId] = Number(stacks[match.winnerId] ?? 0) + amount;
+    stacks[loserId] = Math.max(0, Number(stacks[loserId] ?? 0) - amount);
+    const ledger = Array.isArray(cfg.chipLedger) ? [...cfg.chipLedger] : [];
+    ledger.push({
+      matchId: match.id,
+      winnerId: match.winnerId,
+      loserId,
+      amount,
+      at: new Date().toISOString(),
+    });
+    tournament.formatConfigJson = { ...cfg, chipStacks: stacks, chipLedger: ledger };
+    await this.tournamentRepo.save(tournament);
+  }
+
+  private async maybeCompleteChipRace(tournament: TournamentV2): Promise<void> {
+    if (tournament.mode !== TournamentV2Mode.CHIP_RACE) return;
+    const stacks = (tournament.formatConfigJson?.chipStacks ?? {}) as Record<string, number>;
+    const alive = (tournament.entrants ?? []).filter((id) => Number(stacks[id] ?? 0) > 0);
+    if (alive.length <= 1) {
+      const champion = alive[0] ?? tournament.entrants?.[0];
+      if (champion) await this.completeTournament(tournament, champion);
+    }
+  }
+
+  private async completeTournament(
+    tournament: TournamentV2,
+    championId: string,
+  ): Promise<void> {
+    tournament.status = TournamentV2Status.COMPLETED;
+    tournament.formatConfigJson = {
+      ...(tournament.formatConfigJson ?? {}),
+      championId,
+      completedAt: new Date().toISOString(),
+    };
+    await this.tournamentRepo.save(tournament);
+    this.logger.log(`tournament COMPLETED champion=${championId}`);
+  }
+
+  /** Auto-advance player-vs-empty slots when no feeder can still fill the hole. */
+  private async resolveOpeningByes(tournament: TournamentV2): Promise<void> {
+    if (!isEliminationMode(tournament.mode)) return;
+    let progressed = true;
+    let guard = 0;
+    while (progressed && guard++ < 32) {
+      progressed = false;
+      const fresh = await this.tournamentRepo.findOne({ where: { id: tournament.id } });
+      if (!fresh) return;
+      Object.assign(tournament, fresh);
+      if (tournament.status === TournamentV2Status.COMPLETED) return;
+      const matches = await this.matchRepo.find({
+        where: {
+          tournamentId: tournament.id,
+          status: TournamentMatchStatus.ACTIVE,
+        },
+      });
+      for (const m of matches) {
+        if (await this.tryResolveBye(m, tournament)) progressed = true;
+      }
+    }
+  }
+
+  private async tryResolveBye(
+    match: TournamentMatchV2,
+    tournament: TournamentV2,
+  ): Promise<boolean> {
+    if (match.status === TournamentMatchStatus.COMPLETED) return false;
+    const kind = classifyMatchSlots(match.playerAId, match.playerBId);
+    if (kind !== 'bye-a' && kind !== 'bye-b') return false;
+    const winnerId = kind === 'bye-a' ? match.playerAId : match.playerBId;
+    if (!winnerId) return false;
+    if (await this.hasPendingFeeder(match)) return false;
+
+    match.status = TournamentMatchStatus.COMPLETED;
+    match.winnerId = winnerId;
+    match.aScore = match.aScore ?? 0;
+    match.bScore = match.bScore ?? 0;
+    await this.matchRepo.save(match);
+
+    const bracket = match.bracket ?? TournamentBracketSide.WINNERS;
+    if (
+      isSingleElimFinal(
+        tournament.mode,
+        bracket,
+        match.round,
+        tournament.entrants?.length ?? 0,
+      )
+    ) {
+      await this.completeTournament(tournament, winnerId);
+      return true;
+    }
+
+    await this.placePlayerInNextMatch(
+      match.tournamentId,
+      match.round,
+      match.matchIndex,
+      winnerId,
+      bracket,
+    );
+    if (tournament.mode === TournamentV2Mode.DOUBLE_ELIMINATION) {
+      await this.maybeScheduleGrandFinal(match.tournamentId);
+    }
+    return true;
+  }
+
+  private async hasPendingFeeder(match: TournamentMatchV2): Promise<boolean> {
+    const feed = feederMatchIndices(match.round, match.matchIndex);
+    if (!feed) return false;
+    const emptyA = !match.playerAId;
+    const emptyB = !match.playerBId;
+    for (const idx of feed.indices) {
+      const feeder = await this.matchRepo.findOne({
+        where: {
+          tournamentId: match.tournamentId,
+          round: feed.prevRound,
+          matchIndex: idx,
+          bracket: match.bracket,
+        },
+      });
+      if (!feeder) continue;
+      if (feeder.status !== TournamentMatchStatus.COMPLETED) {
+        const fillsA = idx % 2 === 1;
+        if (fillsA && emptyA) return true;
+        if (!fillsA && emptyB) return true;
+      }
+    }
+    return false;
   }
 
   private async broadcastTv(tournamentId: string): Promise<void> {

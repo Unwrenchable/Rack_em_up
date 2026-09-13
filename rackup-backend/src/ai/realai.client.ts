@@ -5,11 +5,20 @@
  * `realai-coach.client.ts` → POST /v1/plugins/rackup-coach
  * (REALAI_RACKUP_WIRING_CONTRACT.md).
  *
- * This file remains for general /v1/chat/completions (training fallbacks).
- * Default local: http://127.0.0.1:8000
+ * This file remains for optional /v1/chat/completions (Hive GPU only).
+ * Render realai-api has no default_llm — do not use chat there for Coach.
+ * Local Hive: http://127.0.0.1:8001
  *
  * RealAI stays a separate process. RackUp never vendors that monorepo.
  */
+
+import { isUnusableRealAiText } from './realai-text-guard';
+import {
+  isForbiddenRealAiUiHost,
+  realAiCoachPaths,
+  renderCloudKeyHint,
+  resolveRealAiBaseUrl,
+} from './realai-endpoint';
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
@@ -25,11 +34,18 @@ export type RealAiStatus = {
   reachable: boolean;
   baseUrl: string;
   model: string;
+  coachPath: string;
+  chatRequiresLocalGpu: boolean;
+  hint?: string;
   error?: string;
 };
 
 function baseUrl(): string {
-  return (process.env.REALAI_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '');
+  return resolveRealAiBaseUrl();
+}
+
+function coachPath(): string {
+  return realAiCoachPaths()[0];
 }
 
 function modelName(): string {
@@ -43,26 +59,33 @@ function apiKey(): string | undefined {
 export async function getRealAiStatus(): Promise<RealAiStatus> {
   const url = baseUrl();
   const model = modelName();
+  const base = {
+    configured: true,
+    baseUrl: url,
+    model,
+    coachPath: coachPath(),
+    chatRequiresLocalGpu: true,
+    hint: renderCloudKeyHint(url),
+  };
+  if (isForbiddenRealAiUiHost(url)) {
+    return {
+      ...base,
+      reachable: false,
+      error: 'REALAI_BASE_URL points at realaiui.vercel.app (UI, not API)',
+    };
+  }
   try {
     const res = await fetch(`${url}/health`, {
       signal: AbortSignal.timeout(2500),
     });
     if (!res.ok) {
-      return {
-        configured: true,
-        reachable: false,
-        baseUrl: url,
-        model,
-        error: `health ${res.status}`,
-      };
+      return { ...base, reachable: false, error: `health ${res.status}` };
     }
-    return { configured: true, reachable: true, baseUrl: url, model };
+    return { ...base, reachable: true };
   } catch (e) {
     return {
-      configured: true,
+      ...base,
       reachable: false,
-      baseUrl: url,
-      model,
       error: e instanceof Error ? e.message : 'unreachable',
     };
   }
@@ -107,6 +130,13 @@ export async function realAiChat(
   };
   const content = data.choices?.[0]?.message?.content?.trim() ?? '';
   if (!content) throw new Error('RealAI returned empty content');
+
+  // Render API-only RealAI has no default_llm / GGUF — do not treat that as coaching.
+  if (isUnusableRealAiText(content)) {
+    throw new Error(
+      'RealAI chat/completions requires a local default_llm; use rackup-coach plugin instead',
+    );
+  }
 
   return {
     content,

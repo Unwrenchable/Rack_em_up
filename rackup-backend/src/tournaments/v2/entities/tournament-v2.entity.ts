@@ -5,6 +5,8 @@ export enum TournamentV2Mode {
   DOUBLE_ELIMINATION = 'DOUBLE_ELIMINATION',
   ROUND_ROBIN = 'ROUND_ROBIN',
   SWISS = 'SWISS',
+  /** Swiss-style pairing; starting stacks scaled by rating band (`band_v1`). */
+  CHIP_RACE = 'CHIP_RACE',
 }
 
 /** How entrants are ordered before bracket generation. */

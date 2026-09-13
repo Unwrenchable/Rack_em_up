@@ -5,11 +5,13 @@ import {
   fetchLiveHalls,
   hallV2CheckIn,
   hallV2CheckOut,
+  hallV2Create,
   hallV2Feed,
 } from '../lib/api';
 import { useToast } from '../lib/toast-context';
 import type { Hall, LiveHall } from '../lib/types';
 import { HallsMap } from '../components/HallsMap';
+import { Modal } from '../components/Modal';
 
 export function HallsPage() {
   const { push } = useToast();
@@ -19,6 +21,13 @@ export function HallsPage() {
   const [feedHallId, setFeedHallId] = useState<string | null>(null);
   const [feedItems, setFeedItems] = useState<unknown[] | null>(null);
   const [checkedInId, setCheckedInId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [newLat, setNewLat] = useState('36.1699');
+  const [newLon, setNewLon] = useState('-115.1398');
+  const [newTables, setNewTables] = useState('8');
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetchHalls().then(setHalls);
@@ -105,6 +114,14 @@ export function HallsPage() {
         <p className="muted" style={{ marginTop: 6 }}>
           Verified rooms, live pulse, V2 check-in/out and feed.
         </p>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          style={{ marginTop: 12 }}
+          onClick={() => setCreateOpen(true)}
+        >
+          + Add hall
+        </button>
       </header>
 
       <div className="card card-glow">
@@ -227,6 +244,83 @@ export function HallsPage() {
           );
         })}
       </div>
+
+      <Modal open={createOpen} title="Add a hall" onClose={() => setCreateOpen(false)}>
+        <div className="stack">
+          <p className="muted" style={{ fontSize: '0.85rem' }}>
+            Adds a room to Halls V2. Anyone can add; verification stays with owners/admins.
+          </p>
+          <div className="field">
+            <label>Name</label>
+            <input
+              className="input"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Midnight Rack"
+            />
+          </div>
+          <div className="field">
+            <label>Address</label>
+            <input
+              className="input"
+              value={newAddress}
+              onChange={(e) => setNewAddress(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div className="grid-2">
+            <div className="field">
+              <label>Lat</label>
+              <input className="input" value={newLat} onChange={(e) => setNewLat(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Lon</label>
+              <input className="input" value={newLon} onChange={(e) => setNewLon(e.target.value)} />
+            </div>
+          </div>
+          <div className="field">
+            <label>Tables</label>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              value={newTables}
+              onChange={(e) => setNewTables(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            disabled={creating || newName.trim().length < 2}
+            onClick={async () => {
+              setCreating(true);
+              try {
+                const res = await hallV2Create({
+                  name: newName.trim(),
+                  lat: Number(newLat),
+                  lon: Number(newLon),
+                  address: newAddress.trim() || undefined,
+                  tableCount: Number(newTables) || undefined,
+                });
+                setHalls((list) => {
+                  const next = list ?? [];
+                  if (next.some((h) => h.id === res.hall.id)) return next;
+                  return [...next, res.hall].sort((a, b) => a.name.localeCompare(b.name));
+                });
+                setCreateOpen(false);
+                setNewName('');
+                push(res.alreadyExisted ? `Already on the map: ${res.hall.name}` : `Added ${res.hall.name}`, 'ok');
+              } catch (e) {
+                push(e instanceof Error ? e.message.slice(0, 120) : 'Add hall failed', 'err');
+              } finally {
+                setCreating(false);
+              }
+            }}
+          >
+            {creating ? 'Adding…' : 'Add hall'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

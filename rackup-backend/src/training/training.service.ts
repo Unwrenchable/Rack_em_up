@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MatchMemory } from '../memories/match-memory.entity';
@@ -7,25 +7,31 @@ import {
   getRealAiStatus,
   realAiChatOrFallback,
 } from '../ai/realai.client';
+import { realaiCoach, realaiVideoAnalysis } from '../ai/realai-coach.client';
+import { coachingTextFromResult, isUnusableRealAiText } from '../ai/realai-text-guard';
 import { AnalyzeShotDto } from './dto/analyze-shot.dto';
+import {
+  drillsFromChatContent,
+  drillsFromCoachResult,
+  type DrillPlan,
+} from './parse-coach-drills';
+import { sanitizePublicAnalyze } from './analyze-response';
+import { buildCoachAnalyzePayload } from './video-analysis-payload';
+import { ObjectStorageService } from '../common/object-storage.service';
+import { randomUUID } from 'crypto';
 
-export type DrillPlan = {
-  id: string;
-  title: string;
-  focus: string;
-  minutes: number;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
-  description: string;
-  source: 'rules' | 'realai';
-};
+export type { DrillPlan } from './parse-coach-drills';
 
 @Injectable()
 export class TrainingService {
+  private readonly logger = new Logger(TrainingService.name);
+
   constructor(
     @InjectRepository(MatchMemory)
     private readonly memoriesRepo: Repository<MatchMemory>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   async providerStatus() {
@@ -52,6 +58,86 @@ export class TrainingService {
       )
       .join('; ');
 
+    // Canonical path: POST /v1/plugins/rackup-coach ability=coach (not chat/completions).
+    try {
+      const result = await realaiCoach({
+        ability: 'coach',
+        goal: "Today's 3 focused practice drills",
+        player: {
+          player_id: userId,
+          display_name: user?.displayName,
+          rating,
+          rd: user?.rd,
+          volatility: user?.volatility,
+          rating_system: 'rackup',
+          skill_level: user?.ratingBand ?? undefined,
+          discipline: (games[0] as string | undefined) ?? 'nine_ball',
+          locale: 'en',
+        },
+        payload: {
+          mode: 'practice_plan',
+          minutes: 60,
+          count: 3,
+          recent_results: summary || 'none',
+        },
+      });
+      const drills = drillsFromCoachResult(result);
+      if (drills?.length) {
+        return { drills, provider: 'realai' };
+      }
+      this.logger.warn(
+        'rackup-coach coach ability returned no drills; trying pyramid if relevant',
+      );
+    } catch (e) {
+      this.logger.warn(
+        `rackup-coach drills failed: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+
+    const discipline = String(games[0] ?? '').toLowerCase();
+    if (discipline.includes('pyramid')) {
+      try {
+        const pyramid = await realaiCoach({
+          ability: 'pyramid',
+          goal: "Today's 3 focused practice drills",
+          player: {
+            player_id: userId,
+            display_name: user?.displayName,
+            rating,
+            rd: user?.rd,
+            volatility: user?.volatility,
+            rating_system: 'rackup',
+            skill_level: user?.ratingBand ?? undefined,
+            discipline: 'pyramid',
+            locale: 'en',
+          },
+          payload: {
+            mode: 'practice_plan',
+            minutes: 60,
+            count: 3,
+            recent_results: summary || 'none',
+          },
+        });
+        const drills = drillsFromCoachResult(pyramid);
+        if (drills?.length) {
+          return { drills, provider: 'realai' };
+        }
+      } catch (e) {
+        this.logger.warn(
+          `rackup-coach pyramid drills failed: ${e instanceof Error ? e.message : e}`,
+        );
+      }
+    }
+
+    // Chat/completions needs a local default_llm (Hive). Render API-only
+    // hosts return a placeholder — skip unless explicitly opted in.
+    const allowChat =
+      process.env.REALAI_CHAT_FALLBACK === '1' ||
+      process.env.REALAI_CHAT_FALLBACK === 'true';
+    if (!allowChat) {
+      return { drills: rulesDrills, provider: 'offline-rules-fallback' };
+    }
+
     const ai = await realAiChatOrFallback(
       [
         {
@@ -72,66 +158,138 @@ export class TrainingService {
       return { drills: rulesDrills, provider: 'offline-rules-fallback' };
     }
 
-    try {
-      const parsed = JSON.parse(this.extractJson(ai.content)) as Array<Record<string, unknown>>;
-      const drills: DrillPlan[] = parsed.slice(0, 3).map((d, i) => ({
-        id: `ai-${i + 1}`,
-        title: String(d.title ?? `Drill ${i + 1}`),
-        focus: String(d.focus ?? 'Fundamentals'),
-        minutes: Number(d.minutes ?? 10),
-        difficulty: (['Easy', 'Medium', 'Hard'].includes(String(d.difficulty))
-          ? d.difficulty
-          : 'Medium') as DrillPlan['difficulty'],
-        description: String(d.description ?? ''),
-        source: 'realai',
-      }));
-      return { drills, provider: ai.model };
-    } catch {
-      // RealAI answered, but the drill JSON was unreadable — not a total outage.
-      return { drills: rulesDrills, provider: 'realai-parse-fallback' };
+    const fromChat = drillsFromChatContent(ai.content);
+    if (fromChat?.length) {
+      return { drills: fromChat, provider: ai.model || 'realai' };
     }
+
+    this.logger.warn('RealAI chat answered but drill text was unreadable — rules fallback');
+    return { drills: rulesDrills, provider: 'realai-parse-fallback' };
+  }
+
+  async uploadClip(
+    userId: string,
+    file: { buffer: Buffer; originalname?: string; mimetype?: string; size?: number },
+  ): Promise<{ url: string; key: string; backend: string }> {
+    const mime = (file.mimetype ?? '').toLowerCase();
+    const allowed = new Set([
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
+      'video/x-m4v',
+      'video/mpeg',
+    ]);
+    if (!allowed.has(mime)) {
+      throw new BadRequestException('Upload an mp4, webm, or mov clip');
+    }
+    if ((file.size ?? file.buffer.length) > 80 * 1024 * 1024) {
+      throw new BadRequestException('Clip must be 80MB or smaller');
+    }
+    const ext =
+      mime.includes('webm') ? 'webm' : mime.includes('quicktime') ? 'mov' : 'mp4';
+    const stored = await this.storage.putBytes({
+      prefix: `clips/${userId}`,
+      filename: `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`,
+      body: file.buffer,
+      contentType: mime,
+    });
+    return { url: stored.url, key: stored.key, backend: stored.backend };
   }
 
   async analyzeShot(userId: string, dto: AnalyzeShotDto) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     const rating = user?.rating ?? 500;
+    const player = {
+      player_id: userId,
+      display_name: user?.displayName,
+      rating,
+      rd: user?.rd,
+      volatility: user?.volatility,
+      rating_system: 'rackup' as const,
+      skill_level: user?.ratingBand ?? undefined,
+      discipline: dto.game ?? 'nine_ball',
+      locale: 'en',
+    };
+    const payload = buildCoachAnalyzePayload(dto);
+    const ability = dto.videoUrl ? 'video_analysis' : 'coach';
 
-    const ai = await realAiChatOrFallback(
-      [
-        {
-          role: 'system',
-          content:
-            'You are a pool shot coach. Given notes and optional video URL context, give structured feedback: aim, speed, spin, consistency, and 3 concrete fixes. Plain text, concise, no fluff.',
-        },
-        {
-          role: 'user',
-          content: [
-            `Player rating: ${rating}`,
-            `Game: ${dto.game ?? 'unspecified'}`,
-            `Focus: ${dto.focus ?? 'general'}`,
-            `Video URL: ${dto.videoUrl ?? 'none (text-only analysis)'}`,
-            `Notes: ${dto.notes ?? 'none'}`,
-            'Analyze and coach.',
-          ].join('\n'),
-        },
-      ],
-      () =>
-        this.fallbackAnalysis(dto, rating),
-      { temperature: 0.45, maxTokens: 900 },
-    );
+    // Canonical: POST /v1/plugins/rackup-coach — never chat/completions
+    // (Render has no default_llm; Hive GPU stays on the operator PC).
+    try {
+      const result = dto.videoUrl
+        ? await realaiVideoAnalysis({ player, payload })
+        : await realaiCoach({
+            ability: 'coach',
+            goal: 'Shot analysis: aim, speed, spin, consistency, 3 fixes',
+            player,
+            payload,
+          });
+      const text = coachingTextFromResult(result);
+      if (text && !isUnusableRealAiText(text)) {
+        const persisted = await this.persistCoachResult(userId, ability, result, payload);
+        return {
+          ...sanitizePublicAnalyze({
+            analysis: text,
+            provider: 'realai',
+            model: 'rackup-coach',
+            fallbackAnalysis: this.fallbackAnalysis(dto, rating),
+          }),
+          videoUrl: dto.videoUrl ?? null,
+          ability,
+          result,
+          persistUrl: persisted,
+        };
+      }
+      this.logger.warn('rackup-coach analyze returned no usable coaching text');
+    } catch (e) {
+      this.logger.warn(
+        `rackup-coach analyze failed: ${e instanceof Error ? e.message : e}`,
+      );
+    }
 
     return {
-      analysis: ai.content,
-      provider: ai.offlineFallback ? 'rules-fallback' : 'realai',
-      model: ai.model,
-      offlineFallback: ai.offlineFallback,
+      ...sanitizePublicAnalyze({
+        analysis: '',
+        provider: 'rules-fallback',
+        offlineFallback: true,
+        fallbackAnalysis: this.fallbackAnalysis(dto, rating),
+      }),
       videoUrl: dto.videoUrl ?? null,
-      // Future: RealAI vision / multi-agent task once analysis-clean stabilizes
-      future: {
-        visionPipeline: 'POST RealAI /v1/chat/completions multimodal or /v1/tasks',
-        status: 'scaffold-ready',
-      },
+      ability,
+      result: null,
+      persistUrl: null,
     };
+  }
+
+  /** RackUp persists RealAI's result; Nest does not recompute coach math. */
+  private async persistCoachResult(
+    userId: string,
+    ability: string,
+    result: Record<string, unknown>,
+    payload: Record<string, unknown>,
+  ): Promise<string | null> {
+    try {
+      const stored = await this.storage.putBytes({
+        prefix: `analyses/${userId}`,
+        filename: `${Date.now()}-${randomUUID().slice(0, 8)}.json`,
+        body: Buffer.from(
+          JSON.stringify({
+            ability,
+            player_id: userId,
+            result,
+            video_meta: payload.video_meta ?? null,
+            persisted_at: new Date().toISOString(),
+          }),
+        ),
+        contentType: 'application/json',
+      });
+      return stored.url;
+    } catch (e) {
+      this.logger.warn(
+        `Could not persist rackup-coach result: ${e instanceof Error ? e.message : e}`,
+      );
+      return null;
+    }
   }
 
   async scoutOpponent(viewerId: string, opponentUserId: string) {
@@ -231,7 +389,9 @@ export class TrainingService {
     return [
       `Shot analysis (offline rules · rating ${rating})`,
       `Focus: ${dto.focus ?? 'general'} · Game: ${dto.game ?? 'n/a'}`,
-      dto.videoUrl ? `Clip: ${dto.videoUrl}` : 'No video — text-only tips.',
+      dto.videoUrl
+        ? `Clip URL (text notes only — no vision on this host): ${dto.videoUrl}`
+        : 'No video — text-only tips.',
       '',
       'Aim: Pause on the final alignment; eye on object ball last.',
       'Speed: Prefer firm-enough for position over soft misses.',
@@ -240,14 +400,7 @@ export class TrainingService {
       '',
       'Fixes: (1) 10 stop-shots (2) 10 follow/draw pairs (3) film one make from side view.',
       '',
-      'When RealAI is online, this endpoint upgrades to provider analysis automatically.',
+      'RealAI rackup-coach was unreachable or returned a local-model placeholder. This is a rules fallback, not a successful coach run.',
     ].join('\n');
-  }
-
-  private extractJson(text: string): string {
-    const start = text.indexOf('[');
-    const end = text.lastIndexOf(']');
-    if (start >= 0 && end > start) return text.slice(start, end + 1);
-    return text;
   }
 }

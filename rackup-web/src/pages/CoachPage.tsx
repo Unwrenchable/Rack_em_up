@@ -7,6 +7,7 @@ import {
   fetchShotOfTheDay,
   fetchSotdStreak,
   fetchTodayDrills,
+  uploadCoachClip,
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
@@ -20,11 +21,16 @@ export function CoachPage() {
   const [drills, setDrills] = useState<Drill[]>([]);
   const [provider, setProvider] = useState('…');
   const [sotd, setSotd] = useState<ShotOfTheDay | null>(null);
-  const [realai, setRealai] = useState<{ reachable: boolean; model: string } | null>(null);
+  const [realai, setRealai] = useState<{
+    reachable: boolean;
+    model: string;
+    coachPath?: string;
+  } | null>(null);
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [clipName, setClipName] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [streak, setStreak] = useState(0);
@@ -37,7 +43,7 @@ export function CoachPage() {
     });
     fetchShotOfTheDay().then(setSotd);
     fetchProviderHealth().then((p) =>
-      setRealai({ reachable: p.reachable, model: p.model }),
+      setRealai({ reachable: p.reachable, model: p.model, coachPath: p.coachPath }),
     );
     fetchSotdStreak().then((s) => setStreak(s.streak));
   }, []);
@@ -55,9 +61,14 @@ export function CoachPage() {
         focus: 'stroke',
       });
       setAnalysis(res.analysis);
+      const fallback =
+        res.offlineFallback ||
+        res.status === 'rules-fallback' ||
+        res.provider === 'demo' ||
+        res.provider === 'rules-fallback';
       push(
-        res.offlineFallback || res.provider === 'demo'
-          ? 'Offline coach tips (RealAI later)'
+        fallback
+          ? 'Rules-based coach tips (rackup-coach plugin unavailable)'
           : 'RealAI analysis ready',
         'ok',
       );
@@ -127,7 +138,7 @@ export function CoachPage() {
               {realai == null
                 ? 'Checking…'
                 : realai.reachable
-                  ? `Online · ${realai.model}`
+                  ? `Online · rackup-coach${realai.model ? ` · ${realai.model}` : ''}`
                   : 'Offline · rules fallback'}
             </div>
           </div>
@@ -221,12 +232,40 @@ export function CoachPage() {
             />
           </div>
           <div className="field">
-            <label>Video URL (optional)</label>
+            <label>Upload a clip</label>
+            <input
+              className="input"
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setBusy(true);
+                try {
+                  const stored = await uploadCoachClip(file);
+                  setVideoUrl(stored.url);
+                  setClipName(file.name);
+                  push('Clip uploaded — ready to analyze', 'ok');
+                } catch (err) {
+                  push(err instanceof Error ? err.message.slice(0, 120) : 'Upload failed', 'err');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+            {clipName && (
+              <p className="muted" style={{ fontSize: '0.8rem', marginTop: 6 }}>
+                Uploaded {clipName}
+              </p>
+            )}
+          </div>
+          <div className="field">
+            <label>Or YouTube / stream URL</label>
             <input
               className="input"
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="https://…"
+              placeholder="https://youtube.com/shorts/…"
             />
           </div>
           <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={runAnalyze}>
@@ -246,6 +285,12 @@ export function describeDrillProvider(
   const p = (provider || '').toLowerCase();
   if (p === 'demo' || p === '…' || p === 'checking' || p === 'error') return provider;
   if (health?.reachable === true) {
+    if (p === 'realai' || p === 'rackup-coach' || p.startsWith('realai-')) {
+      if (p.includes('parse')) {
+        return 'RealAI online · coach drill text failed (showing rules drills)';
+      }
+      return 'RealAI';
+    }
     if (p.includes('parse') || p.includes('realai-parse-fallback') || p === 'rules-fallback-parse') {
       return 'RealAI online · coach drill text failed (showing rules drills)';
     }

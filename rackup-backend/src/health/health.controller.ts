@@ -47,7 +47,13 @@ export class HealthController implements OnModuleInit {
     db: string;
     database: string;
     redis: string;
-    realai: { reachable: boolean; baseUrl: string; model: string };
+    realai: {
+      reachable: boolean;
+      baseUrl: string;
+      model: string;
+      coachPath?: string;
+      hint?: string;
+    };
   }> {
     let db = 'down';
     let database = 'Database disconnected';
@@ -81,6 +87,8 @@ export class HealthController implements OnModuleInit {
         reachable: realai.reachable,
         baseUrl: realai.baseUrl,
         model: realai.model,
+        coachPath: realai.coachPath,
+        hint: realai.hint,
       },
     };
   }

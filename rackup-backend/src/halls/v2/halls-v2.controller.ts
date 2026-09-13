@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/comm
 import { AuthGuard } from '@nestjs/passport';
 
 import { HallsV2Service } from './halls-v2.service';
+import { CreateHallDto } from './dto/create-hall.dto';
 import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
 import { CreateHallEventDto } from './dto/events/create-hall-event.dto';
@@ -13,6 +14,12 @@ import { SeedResultDto } from './dto/seed/seed-result.dto';
 @Controller('halls/v2')
 export class HallsV2Controller {
   constructor(private readonly hallsV2: HallsV2Service) {}
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('create')
+  async createHall(@Req() req: any, @Body() dto: CreateHallDto) {
+    return this.hallsV2.createHall(req.user.id, dto);
+  }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('checkin')

@@ -16,6 +16,9 @@ type Row = {
   game: string;
   mode: string;
   status: string;
+  chipBySkill?: boolean;
+  chipStacks?: Record<string, number>;
+  formatConfigJson?: { chipBySkill?: boolean; chipStacks?: Record<string, number> };
 };
 
 const MODES = [
@@ -23,6 +26,16 @@ const MODES = [
   'DOUBLE_ELIMINATION',
   'ROUND_ROBIN',
   'SWISS',
+  'CHIP_RACE',
+] as const;
+
+/** Mirrors backend `chip-by-skill.ts` band_v1 — weaker bands start with more chips. */
+const CHIP_BAND_PREVIEW = [
+  { band: 'Novice', rating: '<400', chips: 16000 },
+  { band: 'Intermediate', rating: '400–499', chips: 13000 },
+  { band: 'Advanced', rating: '500–599', chips: 10000 },
+  { band: 'Expert', rating: '600–699', chips: 7500 },
+  { band: 'Elite', rating: '700+', chips: 5000 },
 ] as const;
 
 export function TournamentsListPage() {
@@ -36,7 +49,9 @@ export function TournamentsListPage() {
   const [game, setGame] = useState('9-ball');
   const [mode, setMode] = useState<(typeof MODES)[number]>('SINGLE_ELIMINATION');
   const [seed, setSeed] = useState<'manual' | 'random' | 'elo'>('elo');
+  const [chipBySkill, setChipBySkill] = useState(false);
   const [busy, setBusy] = useState(false);
+  const skillChips = chipBySkill || mode === 'CHIP_RACE';
 
   async function load() {
     setLoading(true);
@@ -64,8 +79,10 @@ export function TournamentsListPage() {
         game,
         mode,
         seed_strategy: seed,
+        chipBySkill: skillChips,
+        format_config: skillChips ? { chipBySkill: true } : undefined,
       });
-      push(`Created ${t.name}`, 'ok');
+      push(skillChips ? `Created ${t.name} (skill chips)` : `Created ${t.name}`, 'ok');
       setCreateOpen(false);
       await load();
     } catch (e) {
@@ -101,7 +118,8 @@ export function TournamentsListPage() {
                   {t.name}
                 </Link>
                 <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
-                  {t.game} · {t.mode} · {t.status}
+                  {t.game} · {t.mode.replace(/_/g, ' ')} · {t.status}
+                  {t.chipBySkill || t.formatConfigJson?.chipBySkill ? ' · skill chips' : ''}
                 </p>
               </div>
               <span className={`chip ${t.status === 'ACTIVE' ? 'chip-live' : ''}`}>{t.status}</span>
@@ -120,8 +138,16 @@ export function TournamentsListPage() {
                     className="btn btn-ghost btn-sm"
                     onClick={async () => {
                       try {
-                        await tournamentV2Register(t.id);
-                        push('Registered', 'ok');
+                        const res = (await tournamentV2Register(t.id)) as {
+                          chips?: number;
+                          ratingBand?: string;
+                        };
+                        push(
+                          res?.chips != null
+                            ? `Registered · ${res.chips.toLocaleString()} chips${res.ratingBand ? ` (${res.ratingBand})` : ''}`
+                            : 'Registered',
+                          'ok',
+                        );
                       } catch (e) {
                         push(e instanceof Error ? e.message.slice(0, 80) : 'Register failed', 'err');
                       }
@@ -176,7 +202,11 @@ export function TournamentsListPage() {
             <select
               className="input"
               value={mode}
-              onChange={(e) => setMode(e.target.value as (typeof MODES)[number])}
+              onChange={(e) => {
+                const next = e.target.value as (typeof MODES)[number];
+                setMode(next);
+                if (next === 'CHIP_RACE') setChipBySkill(true);
+              }}
             >
               {MODES.map((m) => (
                 <option key={m} value={m}>
@@ -185,6 +215,37 @@ export function TournamentsListPage() {
               ))}
             </select>
           </div>
+          <div className="field">
+            <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={skillChips}
+                disabled={mode === 'CHIP_RACE'}
+                onChange={(e) => setChipBySkill(e.target.checked)}
+              />
+              Skill-scaled chips (handicap)
+            </label>
+            <p className="muted" style={{ fontSize: '0.8rem', marginTop: 6 }}>
+              In-event counters only — not a wallet. Weaker rating bands start with more chips
+              (Novice 16k → Elite 5k). CHIP_RACE pairs like Swiss and transfers 1,000 per match.
+            </p>
+          </div>
+          {skillChips && (
+            <div className="card" style={{ padding: 12, fontSize: '0.8rem' }}>
+              <div className="muted" style={{ marginBottom: 6 }}>
+                Starting stacks (band_v1)
+              </div>
+              {CHIP_BAND_PREVIEW.map((row) => (
+                <div key={row.band} className="row-between">
+                  <span>
+                    {row.band}{' '}
+                    <span className="muted">{row.rating}</span>
+                  </span>
+                  <span>{row.chips.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="field">
             <label>Seed strategy</label>
             <select

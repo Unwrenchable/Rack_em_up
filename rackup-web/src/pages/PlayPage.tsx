@@ -5,6 +5,7 @@ import {
   completeMoneyMatch,
   confirmMoneyMatch,
   createMoneyMatch,
+  setMoneyMatchLivestream,
   disputeMoneyMatch,
   fetchLeagueStandings,
   fetchLeagues,
@@ -44,6 +45,9 @@ export function PlayPage() {
   const [raceTo, setRaceTo] = useState(7);
   const [dollars, setDollars] = useState(100);
   const [opponentId, setOpponentId] = useState('p1');
+  const [streamUrl, setStreamUrl] = useState('');
+  const [attachMatch, setAttachMatch] = useState<MoneyMatch | null>(null);
+  const [attachUrl, setAttachUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [reportMatch, setReportMatch] = useState<MoneyMatch | null>(null);
   const [aScore, setAScore] = useState(0);
@@ -96,6 +100,7 @@ export function PlayPage() {
         game,
         raceTo,
         amountCents: dollars * 100,
+        livestreamUrl: streamUrl.trim() || undefined,
       });
       setMoney((m) => [created, ...(m ?? [])]);
       setCreateOpen(false);
@@ -173,6 +178,7 @@ export function PlayPage() {
               </h3>
               <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
                 A {m.aConfirmed ? '✓' : '…'} · B {m.bConfirmed ? '✓' : '…'} · {formatRelative(m.createdAt)}
+                {m.livestreamUrl ? ' · Stream linked' : ''}
               </p>
               <div className="row" style={{ marginTop: 12 }}>
                 {m.status === 'PENDING' && user && (
@@ -236,6 +242,28 @@ export function PlayPage() {
                     }}
                   >
                     Dispute
+                  </button>
+                )}
+                {m.livestreamUrl && (
+                  <a
+                    className="btn btn-ghost btn-sm"
+                    href={m.livestreamUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Watch stream
+                  </a>
+                )}
+                {user && (m.playerAId === user.id || m.playerBId === user.id) && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setAttachMatch(m);
+                      setAttachUrl(m.livestreamUrl ?? '');
+                    }}
+                  >
+                    {m.livestreamUrl ? 'Edit stream' : 'Attach stream'}
                   </button>
                 )}
               </div>
@@ -365,6 +393,15 @@ export function PlayPage() {
             </div>
           </div>
           <div className="field">
+            <label>Livestream URL (optional)</label>
+            <input
+              className="input"
+              value={streamUrl}
+              onChange={(e) => setStreamUrl(e.target.value)}
+              placeholder="https://youtube.com/live/… or Twitch"
+            />
+          </div>
+          <div className="field">
             <label>Opponent</label>
             <select className="input" value={opponentId} onChange={(e) => setOpponentId(e.target.value)}>
               <option value="p1">VegasVee</option>
@@ -447,6 +484,47 @@ export function PlayPage() {
             }}
           >
             Submit / confirm scores
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!attachMatch}
+        title="Match stream"
+        onClose={() => setAttachMatch(null)}
+      >
+        <div className="stack">
+          <p className="muted" style={{ fontSize: '0.85rem' }}>
+            Paste a YouTube, Twitch, or other public watch URL. Players can open it from Play or Money.
+          </p>
+          <div className="field">
+            <label>Stream URL</label>
+            <input
+              className="input"
+              value={attachUrl}
+              onChange={(e) => setAttachUrl(e.target.value)}
+              placeholder="https://…"
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            disabled={!attachMatch}
+            onClick={async () => {
+              if (!attachMatch) return;
+              try {
+                const updated = await setMoneyMatchLivestream(attachMatch.id, attachUrl.trim());
+                setMoney((list) =>
+                  (list ?? []).map((x) => (x.id === attachMatch.id ? { ...x, ...updated } : x)),
+                );
+                setAttachMatch(null);
+                push(updated.livestreamUrl ? 'Stream linked' : 'Stream cleared', 'ok');
+              } catch (e) {
+                push(e instanceof Error ? e.message.slice(0, 120) : 'Stream save failed', 'err');
+              }
+            }}
+          >
+            Save stream
           </button>
         </div>
       </Modal>

@@ -34,7 +34,7 @@ HTTP 200 + `ok: false` is a logical miss, not a transport error.
 | `coach` | Advice, drill, pattern | `question`, `game`, `miss`, `table_size` |
 | `shot_of_the_day` / `sotd` | Daily shot | Optional `difficulty`, `category` |
 | `sotd_contribute` | Player submits a shot | Map + notes |
-| `video_analysis` | Clip notes | Vision pipeline not fully live |
+| `video_analysis` | Clip notes | `video_meta` `{url,source,kind,bytes_included:false}` + `observations` — never raw bytes. Vision not fully live. |
 | `matchmaking` / `matchmaking_support` | Rank candidates | RackUp pre-filters geo; send `candidates`, `window` |
 | `rating_update` / `post_match_rating` / `skill_update` | Glicko-2 | `won`, opponent rating/rd/vol, scores, `match_id` |
 | `rating_convert` / `convert_rating` / `league_convert` | Fargo/APA/BCA/TAP/VNEA to seed | `from_system`, `from_value` |
