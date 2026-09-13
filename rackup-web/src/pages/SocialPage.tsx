@@ -5,6 +5,7 @@ import {
   createActionPost,
   declineFriend,
   fetchActionBoard,
+  fetchChatThreads,
   fetchFriends,
   fetchPendingFriendsIncoming,
   formatRelative,
@@ -43,11 +44,15 @@ export function SocialPage() {
   const [findResults, setFindResults] = useState<PublicUserProfile[] | null>(null);
   const [findBusy, setFindBusy] = useState(false);
   const [requestedIds, setRequestedIds] = useState<Record<string, boolean>>({});
+  const [threads, setThreads] = useState<
+    Array<{ id: string; kind: string; title: string | null; lastMessagePreview: string | null }>
+  >([]);
 
   useEffect(() => {
     fetchFriends().then(setFriends);
     fetchPendingFriendsIncoming().then(setPending);
     fetchActionBoard().then(setPosts);
+    fetchChatThreads().then(setThreads);
   }, []);
 
   async function onFindPlayer(e?: FormEvent) {
@@ -310,11 +315,33 @@ export function SocialPage() {
       )}
 
       {tab === 'chat' && (
-        <div className="card stack">
-          <p className="muted">Global table chat + DMs. Presence powered by Socket.IO.</p>
-          <Link to="/chat" className="btn btn-primary btn-block">
-            Open live chat
-          </Link>
+        <div className="stack">
+          <div className="card stack">
+            <p className="muted">DMs from Find / Friends open here. Lobby table chat is still live.</p>
+            <Link to="/chat" className="btn btn-primary btn-block">
+              Open table chat
+            </Link>
+          </div>
+          {threads.length === 0 && (
+            <p className="muted">No DM threads yet — add a friend from Find or search above.</p>
+          )}
+          {threads.map((t) => (
+            <article key={t.id} className="card">
+              <div className="row-between">
+                <div>
+                  <div style={{ fontWeight: 600 }}>{t.title || (t.kind === 'DM' ? 'Direct message' : 'Group')}</div>
+                  {t.lastMessagePreview && (
+                    <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
+                      {t.lastMessagePreview}
+                    </p>
+                  )}
+                </div>
+                <Link to={`/chat?thread=${t.id}`} className="btn btn-secondary btn-sm">
+                  Open
+                </Link>
+              </div>
+            </article>
+          ))}
         </div>
       )}
 

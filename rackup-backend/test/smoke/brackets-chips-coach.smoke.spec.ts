@@ -8,6 +8,10 @@ import {
   extractJsonValue,
 } from '../../src/training/parse-coach-drills';
 import {
+  coachingTextFromResult,
+  isUnusableRealAiText,
+} from '../../src/ai/realai-text-guard';
+import {
   classifyMatchSlots,
   dropsLoserToLosers,
   feederMatchIndices,
@@ -28,6 +32,25 @@ import {
   isChipBySkillEnabled,
   startingChipsForSkill,
 } from '../../src/tournaments/v2/chip-by-skill';
+
+describe('RealAI default_llm / plugin text guard', () => {
+  it('rejects the live Render chat/completions config error', () => {
+    const live =
+      'Local RealAI is selected, but no local model is configured/loaded yet. Register a local model and set it as default_llm, then retry.';
+    expect(isUnusableRealAiText(live)).toBe(true);
+    expect(coachingTextFromResult(live)).toBeNull();
+    expect(coachingTextFromResult({ analysis: live })).toBeNull();
+  });
+
+  it('accepts real coaching text from rackup-coach', () => {
+    expect(
+      coachingTextFromResult({
+        analysis: 'Pause on the last alignment. Eye on the object ball.',
+      }),
+    ).toMatch(/object ball/);
+    expect(isUnusableRealAiText('Pause on the last alignment.')).toBe(false);
+  });
+});
 
 describe('Coach drill parse (RealAI reachable must not false-fallback)', () => {
   it('reads rackup-coach practice_plan.blocks', () => {

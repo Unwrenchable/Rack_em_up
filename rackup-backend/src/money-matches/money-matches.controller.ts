@@ -16,6 +16,7 @@ import { ConfirmMoneyMatchDto } from './dto/confirm-money-match.dto';
 import { DisputeMoneyMatchDto } from './dto/dispute-money-match.dto';
 import { CompleteMoneyMatchDto } from './dto/complete-money-match.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
+import { SetLivestreamDto } from './dto/set-livestream.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 
@@ -52,6 +53,16 @@ export class MoneyMatchesController {
   @UseGuards(AuthGuard('jwt'))
   async create(@Body() dto: CreateMoneyMatchDto) {
     return this.moneyMatchesService.create(dto);
+  }
+
+  @Post(':id/livestream')
+  @UseGuards(AuthGuard('jwt'))
+  async setLivestream(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: SetLivestreamDto,
+    @Req() req: any,
+  ) {
+    return this.moneyMatchesService.setLivestream(req.user.id, id, dto.livestreamUrl);
   }
 
   @Post(':id/confirm')

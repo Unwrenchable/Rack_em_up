@@ -436,6 +436,32 @@ export async function fetchMoneyMatches(): Promise<MoneyMatch[]> {
   }
 }
 
+export async function setMoneyMatchLivestream(
+  matchId: string,
+  livestreamUrl: string,
+): Promise<MoneyMatch> {
+  if (isDemoMode()) {
+    return {
+      id: matchId,
+      playerAId: 'demo',
+      playerBId: 'p2',
+      hallId: 'h1',
+      game: '9-ball',
+      raceTo: 7,
+      amountCents: 10000,
+      livestreamUrl,
+      status: 'ACTIVE',
+      aConfirmed: true,
+      bConfirmed: true,
+      createdAt: new Date().toISOString(),
+    };
+  }
+  return request(`/money-matches/${matchId}/livestream`, {
+    method: 'POST',
+    body: JSON.stringify({ livestreamUrl }),
+  });
+}
+
 export async function createMoneyMatch(body: {
   playerAId: string;
   playerBId: string;
@@ -788,6 +814,30 @@ export async function fetchTodayDrills(): Promise<{
   } catch {
     return { drills: [], provider: 'error' };
   }
+}
+
+export async function uploadCoachClip(file: File): Promise<{ url: string; key?: string }> {
+  if (isDemoMode()) {
+    return { url: URL.createObjectURL(file), key: 'demo-clip' };
+  }
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token && token !== 'demo') headers.Authorization = `Bearer ${token}`;
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`${API}/training/clips`, { method: 'POST', headers, body: fd });
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = text || res.statusText;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      if (parsed?.message) msg = String(parsed.message);
+    } catch {
+      /* keep */
+    }
+    throw new Error(msg);
+  }
+  return JSON.parse(text) as { url: string; key?: string };
 }
 
 export async function analyzeShot(body: {
@@ -1372,6 +1422,30 @@ export async function mmV2Status(sessionId: string): Promise<unknown> {
 }
 
 /** Halls V2 — check-in + feed */
+export async function hallV2Create(body: {
+  name: string;
+  lat: number;
+  lon: number;
+  address?: string;
+  tableCount?: number;
+}): Promise<{ hall: Hall; alreadyExisted?: boolean }> {
+  if (isDemoMode()) {
+    return {
+      hall: {
+        id: `demo-hall-${Date.now()}`,
+        name: body.name,
+        lat: body.lat,
+        lon: body.lon,
+        address: body.address ?? null,
+        tableCount: body.tableCount ?? null,
+        isVerified: false,
+      },
+      alreadyExisted: false,
+    };
+  }
+  return request('/halls/v2/create', { method: 'POST', body: JSON.stringify(body) });
+}
+
 export async function hallV2CheckIn(body: { hallId: string }): Promise<unknown> {
   if (isDemoMode()) return { ok: true, hallId: body.hallId, status: 'checked_in' };
   return request('/halls/v2/checkin', {

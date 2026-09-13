@@ -356,6 +356,7 @@ describe('SOTD maps catalogue', () => {
 /** Documented V2 route surface for smoke checklists / future e2e. */
 describe('V2 route inventory', () => {
   const routes = [
+    'POST /halls/v2/create',
     'POST /halls/v2/checkin',
     'POST /halls/v2/checkout',
     'GET /halls/v2/feed/:hallId',
@@ -390,6 +391,7 @@ describe('V2 route inventory', () => {
     'POST /scorekeeping/v2/timeline/event',
     'GET /scorekeeping/v2/timeline/:matchId',
     'GET /scorekeeping/v2/sotd-candidates',
+    'POST /money-matches/:id/livestream',
     'POST /money-matches/:id/resolve',
     'GET /money-matches/:id/audit',
     'GET /money-matches/audit/export',
@@ -401,6 +403,8 @@ describe('V2 route inventory', () => {
     'GET /matches/pyramid/presets',
     'GET /matches/:id/scoreboard',
     'POST /matches/:id/pyramid/pocket',
+    'POST /training/clips',
+    'POST /training/analyze',
     'POST /shots/complete',
     'GET /shots/streak',
     // Social layer

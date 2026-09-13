@@ -6,12 +6,14 @@ import { Repository } from 'typeorm';
 import { getRedisClient } from '../../config/redis.config';
 import { keyForHallV2 } from '../../common/redis-keys';
 
+import { Hall } from '../hall.entity';
 import { HallCheckIn } from './entities/hall-checkin.entity';
 import { HallEvent } from './entities/hall-event.entity';
 import { HallPhoto } from './entities/hall-photo.entity';
 import { HallAdmin } from './entities/hall-admin.entity';
 import { HallLeaderboardEntry } from './entities/hall-leaderboard-entry.entity';
 
+import { CreateHallDto } from './dto/create-hall.dto';
 import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
 import { CreateHallEventDto } from './dto/events/create-hall-event.dto';
@@ -29,6 +31,9 @@ import { SocialSettingsService } from '../../social/social-settings.service';
 @Injectable()
 export class HallsV2Service {
   constructor(
+    @InjectRepository(Hall)
+    private readonly hallsRepo: Repository<Hall>,
+
     @InjectRepository(HallCheckIn)
     private readonly checkinsRepo: Repository<HallCheckIn>,
 
@@ -62,6 +67,29 @@ export class HallsV2Service {
 
   async seedVegas(dto: CreateVegasSeedDto): Promise<SeedResultDto> {
     return this.seedService.seedVegas(dto);
+  }
+
+  async createHall(userId: string, dto: CreateHallDto) {
+    const name = dto.name.trim();
+    if (!name) throw new BadRequestException('Hall name required');
+    const placeKey = `${dto.lat.toFixed(4)}:${dto.lon.toFixed(4)}`;
+    const existing = await this.hallsRepo.findOne({ where: { placeKey } });
+    if (existing) {
+      return { hall: existing, alreadyExisted: true };
+    }
+    const hall = await this.hallsRepo.save(
+      this.hallsRepo.create({
+        name,
+        lat: dto.lat,
+        lon: dto.lon,
+        address: dto.address?.trim() || null,
+        tableCount: dto.tableCount ?? null,
+        placeKey,
+        ownerUserId: userId,
+        isVerified: false,
+      }),
+    );
+    return { hall, alreadyExisted: false };
   }
 
   async checkIn(userId: string, dto: CheckInDto) {

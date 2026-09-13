@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MatchMemory } from '../memories/match-memory.entity';
@@ -7,13 +7,16 @@ import {
   getRealAiStatus,
   realAiChatOrFallback,
 } from '../ai/realai.client';
-import { realaiCoach } from '../ai/realai-coach.client';
+import { realaiCoach, realaiVideoAnalysis } from '../ai/realai-coach.client';
+import { coachingTextFromResult, isUnusableRealAiText } from '../ai/realai-text-guard';
 import { AnalyzeShotDto } from './dto/analyze-shot.dto';
 import {
   drillsFromChatContent,
   drillsFromCoachResult,
   type DrillPlan,
 } from './parse-coach-drills';
+import { ObjectStorageService } from '../common/object-storage.service';
+import { randomUUID } from 'crypto';
 
 export type { DrillPlan } from './parse-coach-drills';
 
@@ -26,6 +29,7 @@ export class TrainingService {
     private readonly memoriesRepo: Repository<MatchMemory>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   async providerStatus() {
@@ -119,45 +123,94 @@ export class TrainingService {
     return { drills: rulesDrills, provider: 'realai-parse-fallback' };
   }
 
+  async uploadClip(
+    userId: string,
+    file: { buffer: Buffer; originalname?: string; mimetype?: string; size?: number },
+  ): Promise<{ url: string; key: string; backend: string }> {
+    const mime = (file.mimetype ?? '').toLowerCase();
+    const allowed = new Set([
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
+      'video/x-m4v',
+      'video/mpeg',
+    ]);
+    if (!allowed.has(mime)) {
+      throw new BadRequestException('Upload an mp4, webm, or mov clip');
+    }
+    if ((file.size ?? file.buffer.length) > 80 * 1024 * 1024) {
+      throw new BadRequestException('Clip must be 80MB or smaller');
+    }
+    const ext =
+      mime.includes('webm') ? 'webm' : mime.includes('quicktime') ? 'mov' : 'mp4';
+    const stored = await this.storage.putBytes({
+      prefix: `clips/${userId}`,
+      filename: `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`,
+      body: file.buffer,
+      contentType: mime,
+    });
+    return { url: stored.url, key: stored.key, backend: stored.backend };
+  }
+
   async analyzeShot(userId: string, dto: AnalyzeShotDto) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     const rating = user?.rating ?? 500;
+    const player = {
+      player_id: userId,
+      display_name: user?.displayName,
+      rating,
+      rd: user?.rd,
+      volatility: user?.volatility,
+      rating_system: 'rackup' as const,
+      skill_level: user?.ratingBand ?? undefined,
+      discipline: dto.game ?? 'nine_ball',
+      locale: 'en',
+    };
+    const payload = {
+      mode: dto.videoUrl ? 'video_analysis' : 'full',
+      video_url: dto.videoUrl,
+      notes: dto.notes,
+      game: dto.game ?? '9-ball',
+      focus: dto.focus ?? 'general',
+      question: dto.notes ?? 'Analyze this shot and give 3 concrete fixes.',
+    };
 
-    const ai = await realAiChatOrFallback(
-      [
-        {
-          role: 'system',
-          content:
-            'You are a pool shot coach. Given notes and optional video URL context, give structured feedback: aim, speed, spin, consistency, and 3 concrete fixes. Plain text, concise, no fluff.',
-        },
-        {
-          role: 'user',
-          content: [
-            `Player rating: ${rating}`,
-            `Game: ${dto.game ?? 'unspecified'}`,
-            `Focus: ${dto.focus ?? 'general'}`,
-            `Video URL: ${dto.videoUrl ?? 'none (text-only analysis)'}`,
-            `Notes: ${dto.notes ?? 'none'}`,
-            'Analyze and coach.',
-          ].join('\n'),
-        },
-      ],
-      () =>
-        this.fallbackAnalysis(dto, rating),
-      { temperature: 0.45, maxTokens: 900 },
-    );
+    // Canonical: POST /v1/plugins/rackup-coach — never chat/completions (no default_llm on Render).
+    try {
+      const result = dto.videoUrl
+        ? await realaiVideoAnalysis({ player, payload })
+        : await realaiCoach({
+            ability: 'coach',
+            goal: 'Shot analysis: aim, speed, spin, consistency, 3 fixes',
+            player,
+            payload,
+          });
+      const text = coachingTextFromResult(result);
+      if (text && !isUnusableRealAiText(text)) {
+        return {
+          analysis: text,
+          provider: 'realai',
+          model: 'rackup-coach',
+          offlineFallback: false,
+          videoUrl: dto.videoUrl ?? null,
+          ability: dto.videoUrl ? 'video_analysis' : 'coach',
+        };
+      }
+      this.logger.warn('rackup-coach analyze returned no usable coaching text');
+    } catch (e) {
+      this.logger.warn(
+        `rackup-coach analyze failed: ${e instanceof Error ? e.message : e}`,
+      );
+    }
 
+    const fallback = this.fallbackAnalysis(dto, rating);
     return {
-      analysis: ai.content,
-      provider: ai.offlineFallback ? 'rules-fallback' : 'realai',
-      model: ai.model,
-      offlineFallback: ai.offlineFallback,
+      analysis: fallback,
+      provider: 'rules-fallback',
+      model: 'rules-fallback',
+      offlineFallback: true,
       videoUrl: dto.videoUrl ?? null,
-      // Future: RealAI vision / multi-agent task once analysis-clean stabilizes
-      future: {
-        visionPipeline: 'POST RealAI /v1/chat/completions multimodal or /v1/tasks',
-        status: 'scaffold-ready',
-      },
+      ability: dto.videoUrl ? 'video_analysis' : 'coach',
     };
   }
 

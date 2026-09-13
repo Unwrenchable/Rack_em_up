@@ -42,9 +42,9 @@ export class ObjectStorageService {
   }
 
   /**
-   * Store image bytes under prefix/key. Returns a URL the app can serve or link.
+   * Store bytes under prefix/key (images, video clips, …).
    */
-  async putImage(input: {
+  async putBytes(input: {
     prefix: string;
     filename: string;
     body: Buffer;
@@ -63,6 +63,18 @@ export class ObjectStorageService {
     return this.putLocal(key, input.body);
   }
 
+  /**
+   * Store image bytes under prefix/key. Returns a URL the app can serve or link.
+   */
+  async putImage(input: {
+    prefix: string;
+    filename: string;
+    body: Buffer;
+    contentType: string;
+  }): Promise<PutObjectResult> {
+    return this.putBytes(input);
+  }
+
   async putDataUrl(prefix: string, dataUrl: string): Promise<PutObjectResult> {
     const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl);
     if (!match) throw new Error('Invalid data URL');
@@ -77,7 +89,7 @@ export class ObjectStorageService {
           : 'jpg';
     const hash = createHash('sha1').update(b64.slice(0, 200)).digest('hex').slice(0, 8);
     const filename = `${Date.now()}-${hash}-${randomUUID().slice(0, 8)}.${ext}`;
-    return this.putImage({
+    return this.putBytes({
       prefix,
       filename,
       body: Buffer.from(b64, 'base64'),
@@ -89,8 +101,11 @@ export class ObjectStorageService {
     const filePath = path.join(this.localRoot, key);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, body);
-    // Served via /uploads static mount — hall-photos is under UPLOAD_DIR parent handling
-    const publicPath = `/uploads/hall-photos/${key.replace(/\\/g, '/')}`;
+    const uploadsRoot = path.join(process.cwd(), 'uploads');
+    const rel = path.relative(uploadsRoot, filePath).replace(/\\/g, '/');
+    const publicPath = rel.startsWith('..')
+      ? `/uploads/${key.replace(/\\/g, '/')}`
+      : `/uploads/${rel}`;
     this.logger.log(`local put ${publicPath}`);
     return { backend: 'local', url: publicPath, key };
   }

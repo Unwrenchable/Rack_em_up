@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   fetchLookingPlayers,
   goLiveLooking,
@@ -7,6 +8,8 @@ import {
   mmV2Confirm,
   mmV2Search,
   mmV2Status,
+  openDmThread,
+  requestFriend,
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
@@ -28,6 +31,8 @@ type MmState = {
 export function FindPage() {
   const { user } = useAuth();
   const { push } = useToast();
+  const navigate = useNavigate();
+  const [requestedIds, setRequestedIds] = useState<Record<string, boolean>>({});
   const [players, setPlayers] = useState<LookingPlayer[] | null>(null);
   const [game, setGame] = useState('All');
   const [stakes, setStakes] = useState('Any');
@@ -176,7 +181,7 @@ export function FindPage() {
           Find a set
         </h1>
         <p className="muted" style={{ marginTop: 6 }}>
-          Redis queue + radius pairing. Nearby players looking for action.
+          Redis queue + radius pairing. Add a friend, then Message to open a DM.
         </p>
       </header>
 
@@ -291,14 +296,35 @@ export function FindPage() {
                 type="button"
                 className="btn btn-secondary btn-sm"
                 style={{ marginLeft: 'auto' }}
-                onClick={() => push(`Challenge sent to ${p.displayName}`, 'ok')}
+                disabled={!!requestedIds[p.id] || p.id === user?.id}
+                onClick={async () => {
+                  try {
+                    await requestFriend(p.id);
+                    setRequestedIds((m) => ({ ...m, [p.id]: true }));
+                    push(`Friend request sent to ${p.displayName}`, 'ok');
+                  } catch (e) {
+                    push(e instanceof Error ? e.message.slice(0, 120) : 'Request failed', 'err');
+                  }
+                }}
               >
-                Challenge
+                {requestedIds[p.id] ? 'Requested' : 'Add friend'}
               </button>
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
-                onClick={() => push('Chat coming soon', 'info')}
+                onClick={async () => {
+                  try {
+                    const thread = await openDmThread(p.id);
+                    navigate(`/chat?thread=${thread.id}`);
+                  } catch (e) {
+                    const msg = e instanceof Error ? e.message : '';
+                    if (/friend/i.test(msg)) {
+                      push('Add them as a friend first, then message', 'info');
+                    } else {
+                      push(msg.slice(0, 120) || 'Could not open chat', 'err');
+                    }
+                  }
+                }}
               >
                 Message
               </button>

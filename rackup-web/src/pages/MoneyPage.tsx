@@ -6,6 +6,7 @@ import {
   disputeMoneyMatch,
   fetchMoneyMatches,
   formatMoney,
+  setMoneyMatchLivestream,
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
@@ -26,6 +27,8 @@ export function MoneyPage() {
   const [reportMatch, setReportMatch] = useState<MoneyMatch | null>(null);
   const [aScore, setAScore] = useState(0);
   const [bScore, setBScore] = useState(0);
+  const [attachMatch, setAttachMatch] = useState<MoneyMatch | null>(null);
+  const [attachUrl, setAttachUrl] = useState('');
 
   useEffect(() => {
     fetchMoneyMatches().then(setMatches);
@@ -156,6 +159,28 @@ export function MoneyPage() {
                   Dispute
                 </button>
               )}
+              {m.livestreamUrl && (
+                <a
+                  className="btn btn-ghost btn-sm"
+                  href={m.livestreamUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Watch stream
+                </a>
+              )}
+              {user && (m.playerAId === user.id || m.playerBId === user.id) && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    setAttachMatch(m);
+                    setAttachUrl(m.livestreamUrl ?? '');
+                  }}
+                >
+                  {m.livestreamUrl ? 'Edit stream' : 'Attach stream'}
+                </button>
+              )}
             </div>
           </article>
         ))}
@@ -232,6 +257,40 @@ export function MoneyPage() {
             }}
           >
             Submit / confirm scores
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={!!attachMatch} title="Match stream" onClose={() => setAttachMatch(null)}>
+        <div className="stack">
+          <div className="field">
+            <label>Stream URL</label>
+            <input
+              className="input"
+              value={attachUrl}
+              onChange={(e) => setAttachUrl(e.target.value)}
+              placeholder="https://youtube.com/live/…"
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            disabled={!attachMatch}
+            onClick={async () => {
+              if (!attachMatch) return;
+              try {
+                const updated = await setMoneyMatchLivestream(attachMatch.id, attachUrl.trim());
+                setMatches((list) =>
+                  (list ?? []).map((x) => (x.id === attachMatch.id ? { ...x, ...updated } : x)),
+                );
+                setAttachMatch(null);
+                push(updated.livestreamUrl ? 'Stream linked' : 'Stream cleared', 'ok');
+              } catch (e) {
+                push(e instanceof Error ? e.message.slice(0, 120) : 'Stream save failed', 'err');
+              }
+            }}
+          >
+            Save stream
           </button>
         </div>
       </Modal>

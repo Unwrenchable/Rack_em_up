@@ -1,11 +1,21 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
-import { getSocketUrl, getToken, TOKEN_REFRESHED_EVENT } from '../lib/api';
+import {
+  fetchChatThreads,
+  fetchThreadMessages,
+  getSocketUrl,
+  getToken,
+  sendThreadMessage,
+  TOKEN_REFRESHED_EVENT,
+} from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import type { ChatMessage } from '../lib/types';
 
 export function ChatPage() {
   const { user, demo } = useAuth();
+  const [params] = useSearchParams();
+  const threadId = params.get('thread');
 
   const [online, setOnline] = useState(0);
   const [connected, setConnected] = useState(false);
@@ -22,10 +32,39 @@ export function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const myNameRef = useRef(user?.displayName ?? '');
+  const [threads, setThreads] = useState<Array<{ id: string; title: string | null; kind: string }>>(
+    [],
+  );
 
   useEffect(() => {
     myNameRef.current = user?.displayName ?? '';
   }, [user?.displayName]);
+
+  useEffect(() => {
+    if (demo) return;
+    fetchChatThreads().then((rows) =>
+      setThreads(rows.map((t) => ({ id: t.id, title: t.title, kind: t.kind }))),
+    );
+  }, [demo]);
+
+  useEffect(() => {
+    if (!threadId || demo) return;
+    fetchThreadMessages(threadId)
+      .then((rows) => {
+        setMessages(
+          rows.map((m) => ({
+            id: m.id,
+            sender: m.senderId === user?.id ? user.displayName : m.senderId.slice(0, 8),
+            text: m.body ?? '',
+            createdAt: m.createdAt,
+            mine: m.senderId === user?.id,
+          })),
+        );
+      })
+      .catch(() => {
+        /* keep welcome */
+      });
+  }, [threadId, demo, user?.id, user?.displayName]);
 
   useEffect(() => {
     if (demo) {
@@ -133,6 +172,36 @@ export function ChatPage() {
       return;
     }
 
+    if (threadId) {
+      void sendThreadMessage(threadId, t)
+        .then((saved) => {
+          const row = saved as { id?: string; body?: string; createdAt?: string };
+          setMessages((m) => [
+            ...m,
+            {
+              id: row.id ?? `${Date.now()}`,
+              sender: user?.displayName ?? 'You',
+              text: row.body ?? t,
+              createdAt: row.createdAt ?? new Date().toISOString(),
+              mine: true,
+            },
+          ]);
+        })
+        .catch(() => {
+          setMessages((m) => [
+            ...m,
+            {
+              id: `${Date.now()}`,
+              sender: 'system',
+              text: 'Could not send DM — try again.',
+              createdAt: new Date().toISOString(),
+            },
+          ]);
+        });
+      setText('');
+      return;
+    }
+
     socketRef.current?.emit('message', { text: t, threadId: null });
     setText('');
   }
@@ -142,7 +211,7 @@ export function ChatPage() {
       <header className="row-between" style={{ marginBottom: 12 }}>
         <div>
           <p className="eyebrow">Live</p>
-          <h1 className="h2">Table chat</h1>
+          <h1 className="h2">{threadId ? 'Direct message' : 'Table chat'}</h1>
         </div>
         <span className={`chip${connected ? ' chip-live' : ' chip-quiet'}`}>
           {connected ? (
@@ -155,9 +224,26 @@ export function ChatPage() {
         </span>
       </header>
 
-      {authError && (
+      {authError && !threadId && (
         <div className="banner banner-info" style={{ marginBottom: 12 }}>
           {authError}
+        </div>
+      )}
+
+      {threads.length > 0 && (
+        <div className="row" style={{ flexWrap: 'wrap', marginBottom: 12, gap: 8 }}>
+          <a href="/chat" className={`chip${!threadId ? ' chip-gold' : ''}`}>
+            Lobby
+          </a>
+          {threads.map((t) => (
+            <a
+              key={t.id}
+              href={`/chat?thread=${t.id}`}
+              className={`chip${threadId === t.id ? ' chip-gold' : ''}`}
+            >
+              {t.title || (t.kind === 'DM' ? 'DM' : 'Group')}
+            </a>
+          ))}
         </div>
       )}
 

@@ -11,6 +11,8 @@
  * RealAI stays a separate process. RackUp never vendors that monorepo.
  */
 
+import { isUnusableRealAiText } from './realai-text-guard';
+
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 export type RealAiChatResult = {
@@ -107,6 +109,13 @@ export async function realAiChat(
   };
   const content = data.choices?.[0]?.message?.content?.trim() ?? '';
   if (!content) throw new Error('RealAI returned empty content');
+
+  // Render API-only RealAI has no default_llm / GGUF — do not treat that as coaching.
+  if (isUnusableRealAiText(content)) {
+    throw new Error(
+      'RealAI chat/completions requires a local default_llm; use rackup-coach plugin instead',
+    );
+  }
 
   return {
     content,

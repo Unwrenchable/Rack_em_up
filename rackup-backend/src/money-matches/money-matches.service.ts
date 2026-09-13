@@ -93,6 +93,28 @@ export class MoneyMatchesService {
     return saved;
   }
 
+  async setLivestream(
+    userId: string,
+    matchId: string,
+    livestreamUrl?: string | null,
+  ): Promise<MoneyMatch> {
+    const match = await this.moneyMatchesRepo.findOne({ where: { id: matchId } });
+    if (!match) throw new NotFoundException('Money match not found');
+    if (userId !== match.playerAId && userId !== match.playerBId) {
+      throw new ForbiddenException('Only match players can attach a stream');
+    }
+    const url = (livestreamUrl ?? '').trim();
+    match.livestreamUrl = url || null;
+    const saved = await this.moneyMatchesRepo.save(match);
+    await this.audit.record({
+      matchId: saved.id,
+      action: 'livestream_set',
+      actorId: userId,
+      payload: { livestreamUrl: saved.livestreamUrl },
+    });
+    return saved;
+  }
+
   async confirm(dto: ConfirmMoneyMatchDto): Promise<MoneyMatch> {
     const match = await this.moneyMatchesRepo.findOne({ where: { id: dto.matchId } });
     if (!match) throw new NotFoundException('Money match not found');
