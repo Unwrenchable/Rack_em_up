@@ -1,3 +1,4 @@
+import { isPlayerUuid, mapFriendCards } from './friends';
 import {
   DEMO_ACTION,
   DEMO_BADGES,
@@ -404,13 +405,28 @@ export async function fetchLiveHalls(): Promise<LiveHall[]> {
   }
 }
 
-export async function fetchHalls(): Promise<Hall[]> {
-  if (isDemoMode()) return DEMO_HALLS;
+export async function fetchHalls(opts?: { verifiedOnly?: boolean }): Promise<Hall[]> {
+  if (isDemoMode()) {
+    return opts?.verifiedOnly ? DEMO_HALLS.filter((h) => h.isVerified) : DEMO_HALLS;
+  }
   try {
-    return await request<Hall[]>('/halls');
+    const qs = opts?.verifiedOnly ? '?verified=1' : '';
+    const rows = await request<Hall[]>(`/halls${qs}`);
+    return Array.isArray(rows) ? rows : [];
   } catch {
     return [];
   }
+}
+
+export async function verifyHall(hallId: string, verified = true): Promise<Hall> {
+  if (isDemoMode()) {
+    const hall = DEMO_HALLS.find((h) => h.id === hallId);
+    return { ...(hall ?? DEMO_HALLS[0]), id: hallId, isVerified: verified };
+  }
+  return request<Hall>(`/halls/${encodeURIComponent(hallId)}/verify`, {
+    method: 'POST',
+    body: JSON.stringify({ verified }),
+  });
 }
 
 export async function checkInHall(payload: {
@@ -438,10 +454,20 @@ export async function fetchMemories(): Promise<MatchMemory[]> {
   }
 }
 
-export async function fetchMoneyMatches(): Promise<MoneyMatch[]> {
+export async function fetchMoneyMatches(opts?: {
+  status?: string;
+  playerId?: string;
+  hallId?: string;
+}): Promise<MoneyMatch[]> {
   if (isDemoMode()) return DEMO_MONEY;
   try {
-    return await request<MoneyMatch[]>('/money-matches');
+    const qs = new URLSearchParams();
+    if (opts?.status) qs.set('status', opts.status);
+    if (isPlayerUuid(opts?.playerId)) qs.set('playerId', opts.playerId!);
+    if (isPlayerUuid(opts?.hallId)) qs.set('hallId', opts.hallId!);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    const rows = await request<MoneyMatch[]>(`/money-matches${suffix}`);
+    return Array.isArray(rows) ? rows : [];
   } catch {
     return [];
   }
@@ -476,7 +502,7 @@ export async function setMoneyMatchLivestream(
 export async function createMoneyMatch(body: {
   playerAId: string;
   playerBId: string;
-  hallId: string;
+  hallId?: string;
   game: string;
   raceTo: number;
   amountCents: number;
@@ -486,6 +512,7 @@ export async function createMoneyMatch(body: {
     return {
       id: `mm-${Date.now()}`,
       ...body,
+      hallId: body.hallId ?? 'h1',
       livestreamUrl: body.livestreamUrl ?? null,
       status: 'PENDING',
       aConfirmed: false,
@@ -510,9 +537,11 @@ export async function fetchLookingPlayers(opts?: {
 }): Promise<LookingPlayer[]> {
   if (isDemoMode()) return DEMO_PLAYERS;
   try {
-    const lat = opts?.lat ?? DEFAULT_FIND_ORIGIN.lat;
-    const lon = opts?.lon ?? DEFAULT_FIND_ORIGIN.lon;
-    const radius = opts?.radius ?? FIND_DISCOVERY_RADIUS_M;
+    const lat = Number.isFinite(opts?.lat) ? Number(opts?.lat) : DEFAULT_FIND_ORIGIN.lat;
+    const lon = Number.isFinite(opts?.lon) ? Number(opts?.lon) : DEFAULT_FIND_ORIGIN.lon;
+    const radius = Number.isFinite(opts?.radius) && Number(opts?.radius) > 0
+      ? Number(opts?.radius)
+      : FIND_DISCOVERY_RADIUS_M;
     const qs = new URLSearchParams({
       lat: String(lat),
       lon: String(lon),
@@ -575,9 +604,18 @@ export async function challengePlayer(payload: {
       status: 'PENDING',
     };
   }
+  const opponentId = payload.opponentId?.trim();
+  if (!isPlayerUuid(opponentId)) {
+    throw new Error('Challenge needs a player id — refresh Friends or use Find');
+  }
   return request('/matchmaking/challenge', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      opponentId,
+      game: payload.game,
+      stakes: payload.stakes,
+      raceTo: payload.raceTo,
+    }),
   });
 }
 
@@ -636,84 +674,26 @@ export async function fetchLeagues(): Promise<League[]> {
   }
 }
 
-function mapFriendListItem(f: {
-  friendshipId: string;
-  userId: string;
-  displayName: string;
-  avatarUrl?: string | null;
-  rating: number;
-  online: boolean;
-  lastSeenAt?: string | null;
-  activity?: { type: string; label?: string; hallId?: string } | null;
-  mutualCount?: number;
-}): FriendCard {
-  const atHall = f.activity?.type === 'hall_checkin';
-  return {
-    id: f.userId,
-    friendshipId: f.friendshipId,
-    displayName: f.displayName,
-    rating: f.rating ?? 500,
-    status: atHall ? 'at_hall' : f.online ? 'online' : 'offline',
-    hallName: atHall ? f.activity?.label : undefined,
-    avatarUrl: f.avatarUrl ?? null,
-    lastSeenAt: f.lastSeenAt ?? null,
-    mutualCount: f.mutualCount,
-  };
-}
-
 /** Accepted friends with online presence + activity (GET /friends). */
 export async function fetchFriends(): Promise<FriendCard[]> {
   if (isDemoMode()) return DEMO_FRIENDS;
+  let raw: unknown;
   try {
-    const raw = await request<
-      Array<{
-        friendshipId: string;
-        userId: string;
-        displayName: string;
-        avatarUrl: string | null;
-        rating: number;
-        online: boolean;
-        lastSeenAt: string | null;
-        activity: {
-          type: string;
-          label?: string;
-          hallId?: string;
-          matchId?: string;
-        } | null;
-        mutualCount?: number;
-      }>
-    >('/friends');
-    if (!Array.isArray(raw)) return [];
-    // New hydrated shape
-    if (raw[0] && 'userId' in raw[0] && 'online' in raw[0]) {
-      return raw.map(mapFriendListItem);
-    }
-    // Legacy raw friendship rows fallback
-    const legacy = raw as unknown as Array<{
-      id: string;
-      requesterId: string;
-      addresseeId: string;
-      status: string;
-    }>;
-    const me = getStoredUser()?.id;
-    const otherIds = legacy.map((f) =>
-      me && f.requesterId === me ? f.addresseeId : f.requesterId,
-    );
-    const profiles = await fetchUserProfiles(otherIds);
-    return legacy.map((f) => {
-      const otherId = me && f.requesterId === me ? f.addresseeId : f.requesterId;
-      const p = profiles.get(otherId);
-      return {
-        id: otherId,
-        friendshipId: f.id,
-        displayName: p?.displayName ?? `User ${otherId.slice(0, 6)}`,
-        rating: p?.rating ?? 500,
-        status: f.status === 'ACCEPTED' ? 'online' : 'offline',
-      } as FriendCard;
-    });
+    raw = await request<unknown>('/friends');
   } catch {
-    return [];
+    raw = await request<unknown>('/friends/list');
   }
+  const me = getStoredUser()?.id;
+  const mapped = mapFriendCards(raw, me);
+  const missingNames = mapped.filter((f) => f.displayName.startsWith('User '));
+  if (missingNames.length) {
+    const profiles = await fetchUserProfiles(missingNames.map((f) => f.id));
+    return mapped.map((f) => {
+      const p = profiles.get(f.id);
+      return p ? { ...f, displayName: p.displayName, rating: p.rating, avatarUrl: p.avatarUrl } : f;
+    });
+  }
+  return mapped;
 }
 
 export async function fetchPendingFriendsIncoming() {
@@ -729,6 +709,37 @@ export async function fetchPendingFriendsIncoming() {
         avatarUrl?: string | null;
       }>
     >('/friends/pending/incoming');
+  } catch {
+    try {
+      return await request<
+        Array<{
+          friendshipId: string;
+          userId: string;
+          displayName: string;
+          rating: number;
+          online: boolean;
+          avatarUrl?: string | null;
+        }>
+      >('/friends/pending');
+    } catch {
+      return [];
+    }
+  }
+}
+
+export async function fetchPendingFriendsOutgoing() {
+  if (isDemoMode()) return [];
+  try {
+    return await request<
+      Array<{
+        friendshipId: string;
+        userId: string;
+        displayName: string;
+        rating: number;
+        online: boolean;
+        avatarUrl?: string | null;
+      }>
+    >('/friends/pending/outgoing');
   } catch {
     return [];
   }

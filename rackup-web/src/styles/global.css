@@ -1251,3 +1251,8 @@ select.input {
   padding-top: 4px;
   border-top: 1px solid var(--border);
 }
+
+/* Verified hall pins — gold halo so the set is obvious on Find / Halls maps */
+.hall-pin-verified {
+  filter: sepia(1) saturate(6) hue-rotate(5deg) brightness(1.15);
+}

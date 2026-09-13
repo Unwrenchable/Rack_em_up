@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'react';
 import {
   checkInHall,
-  fetchHalls,
   fetchLiveHalls,
   hallV2CheckIn,
   hallV2CheckOut,
   hallV2Create,
   hallV2Feed,
+  verifyHall,
 } from '../lib/api';
+import { useAuth } from '../lib/auth-context';
+import { useHallsLive } from '../lib/use-halls-live';
 import { useToast } from '../lib/toast-context';
 import type { Hall, LiveHall } from '../lib/types';
 import { HallsMap } from '../components/HallsMap';
 import { Modal } from '../components/Modal';
 
 export function HallsPage() {
+  const { user } = useAuth();
   const { push } = useToast();
-  const [halls, setHalls] = useState<Hall[] | null>(null);
+  const { halls, refresh, setHalls } = useHallsLive();
   const [live, setLive] = useState<LiveHall[]>([]);
   const [checking, setChecking] = useState(false);
   const [feedHallId, setFeedHallId] = useState<string | null>(null);
@@ -30,7 +33,6 @@ export function HallsPage() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    fetchHalls().then(setHalls);
     fetchLiveHalls().then(setLive);
   }, []);
 
@@ -152,11 +154,11 @@ export function HallsPage() {
                 <div>
                   <h3 style={{ fontWeight: 600 }}>
                     {h.name}{' '}
-                    {h.isVerified && (
+                    {h.isVerified ? (
                       <span className="chip chip-gold" style={{ marginLeft: 6 }}>
                         Verified
                       </span>
-                    )}
+                    ) : null}
                   </h3>
                   <p className="muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
                     {h.address ?? 'Address TBD'}
@@ -208,6 +210,30 @@ export function HallsPage() {
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => openDirections(h)}>
                   Directions
                 </button>
+                {user &&
+                  !h.isVerified &&
+                  (user.role === 'ADMIN' ||
+                    user.role === 'HALL_OWNER' ||
+                    h.ownerUserId === user.id) && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={async () => {
+                        try {
+                          const updated = await verifyHall(h.id, true);
+                          setHalls((list) =>
+                            (list ?? []).map((x) => (x.id === h.id ? { ...x, ...updated } : x)),
+                          );
+                          push(`${h.name} is now verified`, 'ok');
+                          await refresh();
+                        } catch (e) {
+                          push(e instanceof Error ? e.message.slice(0, 120) : 'Verify failed', 'err');
+                        }
+                      }}
+                    >
+                      Verify on map
+                    </button>
+                  )}
               </div>
 
               {feedOpen && (
@@ -307,6 +333,7 @@ export function HallsPage() {
                   if (next.some((h) => h.id === res.hall.id)) return next;
                   return [...next, res.hall].sort((a, b) => a.name.localeCompare(b.name));
                 });
+                await refresh();
                 setCreateOpen(false);
                 setNewName('');
                 push(res.alreadyExisted ? `Already on the map: ${res.hall.name}` : `Added ${res.hall.name}`, 'ok');

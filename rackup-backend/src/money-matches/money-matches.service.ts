@@ -10,6 +10,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MoneyMatch, MoneyMatchStatus } from './money-matches.entity';
 import { CreateMoneyMatchDto } from './dto/create-money-match.dto';
+import { Hall } from '../halls/hall.entity';
+import { asUuid } from '../common/uuid';
+import { sanitizeMoneyMatchFilters, type MoneyMatchFilters } from './money-match-filters';
 import { ConfirmMoneyMatchDto } from './dto/confirm-money-match.dto';
 import { DisputeMoneyMatchDto } from './dto/dispute-money-match.dto';
 import { CompleteMoneyMatchDto } from './dto/complete-money-match.dto';
@@ -21,11 +24,7 @@ import { MoneyAuditService } from './money-audit.service';
 import { User } from '../users/users.entity';
 import { PushService } from '../notifications/push.service';
 
-export type MoneyMatchFilters = {
-  status?: MoneyMatchStatus | string;
-  playerId?: string;
-  hallId?: string;
-};
+export type { MoneyMatchFilters } from './money-match-filters';
 
 type PendingResult = {
   aScore: number;
@@ -52,6 +51,8 @@ export class MoneyMatchesService {
     private readonly moneyMatchesRepo: Repository<MoneyMatch>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    @InjectRepository(Hall)
+    private readonly hallsRepo: Repository<Hall>,
     private readonly notificationsService: NotificationsService,
     private readonly scorekeepingV2: ScorekeepingServiceV2,
     private readonly escrow: EscrowService,
@@ -59,11 +60,26 @@ export class MoneyMatchesService {
     @Optional() private readonly push?: PushService,
   ) {}
 
+  private async resolveHallId(hallId?: string): Promise<string> {
+    const wanted = asUuid(hallId);
+    if (wanted) {
+      const existing = await this.hallsRepo.findOne({ where: { id: wanted } });
+      if (existing) return existing.id;
+    }
+    const fallback = await this.hallsRepo.find({
+      order: { isVerified: 'DESC', name: 'ASC' },
+      take: 1,
+    });
+    if (fallback[0]) return fallback[0].id;
+    throw new BadRequestException('No hall available — add a hall on Halls first');
+  }
+
   async create(dto: CreateMoneyMatchDto): Promise<MoneyMatch> {
+    const hallId = await this.resolveHallId(dto.hallId);
     const created = this.moneyMatchesRepo.create({
       playerAId: dto.playerAId,
       playerBId: dto.playerBId,
-      hallId: dto.hallId,
+      hallId,
       game: dto.game,
       raceTo: dto.raceTo,
       amountCents: dto.amountCents,
@@ -500,14 +516,15 @@ export class MoneyMatchesService {
   }
 
   async findAll(filters?: MoneyMatchFilters): Promise<MoneyMatch[]> {
+    const safe = sanitizeMoneyMatchFilters(filters);
     const qb = this.moneyMatchesRepo.createQueryBuilder('m');
 
-    if (filters?.status) qb.andWhere('m.status = :status', { status: filters.status });
-    if (filters?.hallId) qb.andWhere('m.hallId = :hallId', { hallId: filters.hallId });
+    if (safe.status) qb.andWhere('m.status = :status', { status: safe.status });
+    if (safe.hallId) qb.andWhere('m.hallId = :hallId', { hallId: safe.hallId });
 
-    if (filters?.playerId) {
+    if (safe.playerId) {
       qb.andWhere('(m.playerAId = :playerId OR m.playerBId = :playerId)', {
-        playerId: filters.playerId,
+        playerId: safe.playerId,
       });
     }
 

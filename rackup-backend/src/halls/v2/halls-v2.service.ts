@@ -89,6 +89,11 @@ export class HallsV2Service {
         isVerified: false,
       }),
     );
+    this.realtime?.emitBroadcast('halls:updated', {
+      hallId: hall.id,
+      isVerified: hall.isVerified,
+      reason: 'create',
+    });
     return { hall, alreadyExisted: false };
   }
 
@@ -168,9 +173,10 @@ export class HallsV2Service {
     if (!this.realtime || !this.friends) return;
     try {
       if (checkedIn) {
+        const hall = await this.hallsRepo.findOne({ where: { id: hallId } });
         await this.realtime.setActivity(userId, {
           type: 'hall_checkin',
-          label: hallId,
+          label: hall?.name ?? hallId,
           hallId,
         });
       } else {

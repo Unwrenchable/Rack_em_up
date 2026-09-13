@@ -9,6 +9,7 @@ import {
   fetchChatThreads,
   fetchFriends,
   fetchPendingFriendsIncoming,
+  fetchPendingFriendsOutgoing,
   formatRelative,
   openDmThread,
   requestFriend,
@@ -38,6 +39,7 @@ export function SocialPage() {
   const [tab, setTab] = useState<Tab>('friends');
   const [friends, setFriends] = useState<FriendCard[] | null>(null);
   const [pending, setPending] = useState<PendingFriend[]>([]);
+  const [outgoing, setOutgoing] = useState<PendingFriend[]>([]);
   const [posts, setPosts] = useState<ActionPost[] | null>(null);
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
@@ -53,11 +55,17 @@ export function SocialPage() {
   >([]);
 
   useEffect(() => {
-    fetchFriends().then(setFriends);
+    fetchFriends()
+      .then(setFriends)
+      .catch((err) => {
+        setFriends([]);
+        push(err instanceof Error ? err.message.slice(0, 120) : 'Could not load friends', 'err');
+      });
     fetchPendingFriendsIncoming().then(setPending);
+    fetchPendingFriendsOutgoing().then(setOutgoing);
     fetchActionBoard().then(setPosts);
     fetchChatThreads().then(setThreads);
-  }, []);
+  }, [push]);
 
   async function onFindPlayer(e?: FormEvent) {
     e?.preventDefault();
@@ -80,6 +88,7 @@ export function SocialPage() {
     try {
       await requestFriend(p.id);
       setRequestedIds((m) => ({ ...m, [p.id]: true }));
+      setOutgoing(await fetchPendingFriendsOutgoing());
       push(`Request sent to ${p.displayName}`, 'ok');
     } catch (err) {
       push(err instanceof Error ? err.message.slice(0, 120) : 'Could not send request', 'err');
@@ -219,6 +228,26 @@ export function SocialPage() {
               );
             })}
           </form>
+          {outgoing.length > 0 && (
+            <section className="stack" style={{ gap: 8 }}>
+              <p className="eyebrow">Outgoing requests</p>
+              {outgoing.map((p) => (
+                <article key={p.friendshipId} className="card">
+                  <div className="row-between">
+                    <div className="row" style={{ gap: 10 }}>
+                      <UserAvatar name={p.displayName} avatarUrl={p.avatarUrl} />
+                      <div>
+                        <h3 style={{ fontWeight: 600 }}>{p.displayName}</h3>
+                        <p className="muted" style={{ fontSize: '0.85rem' }}>
+                          Waiting for them to accept
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </section>
+          )}
           {pending.length > 0 && (
             <section className="stack" style={{ gap: 8 }}>
               <p className="eyebrow">Incoming requests</p>
@@ -256,7 +285,7 @@ export function SocialPage() {
               ))}
             </section>
           )}
-          {friends?.length === 0 && pending.length === 0 && (
+          {friends?.length === 0 && pending.length === 0 && outgoing.length === 0 && (
             <p className="muted">No friends yet — search above by name or email and send a request.</p>
           )}
           {friends?.map((f) => (
@@ -272,7 +301,8 @@ export function SocialPage() {
                     {f.status === 'at_hall' && (
                       <>
                         <span className="dot-live" style={{ display: 'inline-block', marginRight: 6 }} />
-                        At {f.hallName}
+                        At{' '}
+                        {f.hallName && !/^[0-9a-f-]{36}$/i.test(f.hallName) ? f.hallName : 'a hall'}
                       </>
                     )}
                     {f.status === 'online' && 'Online now'}

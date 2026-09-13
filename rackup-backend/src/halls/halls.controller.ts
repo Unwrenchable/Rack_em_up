@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -12,8 +12,9 @@ export class HallsController {
   constructor(private readonly hallsService: HallsService) {}
 
   @Get()
-  async list() {
-    return this.hallsService.findAll();
+  async list(@Query('verified') verified?: string) {
+    const verifiedOnly = verified === '1' || verified === 'true';
+    return this.hallsService.findAll(verifiedOnly ? { verifiedOnly: true } : undefined);
   }
 
   @Get('live')
@@ -41,5 +42,16 @@ export class HallsController {
     @Req() req: { user: User },
   ) {
     return this.hallsService.claimHall(id, req.user.id, dto);
+  }
+
+  /** Owner or ADMIN / HALL_OWNER flips the verified pin used by Find / Halls maps. */
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/verify')
+  async verify(
+    @Param('id') id: string,
+    @Body() body: { verified?: boolean },
+    @Req() req: { user: User },
+  ) {
+    return this.hallsService.setVerified(id, req.user, body?.verified !== false);
   }
 }

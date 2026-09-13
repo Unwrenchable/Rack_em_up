@@ -36,6 +36,7 @@ export type Hall = {
   address: string | null;
   tableCount: number | null;
   isVerified: boolean;
+  ownerUserId?: string | null;
 };
 
 export type MatchMemory = {

@@ -1,5 +1,6 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, IsUUID, MaxLength } from 'class-validator';
+import { asUuid } from '../../common/uuid';
 
 export class CreateMoneyMatchDto {
   @IsUUID()
@@ -8,8 +9,11 @@ export class CreateMoneyMatchDto {
   @IsUUID()
   playerBId!: string;
 
+  /** Optional — Play used to send demo `h1`, which 400s @IsUUID. Invalid values are dropped. */
+  @IsOptional()
+  @Transform(({ value }) => asUuid(value))
   @IsUUID()
-  hallId!: string;
+  hallId?: string;
 
   @IsString()
   @IsNotEmpty()

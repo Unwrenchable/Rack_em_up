@@ -513,6 +513,9 @@ describe('SOTD maps catalogue', () => {
 /** Documented V2 route surface for smoke checklists / future e2e. */
 describe('V2 route inventory', () => {
   const routes = [
+    'GET /halls',
+    'POST /halls/:id/verify',
+    'POST /halls/:id/claim',
     'POST /halls/v2/create',
     'POST /halls/v2/checkin',
     'POST /halls/v2/checkout',
@@ -572,6 +575,8 @@ describe('V2 route inventory', () => {
     'GET /shots/streak',
     // Social layer
     'GET /friends',
+    'GET /friends/list',
+    'GET /friends/pending',
     'GET /friends/pending/incoming',
     'GET /friends/pending/outgoing',
     'POST /friends/request',
@@ -630,6 +635,15 @@ describe('V2 route inventory', () => {
     expect(routes).toContain('POST /matchmaking/challenge');
     expect(routes).toContain('POST /matchmaking/leave');
     expect(routes).toContain('POST /users/me/avatar');
+  });
+
+  it('lists hall verify + friends surfaces for the map / Social fixes', () => {
+    expect(routes).toContain('GET /halls');
+    expect(routes).toContain('POST /halls/:id/verify');
+    expect(routes).toContain('GET /friends');
+    expect(routes).toContain('GET /friends/list');
+    expect(routes).toContain('GET /friends/pending');
+    expect(routes).toContain('POST /matchmaking/challenge');
   });
 });
 

@@ -8,10 +8,11 @@ import { EscrowService } from './escrow.service';
 import { MoneyAuditService } from './money-audit.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { User } from '../users/users.entity';
+import { Hall } from '../halls/hall.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MoneyMatch, MoneyMatchAudit, User]),
+    TypeOrmModule.forFeature([MoneyMatch, MoneyMatchAudit, User, Hall]),
     NotificationsModule,
   ],
   controllers: [MoneyMatchesController],
