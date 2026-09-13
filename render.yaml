@@ -1,6 +1,15 @@
-# Render Blueprint for rackup-backend (NOT docker-compose).
+# Live Render Blueprint for this monorepo (NOT docker-compose).
 # Local DB/Redis stays in docker-compose.yml on your laptop.
-# After push: Render Dashboard -> Blueprints -> sync this file.
+#
+# After merge: Render Dashboard → Blueprints → open this file's Blueprint →
+# Sync / Manual Sync so rackup-web picks up SPA rewrite routes.
+#
+# If the live www.rackofchampions.com Static Site is NOT in this Blueprint
+# (dashboard-created), do NOT let Sync create a second site. Instead, on the
+# existing rackup-web service: Redirects/Rewrites → add
+#   Source: /*   Destination: /index.html   Action: Rewrite
+# That CDN rule is what turns /play from HTTP 404 into 200 text/html.
+# public/_redirects is Netlify-only — Render ignores it.
 
 databases:
   - name: rackup-db
@@ -43,3 +52,35 @@ services:
           name: rackup-redis
           type: keyvalue
           property: connectionString
+
+  # SPA on Render Static Sites: missing files otherwise serve dist/404.html
+  # with HTTP 404 (same HTML as /, verified live 2026-09-13). A rewrite
+  # returns index.html with 200 so /play, /shots, /chat, … deep-link.
+  # rootDir is repository-relative (never relative to a nested yaml path).
+  - type: web
+    name: rackup-web
+    runtime: static
+    region: oregon
+    plan: starter
+    rootDir: rackup-web
+    buildCommand: npm ci || npm install && npm run build
+    staticPublishPath: dist
+    autoDeployTrigger: commit
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    envVars:
+      # Baked into the Vite client at build time — URLs ONLY
+      # (not "VITE_API_URL=https://..."). api.ts + vite.config also scrub a bad paste.
+      - key: VITE_API_URL
+        value: https://api.rackofchampions.com/api/v1
+      - key: VITE_WS_URL
+        value: https://api.rackofchampions.com

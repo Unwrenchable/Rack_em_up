@@ -1,1 +1,4 @@
+# Netlify-style SPA fallback. Render Static Sites IGNORE this file.
+# Live 200s for /play come from Blueprint `routes` in /render.yaml
+# (or Dashboard → rackup-web → Redirects/Rewrites → Rewrite /* → /index.html).
 /*    /index.html   200
