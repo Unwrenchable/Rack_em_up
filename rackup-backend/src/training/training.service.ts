@@ -15,6 +15,7 @@ import {
   drillsFromCoachResult,
   type DrillPlan,
 } from './parse-coach-drills';
+import { sanitizePublicAnalyze } from './analyze-response';
 import { buildCoachAnalyzePayload } from './video-analysis-payload';
 import { ObjectStorageService } from '../common/object-storage.service';
 import { randomUUID } from 'crypto';
@@ -192,12 +193,12 @@ export class TrainingService {
       if (text && !isUnusableRealAiText(text)) {
         const persisted = await this.persistCoachResult(userId, ability, result, payload);
         return {
-          analysis: text,
-          provider: 'realai',
-          model: 'rackup-coach',
-          offlineFallback: false,
-          status: 'realai',
-          reason: null,
+          ...sanitizePublicAnalyze({
+            analysis: text,
+            provider: 'realai',
+            model: 'rackup-coach',
+            fallbackAnalysis: this.fallbackAnalysis(dto, rating),
+          }),
           videoUrl: dto.videoUrl ?? null,
           ability,
           result,
@@ -211,14 +212,13 @@ export class TrainingService {
       );
     }
 
-    const fallback = this.fallbackAnalysis(dto, rating);
     return {
-      analysis: fallback,
-      provider: 'rules-fallback',
-      model: 'rules-fallback',
-      offlineFallback: true,
-      status: 'rules-fallback',
-      reason: 'plugin_unavailable',
+      ...sanitizePublicAnalyze({
+        analysis: '',
+        provider: 'rules-fallback',
+        offlineFallback: true,
+        fallbackAnalysis: this.fallbackAnalysis(dto, rating),
+      }),
       videoUrl: dto.videoUrl ?? null,
       ability,
       result: null,
@@ -354,7 +354,9 @@ export class TrainingService {
     return [
       `Shot analysis (offline rules · rating ${rating})`,
       `Focus: ${dto.focus ?? 'general'} · Game: ${dto.game ?? 'n/a'}`,
-      dto.videoUrl ? `Clip: ${dto.videoUrl}` : 'No video — text-only tips.',
+      dto.videoUrl
+        ? `Clip URL (text notes only — no vision on this host): ${dto.videoUrl}`
+        : 'No video — text-only tips.',
       '',
       'Aim: Pause on the final alignment; eye on object ball last.',
       'Speed: Prefer firm-enough for position over soft misses.',
@@ -363,7 +365,7 @@ export class TrainingService {
       '',
       'Fixes: (1) 10 stop-shots (2) 10 follow/draw pairs (3) film one make from side view.',
       '',
-      'When RealAI is online, this endpoint upgrades to provider analysis automatically.',
+      'RealAI rackup-coach was unreachable or returned a local-model placeholder. This is a rules fallback, not a successful coach run.',
     ].join('\n');
   }
 }

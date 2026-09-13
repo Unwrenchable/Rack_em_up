@@ -40,13 +40,29 @@ import {
   startingChipsForSkill,
 } from '../../src/tournaments/v2/chip-by-skill';
 
+import {
+  LIVE_DEFAULT_LLM_PLACEHOLDER,
+  sanitizePublicAnalyze,
+} from '../../src/training/analyze-response';
+
 describe('RealAI default_llm / plugin text guard', () => {
-  it('rejects the live Render chat/completions config error', () => {
-    const live =
-      'Local RealAI is selected, but no local model is configured/loaded yet. Register a local model and set it as default_llm, then retry.';
-    expect(isUnusableRealAiText(live)).toBe(true);
-    expect(coachingTextFromResult(live)).toBeNull();
-    expect(coachingTextFromResult({ analysis: live })).toBeNull();
+  it('never publishes the live YouTube-analyze default_llm sentence', () => {
+    expect(isUnusableRealAiText(LIVE_DEFAULT_LLM_PLACEHOLDER)).toBe(true);
+    expect(coachingTextFromResult(LIVE_DEFAULT_LLM_PLACEHOLDER)).toBeNull();
+    expect(coachingTextFromResult({ analysis: LIVE_DEFAULT_LLM_PLACEHOLDER })).toBeNull();
+
+    const published = sanitizePublicAnalyze({
+      analysis: LIVE_DEFAULT_LLM_PLACEHOLDER,
+      provider: 'realai',
+      offlineFallback: false,
+      fallbackAnalysis: 'Shot analysis (offline rules · rating 500)',
+    });
+    expect(published.provider).toBe('rules-fallback');
+    expect(published.offlineFallback).toBe(true);
+    expect(published.status).toBe('rules-fallback');
+    expect(published.reason).toBe('unusable_placeholder');
+    expect(published.analysis).not.toMatch(/default_llm/);
+    expect(published.analysis).toMatch(/offline rules/);
   });
 
   it('accepts real coaching text from rackup-coach', () => {
@@ -76,6 +92,36 @@ describe('RealAI default_llm / plugin text guard', () => {
         result: { analysis: 'Pause on the last alignment.' },
       }),
     ).toBe(false);
+  });
+
+  it('formats the live Short video_analysis result (not chat/completions)', () => {
+    const liveResult = {
+      expectation: 'Connect stroke quality to a planned CB landing zone.',
+      findings: [
+        {
+          area: 'general',
+          finding: 'No critical flags in checklist — refine tempo and PSR.',
+          fix: 'Keep pre-shot routine fixed; add one measurable target per set.',
+        },
+      ],
+      recommended_drills: [
+        '20-ball PSR set: every shot 8–12 seconds, unbroken routine.',
+      ],
+      format_coaching_notes: ["Race format: protect the hill; don't force early low-percentage outs."],
+      next_upload_prompt: 'Upload a side-angle stroke set for 9-Ball cue-ball control check.',
+    };
+    const text = coachingTextFromResult(liveResult);
+    expect(text).toMatch(/CB landing zone/);
+    expect(text).toMatch(/pre-shot routine/);
+    expect(text).toMatch(/20-ball PSR/);
+    expect(text).not.toMatch(/default_llm/);
+    const published = sanitizePublicAnalyze({
+      analysis: text!,
+      provider: 'realai',
+      fallbackAnalysis: 'should not use',
+    });
+    expect(published.status).toBe('realai');
+    expect(published.offlineFallback).toBe(false);
   });
 
   it('formats recommended_drills from video_analysis', () => {

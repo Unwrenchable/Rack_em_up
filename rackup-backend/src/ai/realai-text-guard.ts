@@ -63,6 +63,7 @@ const TEXT_KEYS = [
   'guidance',
   'feedback',
   'summary',
+  'expectation',
   'notes',
   'text',
   'plain_language',
@@ -79,6 +80,9 @@ export function coachingTextFromResult(result: unknown): string | null {
   }
   const rec = asRecord(result);
   if (!rec) return null;
+
+  const structured = formatVideoAnalysisResult(rec);
+  if (structured) return structured;
 
   const head = pickFirstUsableString(rec, TEXT_KEYS);
   const drills = formatRecommendedDrills(rec);
@@ -109,6 +113,62 @@ function pickFirstUsableString(
     }
   }
   return null;
+}
+
+/** Live rackup-coach video_analysis: expectation + findings + drills. */
+function formatVideoAnalysisResult(rec: Record<string, unknown>): string | null {
+  const hasShape =
+    typeof rec.expectation === 'string' ||
+    Array.isArray(rec.findings) ||
+    Array.isArray(rec.format_coaching_notes);
+  if (!hasShape) return null;
+
+  const lines: string[] = [];
+  if (typeof rec.expectation === 'string') {
+    const s = rec.expectation.trim();
+    if (s && !isDefaultLlmPlaceholder(s)) lines.push(s);
+  }
+
+  if (Array.isArray(rec.findings)) {
+    for (const item of rec.findings) {
+      const row = asRecord(item);
+      if (!row) continue;
+      const area = String(row.area ?? '').trim();
+      const finding = String(row.finding ?? '').trim();
+      const fix = String(row.fix ?? '').trim();
+      if (finding && !isDefaultLlmPlaceholder(finding)) {
+        lines.push(area ? `${area}: ${finding}` : finding);
+      }
+      if (fix && !isDefaultLlmPlaceholder(fix)) {
+        lines.push(`Fix: ${fix}`);
+      }
+    }
+  }
+
+  if (Array.isArray(rec.format_coaching_notes)) {
+    for (const n of rec.format_coaching_notes) {
+      if (typeof n === 'string' && n.trim() && !isDefaultLlmPlaceholder(n)) {
+        lines.push(n.trim());
+      }
+    }
+  }
+
+  const drills = formatRecommendedDrills(rec);
+  if (drills) {
+    lines.push('');
+    lines.push(drills);
+  }
+
+  if (typeof rec.next_upload_prompt === 'string') {
+    const next = rec.next_upload_prompt.trim();
+    if (next && !isDefaultLlmPlaceholder(next)) {
+      lines.push('');
+      lines.push(next);
+    }
+  }
+
+  const text = lines.join('\n').trim();
+  return text && !isDefaultLlmPlaceholder(text) ? text : null;
 }
 
 function formatRecommendedDrills(rec: Record<string, unknown>): string | null {
