@@ -1,12 +1,15 @@
+import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { CHALLENGE_GAMES, normalizeChallengeGame } from '../challenge-game';
 
 export class ChallengePlayerDto {
   @IsUUID()
   opponentId!: string;
 
   @IsOptional()
+  @Transform(({ value }) => normalizeChallengeGame(value))
   @IsString()
-  @IsIn(['8-ball', '9-ball', '10-ball', 'one-pocket'])
+  @IsIn([...CHALLENGE_GAMES])
   game?: string;
 
   @IsOptional()

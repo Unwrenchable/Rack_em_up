@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -11,6 +11,7 @@ import { CreateVegasSeedDto } from '../dto/seed/create-vegas-seed.dto';
 import { SeedResultDto } from '../dto/seed/seed-result.dto';
 
 import vegasHalls from './las-vegas-halls.json';
+import { SocialRealtimeService } from '../../../websocket/social-realtime.service';
 
 @Injectable()
 export class HallSeedService {
@@ -26,6 +27,7 @@ export class HallSeedService {
 
     @InjectRepository(HallLeaderboardEntry)
     private readonly leaderboardRepo: Repository<HallLeaderboardEntry>,
+    @Optional() private readonly realtime?: SocialRealtimeService,
   ) {}
 
   async seedVegas(dto: CreateVegasSeedDto): Promise<SeedResultDto> {
@@ -83,6 +85,13 @@ export class HallSeedService {
         }
       }
     }
+
+    this.realtime?.emitBroadcast('halls:updated', {
+      reason: 'seed',
+      region,
+      created: createdCount,
+      updated: updatedCount,
+    });
 
     return {
       seeded: true,

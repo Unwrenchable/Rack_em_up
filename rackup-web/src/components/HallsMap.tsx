@@ -1,4 +1,5 @@
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { Hall } from '../lib/types';
 
@@ -14,6 +15,16 @@ const DefaultIcon = L.icon({
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 });
+
+const VerifiedIcon = L.icon({
+  iconUrl,
+  iconRetinaUrl,
+  shadowUrl,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  className: 'hall-pin-verified',
+});
+
 L.Marker.prototype.options.icon = DefaultIcon;
 
 type Props = {
@@ -21,10 +32,33 @@ type Props = {
   onSelect?: (hall: Hall) => void;
 };
 
-export function HallsMap({ halls, onSelect }: Props) {
-  // Center on Las Vegas
-  const center: [number, number] = [36.17, -115.14];
+function hasCoords(h: Hall): boolean {
+  return Number.isFinite(h.lat) && Number.isFinite(h.lon) && !(h.lat === 0 && h.lon === 0);
+}
 
+function MapSync({ halls }: { halls: Hall[] }) {
+  const map = useMap();
+  const signature = halls
+    .map((h) => `${h.id}:${h.isVerified ? 1 : 0}:${h.lat}:${h.lon}`)
+    .sort()
+    .join('|');
+
+  useEffect(() => {
+    map.invalidateSize();
+    const pts = halls.filter(hasCoords);
+    if (pts.length === 0) return;
+    const bounds = L.latLngBounds(pts.map((h) => [h.lat, h.lon] as [number, number]));
+    if (bounds.isValid()) {
+      map.fitBounds(bounds.pad(0.18), { maxZoom: 13, animate: true });
+    }
+  }, [map, signature, halls]);
+
+  return null;
+}
+
+export function HallsMap({ halls, onSelect }: Props) {
+  const pins = halls.filter(hasCoords);
+  const center: [number, number] = [36.17, -115.14];
   return (
     <div style={{ height: 320, width: '100%', borderRadius: 12, overflow: 'hidden' }}>
       <MapContainer
@@ -37,16 +71,19 @@ export function HallsMap({ halls, onSelect }: Props) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {halls.map((h) => (
+        <MapSync halls={pins} />
+        {pins.map((h) => (
           <Marker
-            key={h.id}
+            key={`${h.id}:${h.isVerified ? 'v' : 'u'}`}
             position={[h.lat, h.lon]}
+            icon={h.isVerified ? VerifiedIcon : DefaultIcon}
             eventHandlers={{
               click: () => onSelect?.(h),
             }}
           >
             <Popup>
               <strong>{h.name}</strong>
+              {h.isVerified ? ' · Verified' : ''}
               <br />
               {h.address ?? 'Address TBD'}
               <br />

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, MoreThan, Repository } from 'typeorm';
 import { Hall } from './hall.entity';
@@ -9,6 +9,7 @@ import { User } from '../users/users.entity';
 import { MoneyMatch } from '../money-matches/money-matches.entity';
 import { PoolMatch } from '../matches/pool-match.entity';
 import { getRedisClient } from '../config/redis.config';
+import { SocialRealtimeService } from '../websocket/social-realtime.service';
 
 const CHECKIN_TTL_MS = 4 * 60 * 60 * 1000;
 const LIVE_CACHE_KEY = 'halls:live:v1';
@@ -41,7 +42,12 @@ export class HallsService {
     private readonly moneyMatchesRepo: Repository<MoneyMatch>,
     @InjectRepository(PoolMatch)
     private readonly poolMatchesRepo: Repository<PoolMatch>,
+    @Optional() private readonly realtime?: SocialRealtimeService,
   ) {}
+
+  private broadcastHalls(payload: Record<string, unknown>): void {
+    this.realtime?.emitBroadcast('halls:updated', payload);
+  }
 
   private placeKey(lat: number, lon: number): string {
     return `${lat.toFixed(4)}:${lon.toFixed(4)}`;
@@ -53,7 +59,10 @@ export class HallsService {
     return 'QUIET';
   }
 
-  async findAll(): Promise<Hall[]> {
+  async findAll(opts?: { verifiedOnly?: boolean }): Promise<Hall[]> {
+    if (opts?.verifiedOnly) {
+      return this.hallsRepo.find({ where: { isVerified: true }, order: { name: 'ASC' } });
+    }
     return this.hallsRepo.find({ order: { name: 'ASC' } });
   }
 
@@ -114,9 +123,36 @@ export class HallsService {
   async claimHall(hallId: string, ownerUserId: string, dto: ClaimHallDto): Promise<Hall> {
     const hall = await this.findOne(hallId);
     hall.ownerUserId = ownerUserId;
+    hall.isVerified = true;
     if (dto.address !== undefined) hall.address = dto.address;
     if (dto.tableCount !== undefined) hall.tableCount = dto.tableCount;
-    return this.hallsRepo.save(hall);
+    const saved = await this.hallsRepo.save(hall);
+    this.broadcastHalls({
+      hallId: saved.id,
+      isVerified: saved.isVerified,
+      reason: 'claim',
+    });
+    return saved;
+  }
+
+  async setVerified(
+    hallId: string,
+    actor: { id: string; role?: string },
+    verified: boolean,
+  ): Promise<Hall> {
+    const hall = await this.findOne(hallId);
+    const privileged = actor.role === 'ADMIN' || actor.role === 'HALL_OWNER';
+    if (!privileged && hall.ownerUserId !== actor.id) {
+      throw new ForbiddenException('Only the hall owner or an admin can verify');
+    }
+    hall.isVerified = verified;
+    const saved = await this.hallsRepo.save(hall);
+    this.broadcastHalls({
+      hallId: saved.id,
+      isVerified: saved.isVerified,
+      reason: 'verify',
+    });
+    return saved;
   }
 
   async getLiveActivity(): Promise<LiveHallRow[]> {

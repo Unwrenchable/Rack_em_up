@@ -36,6 +36,15 @@ export class SocialRealtimeService {
     this.server.to(`thread:${threadId}`).emit(event, payload);
   }
 
+  /** Halls / Find maps subscribe so verified pins refresh without remounting the app. */
+  emitBroadcast(event: string, payload: unknown): void {
+    if (!this.server) {
+      this.logger.debug(`drop ${event} — no server yet`);
+      return;
+    }
+    this.server.emit(event, payload);
+  }
+
   async setUserOnline(userId: string, socketId: string): Promise<void> {
     try {
       const redis = await getRedisClient();

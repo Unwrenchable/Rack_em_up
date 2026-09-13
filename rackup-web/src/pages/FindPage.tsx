@@ -17,8 +17,10 @@ import {
 } from '../lib/api';
 import { chatThreadPath } from '../lib/chat-labels';
 import { useAuth } from '../lib/auth-context';
+import { useHallsLive } from '../lib/use-halls-live';
 import { useToast } from '../lib/toast-context';
 import type { FriendCard, LookingPlayer } from '../lib/types';
+import { HallsMap } from '../components/HallsMap';
 import { Modal } from '../components/Modal';
 import { UserAvatar } from '../components/UserAvatar';
 
@@ -46,7 +48,8 @@ export function FindPage() {
   const [requestedIds, setRequestedIds] = useState<Record<string, boolean>>({});
   const [challengedIds, setChallengedIds] = useState<Record<string, boolean>>({});
   const [players, setPlayers] = useState<LookingPlayer[] | null>(null);
-  const [onlineFriends, setOnlineFriends] = useState<FriendCard[]>([]);
+  const [friends, setFriends] = useState<FriendCard[]>([]);
+  const { halls: verifiedHalls } = useHallsLive({ verifiedOnly: true });
   const [game, setGame] = useState('All');
   const [stakes, setStakes] = useState('Any');
   const [query, setQuery] = useState('');
@@ -68,9 +71,7 @@ export function FindPage() {
       fetchFriends().catch(() => [] as FriendCard[]),
     ]);
     setPlayers(looking.filter((p) => p.userId && p.userId !== user?.id));
-    setOnlineFriends(
-      friends.filter((f) => f.id !== user?.id && (f.status === 'online' || f.status === 'at_hall')),
-    );
+    setFriends(friends.filter((f) => f.id && f.id !== user?.id));
   }, [origin.lat, origin.lon, user?.id]);
 
   useEffect(() => {
@@ -271,9 +272,20 @@ export function FindPage() {
           Find a set
         </h1>
         <p className="muted" style={{ marginTop: 6 }}>
-          Live looking players and online friends. Challenge opens a match invite; Message opens a DM.
+          Live looking players, friends, and verified halls. Challenge opens a match invite; Message
+          opens a DM.
         </p>
       </header>
+
+      {verifiedHalls && verifiedHalls.length > 0 && (
+        <div className="stack" style={{ gap: 8 }}>
+          <div className="section-title">
+            <h2>Verified halls</h2>
+            <span className="muted">{verifiedHalls.length}</span>
+          </div>
+          <HallsMap halls={verifiedHalls} />
+        </div>
+      )}
 
       {mm && (
         <div className="card card-glow">
@@ -357,14 +369,14 @@ export function FindPage() {
         Go live · Matchmaking V2
       </button>
 
-      {onlineFriends.length > 0 && (
+      {friends.length > 0 && (
         <>
           <div className="section-title">
-            <h2>Online friends</h2>
-            <span className="muted">{onlineFriends.length}</span>
+            <h2>Friends</h2>
+            <span className="muted">{friends.length}</span>
           </div>
           <div className="stack">
-            {onlineFriends.map((f) => (
+            {friends.map((f) => (
               <article key={f.id} className="card">
                 <div className="row">
                   <UserAvatar name={f.displayName} avatarUrl={f.avatarUrl} />
@@ -374,7 +386,11 @@ export function FindPage() {
                       <span className="rating-ring">★ {f.rating}</span>
                     </div>
                     <p className="muted" style={{ fontSize: '0.85rem', marginTop: 2 }}>
-                      {f.status === 'at_hall' ? `At ${f.hallName ?? 'a hall'}` : 'Online now'}
+                      {f.status === 'at_hall'
+                        ? `At ${f.hallName && !/^[0-9a-f-]{36}$/i.test(f.hallName) ? f.hallName : 'a hall'}`
+                        : f.status === 'online'
+                          ? 'Online now'
+                          : 'Offline'}
                     </p>
                   </div>
                 </div>

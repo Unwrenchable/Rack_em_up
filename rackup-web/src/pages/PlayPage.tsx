@@ -7,6 +7,8 @@ import {
   createMoneyMatch,
   setMoneyMatchLivestream,
   disputeMoneyMatch,
+  fetchFriends,
+  fetchHalls,
   fetchLeagueStandings,
   fetchLeagues,
   fetchMoneyMatches,
@@ -17,6 +19,7 @@ import {
   getToken,
   registerForTournament,
 } from '../lib/api';
+import type { FriendCard, Hall } from '../lib/types';
 import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
 import type { League, MoneyMatch, Tournament } from '../lib/types';
@@ -44,7 +47,10 @@ export function PlayPage() {
   const [game, setGame] = useState('9-ball');
   const [raceTo, setRaceTo] = useState(7);
   const [dollars, setDollars] = useState(100);
-  const [opponentId, setOpponentId] = useState('p1');
+  const [opponentId, setOpponentId] = useState('');
+  const [friends, setFriends] = useState<FriendCard[]>([]);
+  const [halls, setHalls] = useState<Hall[]>([]);
+  const [hallId, setHallId] = useState('');
   const [streamUrl, setStreamUrl] = useState('');
   const [attachMatch, setAttachMatch] = useState<MoneyMatch | null>(null);
   const [attachUrl, setAttachUrl] = useState('');
@@ -62,6 +68,19 @@ export function PlayPage() {
     fetchMoneyMatches().then(setMoney);
     fetchTournaments().then(setTournaments);
     fetchLeagues().then(setLeagues);
+    fetchFriends()
+      .then((rows) => {
+        setFriends(rows);
+        setOpponentId((cur) => cur || rows[0]?.id || '');
+      })
+      .catch(() => setFriends([]));
+    fetchHalls()
+      .then((rows) => {
+        const ordered = [...rows].sort((a, b) => Number(b.isVerified) - Number(a.isVerified));
+        setHalls(ordered);
+        setHallId((cur) => cur || ordered[0]?.id || '');
+      })
+      .catch(() => setHalls([]));
   }, []);
 
   // Live score updates from ScorekeepingServiceV2
@@ -91,12 +110,16 @@ export function PlayPage() {
 
   async function submitMoney() {
     if (!user) return;
+    if (!opponentId) {
+      push('Pick a friend as opponent — or add friends on Social first', 'err');
+      return;
+    }
     setSaving(true);
     try {
       const created = await createMoneyMatch({
         playerAId: user.id,
         playerBId: opponentId,
-        hallId: 'h1',
+        hallId: hallId || undefined,
         game,
         raceTo,
         amountCents: dollars * 100,
@@ -402,11 +425,26 @@ export function PlayPage() {
             />
           </div>
           <div className="field">
+            <label>Hall</label>
+            <select className="input" value={hallId} onChange={(e) => setHallId(e.target.value)}>
+              {halls.length === 0 && <option value="">No halls yet</option>}
+              {halls.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                  {h.isVerified ? ' · verified' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
             <label>Opponent</label>
             <select className="input" value={opponentId} onChange={(e) => setOpponentId(e.target.value)}>
-              <option value="p1">VegasVee</option>
-              <option value="p2">BankShot_B</option>
-              <option value="p4">RailRunner</option>
+              {friends.length === 0 && <option value="">Add a friend on Social first</option>}
+              {friends.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.displayName}
+                </option>
+              ))}
             </select>
           </div>
           <button type="button" className="btn btn-primary btn-block" disabled={saving} onClick={submitMoney}>
