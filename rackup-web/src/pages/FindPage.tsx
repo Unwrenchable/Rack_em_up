@@ -14,6 +14,7 @@ import {
   openDmThread,
   requestFriend,
 } from '../lib/api';
+import { chatThreadPath } from '../lib/chat-labels';
 import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
 import type { FriendCard, LookingPlayer } from '../lib/types';
@@ -227,10 +228,10 @@ export function FindPage() {
     }
   }
 
-  async function onMessage(playerUserId: string) {
+  async function onMessage(playerUserId: string, name?: string) {
     try {
       const thread = await openDmThread(playerUserId);
-      navigate(`/chat?thread=${thread.id}`);
+      navigate(chatThreadPath(thread.id, name));
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (/friend/i.test(msg)) {
@@ -251,7 +252,7 @@ export function FindPage() {
       setChallengedIds((m) => ({ ...m, [playerUserId]: true }));
       push(`Challenge sent to ${name}`, 'ok');
       if (res.threadId) {
-        navigate(`/chat?thread=${res.threadId}`);
+        navigate(chatThreadPath(res.threadId, name));
       }
     } catch (e) {
       push(e instanceof Error ? e.message.slice(0, 120) : 'Challenge failed', 'err');
@@ -383,7 +384,7 @@ export function FindPage() {
                   >
                     {challengedIds[f.id] ? 'Challenged' : 'Challenge'}
                   </button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => onMessage(f.id)}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => onMessage(f.id, f.displayName)}>
                     Message
                   </button>
                 </div>
@@ -436,7 +437,11 @@ export function FindPage() {
               >
                 {challengedIds[p.userId] ? 'Challenged' : 'Challenge'}
               </button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onMessage(p.userId)}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => onMessage(p.userId, p.displayName)}
+              >
                 Message
               </button>
             </div>

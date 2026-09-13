@@ -913,14 +913,38 @@ img.avatar {
   gap: 10px;
 }
 
+.chat-convos {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 -4px;
+  padding: 0 4px 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chat-convos .chip {
+  flex: 0 0 auto;
+}
+
 .chat-log {
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   max-height: calc(100dvh - 220px);
   min-height: 280px;
+}
+
+.chat-page .chat-log.card:active {
+  transform: none;
+}
+
+.chat-log-inner {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
 }
 
 .chat-bubble {
