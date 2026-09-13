@@ -512,6 +512,7 @@ export async function createMoneyMatch(body: {
     return {
       id: `mm-${Date.now()}`,
       ...body,
+      hallId: body.hallId ?? 'h1',
       livestreamUrl: body.livestreamUrl ?? null,
       status: 'PENDING',
       aConfirmed: false,
