@@ -370,6 +370,9 @@ describe('V2 route inventory', () => {
     'POST /leagues/v2/season/create',
     'GET /leagues/v2/season/:id/standings',
     'POST /leagues/v2/season/:id/report-match',
+    'GET /matchmaking/search',
+    'POST /matchmaking/request',
+    'POST /matchmaking/challenge',
     'POST /matchmaking/v2/search',
     'POST /realai/v2/coach',
     'GET /realai/v2/sotd/maps',
@@ -397,7 +400,9 @@ describe('V2 route inventory', () => {
     'GET /money-matches/audit/export',
     'POST /notifications/push/register',
     'POST /notifications/push/test',
+    'POST /users/me/avatar',
     'POST /users/me/premium',
+    'POST /halls/v2/photos/upload',
     'GET /scorekeeping/v2/rules',
     'POST /scorekeeping/v2/rules/validate-score',
     'GET /matches/pyramid/presets',
@@ -459,6 +464,13 @@ describe('V2 route inventory', () => {
     expect(routes.some((r) => r.includes('friends/request'))).toBe(true);
     expect(routes.some((r) => r.includes('chat/threads'))).toBe(true);
     expect(routes.some((r) => r.includes('social/settings'))).toBe(true);
+  });
+
+  it('lists Find looking + avatar upload surfaces', () => {
+    expect(routes).toContain('GET /matchmaking/search');
+    expect(routes).toContain('POST /matchmaking/request');
+    expect(routes).toContain('POST /matchmaking/challenge');
+    expect(routes).toContain('POST /users/me/avatar');
   });
 });
 

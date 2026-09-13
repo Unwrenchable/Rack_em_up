@@ -313,4 +313,89 @@ describeLive('Live API e2e (docker)', () => {
       expect(res.body.requestId).toBeTruthy();
     }
   });
+
+  it('looking board shows a peer after POST /matchmaking/request', async () => {
+    if (!token || !userId) return;
+    const emailB = `e2e_look_${Date.now()}@rackup.test`;
+    const signupB = await api('/auth/v2/signup', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: emailB,
+        password,
+        display_name: 'Looking Peer',
+      }),
+    });
+    expect(signupB.status).toBeLessThan(500);
+    const tokenB = signupB.body?.accessToken as string | undefined;
+    const userB = signupB.body?.user?.id as string | undefined;
+    if (!tokenB || !userB) return;
+
+    const liveA = await api('/matchmaking/request', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({
+        user_id: userId,
+        lat: 36.1699,
+        lon: -115.1398,
+        game: '8-ball',
+        stakes: 'casual',
+        min_rating: 400,
+        max_rating: 700,
+      }),
+    });
+    expect(liveA.status).toBeLessThan(300);
+    expect(new Date(liveA.body?.expiresAt ?? liveA.body?.expires_at).getTime()).toBeGreaterThan(
+      Date.now(),
+    );
+
+    const board = await api(
+      '/matchmaking/search?lat=36.17&lon=-115.14&radius=20000000',
+      { token: tokenB },
+    );
+    expect(board.status).toBeLessThan(300);
+    const rows = Array.isArray(board.body) ? board.body : [];
+    expect(rows.some((r: { user_id?: string }) => r.user_id === userId)).toBe(true);
+  });
+
+  it('avatar upload is stored on the public profile', async () => {
+    if (!token || !userId) return;
+    const tinyPng =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const uploaded = await api('/users/me/avatar', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ photoBase64: tinyPng }),
+    });
+    expect(uploaded.status).toBeLessThan(300);
+    expect(uploaded.body?.avatarUrl).toBeTruthy();
+
+    const profile = await api(`/users/${userId}`);
+    expect(profile.status).toBeLessThan(300);
+    expect(profile.body?.avatarUrl).toBe(uploaded.body.avatarUrl);
+  });
+
+  it('challenge creates a match invite', async () => {
+    if (!token || !userId) return;
+    const emailC = `e2e_chal_${Date.now()}@rackup.test`;
+    const signupC = await api('/auth/v2/signup', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: emailC,
+        password,
+        display_name: 'Challenge Peer',
+      }),
+    });
+    const tokenC = signupC.body?.accessToken as string | undefined;
+    const userC = signupC.body?.user?.id as string | undefined;
+    if (!tokenC || !userC) return;
+
+    const challenged = await api('/matchmaking/challenge', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ opponentId: userC, game: '9-ball', stakes: 'casual' }),
+    });
+    expect(challenged.status).toBeLessThan(300);
+    expect(challenged.body?.matchId).toBeTruthy();
+    expect(challenged.body?.opponentId).toBe(userC);
+  });
 });

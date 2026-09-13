@@ -1,13 +1,18 @@
 import { Link } from 'react-router-dom';
-import { fetchBadges, fetchMemories, initials } from '../lib/api';
+import { fetchBadges, fetchMemories, uploadAvatar } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MatchMemory } from '../lib/types';
+import { UserAvatar } from '../components/UserAvatar';
+import { useToast } from '../lib/toast-context';
 
 export function ProfilePage() {
-  const { user, demo, logout } = useAuth();
+  const { user, demo, logout, updateUser } = useAuth();
+  const { push } = useToast();
   const badges = fetchBadges();
   const [memories, setMemories] = useState<MatchMemory[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchMemories().then(setMemories);
@@ -15,15 +20,59 @@ export function ProfilePage() {
 
   if (!user) return null;
 
+  async function onPickPhoto(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      push('Choose an image file', 'err');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      push('Photo must be 2 MB or smaller', 'err');
+      return;
+    }
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('Could not read file'));
+        reader.readAsDataURL(file);
+      });
+      const res = await uploadAvatar(dataUrl);
+      updateUser({ avatarUrl: res.avatarUrl });
+      push('Profile picture updated', 'ok');
+    } catch (e) {
+      push(e instanceof Error ? e.message.slice(0, 120) : 'Upload failed', 'err');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
   const wins = memories.filter((m) => m.isWinner).length;
   const winRate = memories.length ? Math.round((wins / memories.length) * 100) : 0;
 
   return (
     <div className="page stack" style={{ gap: 18 }}>
       <header style={{ textAlign: 'center', paddingTop: 12 }}>
-        <div className="avatar avatar-lg" style={{ margin: '0 auto' }}>
-          {initials(user.displayName)}
-        </div>
+        <button
+          type="button"
+          className="avatar-upload"
+          style={{ margin: '0 auto' }}
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          aria-label="Upload profile picture"
+        >
+          <UserAvatar name={user.displayName} avatarUrl={user.avatarUrl} size="lg" />
+          <span className="avatar-upload-hint">{uploading ? 'Uploading…' : 'Change pic'}</span>
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          hidden
+          onChange={(e) => onPickPhoto(e.target.files?.[0])}
+        />
         <h1 className="h2" style={{ marginTop: 14, fontSize: '1.35rem' }}>
           {user.displayName}
         </h1>

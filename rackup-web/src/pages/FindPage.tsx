@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  DEFAULT_FIND_ORIGIN,
+  FIND_DISCOVERY_RADIUS_M,
+  challengePlayer,
+  fetchFriends,
   fetchLookingPlayers,
   goLiveLooking,
-  initials,
   mmV2Cancel,
   mmV2Confirm,
   mmV2Search,
@@ -13,11 +16,13 @@ import {
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
-import type { LookingPlayer } from '../lib/types';
+import type { FriendCard, LookingPlayer } from '../lib/types';
 import { Modal } from '../components/Modal';
+import { UserAvatar } from '../components/UserAvatar';
 
 const GAMES = ['All', '8-ball', '9-ball', '10-ball', 'One-pocket'];
 const STAKES = ['Any', 'Casual', '$$', 'Action'];
+const MM_V2_PAIR_RADIUS_M = 20_000;
 
 type MmState = {
   requestId?: string;
@@ -28,12 +33,18 @@ type MmState = {
   matchId?: string | null;
 };
 
+function gameSlug(label: string): string {
+  return label === 'One-pocket' ? 'one-pocket' : label;
+}
+
 export function FindPage() {
   const { user } = useAuth();
   const { push } = useToast();
   const navigate = useNavigate();
   const [requestedIds, setRequestedIds] = useState<Record<string, boolean>>({});
+  const [challengedIds, setChallengedIds] = useState<Record<string, boolean>>({});
   const [players, setPlayers] = useState<LookingPlayer[] | null>(null);
+  const [onlineFriends, setOnlineFriends] = useState<FriendCard[]>([]);
   const [game, setGame] = useState('All');
   const [stakes, setStakes] = useState('Any');
   const [query, setQuery] = useState('');
@@ -43,10 +54,43 @@ export function FindPage() {
   const [liveBusy, setLiveBusy] = useState(false);
   const [mm, setMm] = useState<MmState | null>(null);
   const [mmBusy, setMmBusy] = useState(false);
+  const [origin, setOrigin] = useState(DEFAULT_FIND_ORIGIN);
+
+  const refreshBoard = useCallback(async () => {
+    const [looking, friends] = await Promise.all([
+      fetchLookingPlayers({
+        lat: origin.lat,
+        lon: origin.lon,
+        radius: FIND_DISCOVERY_RADIUS_M,
+      }),
+      fetchFriends().catch(() => [] as FriendCard[]),
+    ]);
+    setPlayers(looking.filter((p) => p.userId && p.userId !== user?.id));
+    setOnlineFriends(
+      friends.filter((f) => f.id !== user?.id && (f.status === 'online' || f.status === 'at_hall')),
+    );
+  }, [origin.lat, origin.lon, user?.id]);
 
   useEffect(() => {
-    fetchLookingPlayers().then(setPlayers);
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setOrigin({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      },
+      () => {
+        /* keep Vegas default so smoke / desktop still share an origin */
+      },
+      { maximumAge: 300_000, timeout: 4000 },
+    );
   }, []);
+
+  useEffect(() => {
+    void refreshBoard();
+    const t = setInterval(() => {
+      void refreshBoard();
+    }, 8000);
+    return () => clearInterval(t);
+  }, [refreshBoard]);
 
   // Poll MM V2 session when we have a sessionId pending confirm
   useEffect(() => {
@@ -76,10 +120,10 @@ export function FindPage() {
 
   const filtered =
     players?.filter((p) => {
-      if (game !== 'All' && p.game !== game) return false;
+      if (game !== 'All' && p.game !== game && p.game !== gameSlug(game)) return false;
       if (stakes === 'Casual' && !/casual/i.test(p.stakes)) return false;
-      if (stakes === '$$' && !/\$|50|100/i.test(p.stakes)) return false;
-      if (stakes === 'Action' && !/\$1|race|200/i.test(p.stakes)) return false;
+      if (stakes === '$$' && !/\$|50|100|small/i.test(p.stakes)) return false;
+      if (stakes === 'Action' && !/\$1|race|200|big_money/i.test(p.stakes)) return false;
       if (query && !p.displayName.toLowerCase().includes(query.toLowerCase())) return false;
       return true;
     }) ?? null;
@@ -88,14 +132,14 @@ export function FindPage() {
     if (!user) return;
     setLiveBusy(true);
     try {
-      const gameSlug = liveGame === 'One-pocket' ? 'one-pocket' : liveGame;
+      const slug = gameSlug(liveGame);
 
-      // Matchmaking V2 queue (primary)
+      // Matchmaking V2 queue (primary) — pairing radius stays local
       const enqueued = (await mmV2Search({
-        lat: 36.1699,
-        lon: -115.1398,
-        radius: 20000,
-        game: gameSlug,
+        lat: origin.lat,
+        lon: origin.lon,
+        radius: MM_V2_PAIR_RADIUS_M,
+        game: slug,
         stakes: liveStakes,
         min_rating: Math.max(0, user.rating - 100),
         max_rating: user.rating + 100,
@@ -113,20 +157,20 @@ export function FindPage() {
       try {
         await goLiveLooking({
           user_id: user.id,
-          lat: 36.1699,
-          lon: -115.1398,
-          game: gameSlug,
+          lat: origin.lat,
+          lon: origin.lon,
+          game: slug,
           stakes: liveStakes,
           min_rating: Math.max(0, user.rating - 100),
           max_rating: user.rating + 100,
         });
       } catch {
-        /* V1 optional */
+        /* V1 optional — V2 pending rows still appear on the board */
       }
 
       setLiveOpen(false);
       push("You're in the Matchmaking V2 queue — nearby players can find you", 'ok');
-      fetchLookingPlayers().then(setPlayers);
+      await refreshBoard();
     } catch (e) {
       push(e instanceof Error ? e.message.slice(0, 120) : 'Failed to go live', 'err');
     } finally {
@@ -173,6 +217,47 @@ export function FindPage() {
     }
   }
 
+  async function onAddFriend(playerUserId: string, name: string) {
+    try {
+      await requestFriend(playerUserId);
+      setRequestedIds((m) => ({ ...m, [playerUserId]: true }));
+      push(`Friend request sent to ${name}`, 'ok');
+    } catch (e) {
+      push(e instanceof Error ? e.message.slice(0, 120) : 'Request failed', 'err');
+    }
+  }
+
+  async function onMessage(playerUserId: string) {
+    try {
+      const thread = await openDmThread(playerUserId);
+      navigate(`/chat?thread=${thread.id}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (/friend/i.test(msg)) {
+        push('Add them as a friend first, then message', 'info');
+      } else {
+        push(msg.slice(0, 120) || 'Could not open chat', 'err');
+      }
+    }
+  }
+
+  async function onChallenge(playerUserId: string, name: string, playerGame?: string) {
+    try {
+      const res = await challengePlayer({
+        opponentId: playerUserId,
+        game: playerGame && playerGame !== 'All' ? gameSlug(playerGame) : gameSlug(liveGame),
+        stakes: liveStakes,
+      });
+      setChallengedIds((m) => ({ ...m, [playerUserId]: true }));
+      push(`Challenge sent to ${name}`, 'ok');
+      if (res.threadId) {
+        navigate(`/chat?thread=${res.threadId}`);
+      }
+    } catch (e) {
+      push(e instanceof Error ? e.message.slice(0, 120) : 'Challenge failed', 'err');
+    }
+  }
+
   return (
     <div className="page stack" style={{ gap: 16 }}>
       <header>
@@ -181,7 +266,7 @@ export function FindPage() {
           Find a set
         </h1>
         <p className="muted" style={{ marginTop: 6 }}>
-          Redis queue + radius pairing. Add a friend, then Message to open a DM.
+          Live looking players and online friends. Challenge opens a match invite; Message opens a DM.
         </p>
       </header>
 
@@ -267,6 +352,47 @@ export function FindPage() {
         Go live · Matchmaking V2
       </button>
 
+      {onlineFriends.length > 0 && (
+        <>
+          <div className="section-title">
+            <h2>Online friends</h2>
+            <span className="muted">{onlineFriends.length}</span>
+          </div>
+          <div className="stack">
+            {onlineFriends.map((f) => (
+              <article key={f.id} className="card">
+                <div className="row">
+                  <UserAvatar name={f.displayName} avatarUrl={f.avatarUrl} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="row-between">
+                      <h3 style={{ fontWeight: 600 }}>{f.displayName}</h3>
+                      <span className="rating-ring">★ {f.rating}</span>
+                    </div>
+                    <p className="muted" style={{ fontSize: '0.85rem', marginTop: 2 }}>
+                      {f.status === 'at_hall' ? `At ${f.hallName ?? 'a hall'}` : 'Online now'}
+                    </p>
+                  </div>
+                </div>
+                <div className="row" style={{ marginTop: 14 }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginLeft: 'auto' }}
+                    disabled={!!challengedIds[f.id]}
+                    onClick={() => onChallenge(f.id, f.displayName)}
+                  >
+                    {challengedIds[f.id] ? 'Challenged' : 'Challenge'}
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => onMessage(f.id)}>
+                    Message
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+
       <div className="section-title">
         <h2>Available now</h2>
         <span className="muted">{filtered?.length ?? 0}</span>
@@ -279,7 +405,7 @@ export function FindPage() {
         {filtered?.map((p) => (
           <article key={p.id} className="card">
             <div className="row">
-              <div className="avatar">{initials(p.displayName)}</div>
+              <UserAvatar name={p.displayName} avatarUrl={p.avatarUrl} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="row-between">
                   <h3 style={{ fontWeight: 600 }}>{p.displayName}</h3>
@@ -287,45 +413,30 @@ export function FindPage() {
                 </div>
                 <p className="muted" style={{ fontSize: '0.85rem', marginTop: 2 }}>
                   {p.game} · {p.stakes} · {p.distanceKm} km
+                  {p.source === 'v2' ? ' · live queue' : ''}
                 </p>
               </div>
             </div>
-            <div className="row" style={{ marginTop: 14 }}>
+            <div className="row" style={{ marginTop: 14, flexWrap: 'wrap' }}>
               <span className="chip">Rep {p.reputation}</span>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
                 style={{ marginLeft: 'auto' }}
-                disabled={!!requestedIds[p.id] || p.id === user?.id}
-                onClick={async () => {
-                  try {
-                    await requestFriend(p.id);
-                    setRequestedIds((m) => ({ ...m, [p.id]: true }));
-                    push(`Friend request sent to ${p.displayName}`, 'ok');
-                  } catch (e) {
-                    push(e instanceof Error ? e.message.slice(0, 120) : 'Request failed', 'err');
-                  }
-                }}
+                disabled={!!requestedIds[p.userId] || p.userId === user?.id}
+                onClick={() => onAddFriend(p.userId, p.displayName)}
               >
-                {requestedIds[p.id] ? 'Requested' : 'Add friend'}
+                {requestedIds[p.userId] ? 'Requested' : 'Add friend'}
               </button>
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={async () => {
-                  try {
-                    const thread = await openDmThread(p.id);
-                    navigate(`/chat?thread=${thread.id}`);
-                  } catch (e) {
-                    const msg = e instanceof Error ? e.message : '';
-                    if (/friend/i.test(msg)) {
-                      push('Add them as a friend first, then message', 'info');
-                    } else {
-                      push(msg.slice(0, 120) || 'Could not open chat', 'err');
-                    }
-                  }
-                }}
+                className="btn btn-primary btn-sm"
+                disabled={!!challengedIds[p.userId] || p.userId === user?.id}
+                onClick={() => onChallenge(p.userId, p.displayName, p.game)}
               >
+                {challengedIds[p.userId] ? 'Challenged' : 'Challenge'}
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onMessage(p.userId)}>
                 Message
               </button>
             </div>
@@ -333,7 +444,7 @@ export function FindPage() {
         ))}
 
         {filtered?.length === 0 && (
-          <div className="empty card">No players match those filters. Widen the search.</div>
+          <div className="empty card">No players match those filters. Go live or widen the search.</div>
         )}
       </div>
 

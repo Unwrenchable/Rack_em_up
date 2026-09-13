@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { User } from './users.entity';
+import { ObjectStorageService } from '../common/object-storage.service';
 import {
   formatRatingDisplay,
   ROC_DEFAULT_RATING,
@@ -33,11 +34,14 @@ export type PublicUserProfile = {
   role: string;
 };
 
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   async findByEmail(email: string): Promise<User | null> {
@@ -183,5 +187,56 @@ export class UsersService {
 
   async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
     await this.usersRepository.update({ id: userId }, { passwordHash });
+  }
+
+  async updateAvatarUrl(userId: string, avatarUrl: string): Promise<string> {
+    const u = await this.findById(userId);
+    if (!u) throw new BadRequestException('User not found');
+    u.avatarUrl = avatarUrl;
+    await this.usersRepository.save(u);
+    return avatarUrl;
+  }
+
+  /**
+   * Hall-photo style upload: data-URL or pass-through https / /uploads URL.
+   */
+  async uploadAvatar(
+    userId: string,
+    input: { photoBase64?: string; avatarUrl?: string },
+  ): Promise<{ avatarUrl: string }> {
+    const avatarUrl = await this.resolveAvatarUrl(userId, input);
+    await this.updateAvatarUrl(userId, avatarUrl);
+    return { avatarUrl };
+  }
+
+  private async resolveAvatarUrl(
+    userId: string,
+    input: { photoBase64?: string; avatarUrl?: string },
+  ): Promise<string> {
+    if (input.photoBase64 && input.photoBase64.startsWith('data:')) {
+      const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(input.photoBase64);
+      if (!match) {
+        throw new BadRequestException('Invalid image data URL');
+      }
+      const approxBytes = Math.floor((match[2].length * 3) / 4);
+      if (approxBytes > MAX_AVATAR_BYTES) {
+        throw new BadRequestException('Avatar must be 2 MB or smaller');
+      }
+      try {
+        const put = await this.storage.putDataUrl(`avatars/${userId}`, input.photoBase64);
+        return put.url;
+      } catch (e) {
+        throw new BadRequestException(e instanceof Error ? e.message : 'Invalid photo');
+      }
+    }
+    if (
+      input.avatarUrl &&
+      (input.avatarUrl.startsWith('http://') ||
+        input.avatarUrl.startsWith('https://') ||
+        input.avatarUrl.startsWith('/uploads/'))
+    ) {
+      return input.avatarUrl;
+    }
+    throw new BadRequestException('avatarUrl or photoBase64 required');
   }
 }

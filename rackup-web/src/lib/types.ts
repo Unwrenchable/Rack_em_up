@@ -86,12 +86,15 @@ export type MoneyMatch = {
 
 export type LookingPlayer = {
   id: string;
+  userId: string;
   displayName: string;
   rating: number;
   game: string;
   stakes: string;
   distanceKm: number;
   reputation: number;
+  avatarUrl?: string | null;
+  source?: 'v1' | 'v2';
 };
 
 export type Tournament = {
