@@ -9,8 +9,14 @@ import {
 } from '../../src/training/parse-coach-drills';
 import {
   coachingTextFromResult,
+  isDefaultLlmPlaceholder,
+  isUnusableCoachEnvelope,
   isUnusableRealAiText,
 } from '../../src/ai/realai-text-guard';
+import {
+  buildCoachAnalyzePayload,
+  classifyVideoSource,
+} from '../../src/training/video-analysis-payload';
 import {
   classifyMatchSlots,
   dropsLoserToLosers,
@@ -49,6 +55,74 @@ describe('RealAI default_llm / plugin text guard', () => {
       }),
     ).toMatch(/object ball/);
     expect(isUnusableRealAiText('Pause on the last alignment.')).toBe(false);
+  });
+
+  it('rejects a plugin envelope that wraps the placeholder', () => {
+    const live =
+      'Local RealAI is selected, but no local model is configured/loaded yet. Register a local model and set it as default_llm, then retry.';
+    expect(isDefaultLlmPlaceholder(live)).toBe(true);
+    expect(isDefaultLlmPlaceholder('')).toBe(false);
+    expect(
+      isUnusableCoachEnvelope({
+        ok: true,
+        error: live,
+        result: { analysis: live },
+      }),
+    ).toBe(true);
+    expect(
+      isUnusableCoachEnvelope({
+        ok: true,
+        result: { analysis: 'Pause on the last alignment.' },
+      }),
+    ).toBe(false);
+  });
+
+  it('formats recommended_drills from video_analysis', () => {
+    const text = coachingTextFromResult({
+      analysis: 'Cue ball drifted right on the last stun.',
+      recommended_drills: [
+        { title: 'Stop shot ladder', description: '15 center-table stops' },
+        '10 follow / draw pairs',
+      ],
+    });
+    expect(text).toMatch(/Cue ball drifted/);
+    expect(text).toMatch(/Stop shot ladder/);
+    expect(text).toMatch(/follow \/ draw/);
+    expect(text).not.toMatch(/default_llm/);
+  });
+});
+
+describe('video_analysis payload (URL + observations, no bytes)', () => {
+  it('classifies YouTube, upload, and generic URLs', () => {
+    expect(classifyVideoSource('https://youtube.com/shorts/b3ZlStHTwKc')).toBe(
+      'youtube',
+    );
+    expect(classifyVideoSource('https://youtu.be/abc')).toBe('youtube');
+    expect(classifyVideoSource('https://api.example.com/uploads/clips/x.mp4')).toBe(
+      'upload',
+    );
+    expect(classifyVideoSource('https://cdn.example.com/shot.mp4')).toBe('url');
+    expect(classifyVideoSource('')).toBe('none');
+  });
+
+  it('builds video_meta without raw bytes', () => {
+    const payload = buildCoachAnalyzePayload({
+      videoUrl: 'https://youtube.com/shorts/b3ZlStHTwKc',
+      notes: 'Long straight missed thin',
+      game: '9-ball',
+      focus: 'cue-ball-control',
+    });
+    expect(payload.mode).toBe('video_analysis');
+    expect(payload.video_meta).toEqual({
+      url: 'https://youtube.com/shorts/b3ZlStHTwKc',
+      source: 'youtube',
+      kind: 'youtube',
+      bytes_included: false,
+    });
+    expect(payload.observations).toBe('Long straight missed thin');
+    expect(payload.prefer_local).toBe(false);
+    expect(payload.vision_bytes).toBe(false);
+    expect(JSON.stringify(payload)).not.toMatch(/default_llm/);
   });
 });
 

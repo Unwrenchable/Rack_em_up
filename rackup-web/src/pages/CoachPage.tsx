@@ -21,7 +21,11 @@ export function CoachPage() {
   const [drills, setDrills] = useState<Drill[]>([]);
   const [provider, setProvider] = useState('…');
   const [sotd, setSotd] = useState<ShotOfTheDay | null>(null);
-  const [realai, setRealai] = useState<{ reachable: boolean; model: string } | null>(null);
+  const [realai, setRealai] = useState<{
+    reachable: boolean;
+    model: string;
+    coachPath?: string;
+  } | null>(null);
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [notes, setNotes] = useState('');
@@ -39,7 +43,7 @@ export function CoachPage() {
     });
     fetchShotOfTheDay().then(setSotd);
     fetchProviderHealth().then((p) =>
-      setRealai({ reachable: p.reachable, model: p.model }),
+      setRealai({ reachable: p.reachable, model: p.model, coachPath: p.coachPath }),
     );
     fetchSotdStreak().then((s) => setStreak(s.streak));
   }, []);
@@ -57,9 +61,14 @@ export function CoachPage() {
         focus: 'stroke',
       });
       setAnalysis(res.analysis);
+      const fallback =
+        res.offlineFallback ||
+        res.status === 'rules-fallback' ||
+        res.provider === 'demo' ||
+        res.provider === 'rules-fallback';
       push(
-        res.offlineFallback || res.provider === 'demo' || res.provider === 'rules-fallback'
-          ? 'Rules-based coach tips (RealAI plugin unavailable)'
+        fallback
+          ? 'Rules-based coach tips (rackup-coach plugin unavailable)'
           : 'RealAI analysis ready',
         'ok',
       );
@@ -129,7 +138,7 @@ export function CoachPage() {
               {realai == null
                 ? 'Checking…'
                 : realai.reachable
-                  ? `Online · ${realai.model}`
+                  ? `Online · rackup-coach${realai.model ? ` · ${realai.model}` : ''}`
                   : 'Offline · rules fallback'}
             </div>
           </div>

@@ -9,6 +9,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { isUnusableCoachEnvelope } from './realai-text-guard';
 
 // ─── Envelope types ─────────────────────────────────────────────────────────
 
@@ -177,7 +178,17 @@ export type RatingConvertResult = {
 // ─── Config ─────────────────────────────────────────────────────────────────
 
 function baseUrl(): string {
-  return (process.env.REALAI_BASE_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
+  // Hive/orch GPU is :8001. Render realai-api is API-only (no GGUF).
+  return (process.env.REALAI_BASE_URL ?? 'http://127.0.0.1:8001').replace(/\/$/, '');
+}
+
+/** Cloud LLM key for Render/plugin hosts that have no default_llm. Never forces local GGUF. */
+function cloudLlmKey(): string | undefined {
+  return (
+    process.env.REALAI_OPENAI_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    undefined
+  );
 }
 
 function apiKey(): string | undefined {
@@ -255,8 +266,20 @@ async function invokeOnce(
   };
   const key = apiKey();
   if (key) headers.Authorization = `Bearer ${key}`;
+  const cloudKey = cloudLlmKey();
+  if (cloudKey) {
+    // Render realai-api has no GGUF; this lets the plugin use a cloud LLM
+    // when the key is on Nest (prefer setting it on the realai-api service).
+    headers['X-OpenAI-Api-Key'] = cloudKey;
+  }
   const t = tenant();
   if (t) headers['X-RackUp-Tenant'] = t;
+
+  const payload = {
+    prefer_local: false,
+    allow_cloud_llm: true,
+    ...(body.payload ?? {}),
+  };
 
   const res = await fetch(url, {
     method: 'POST',
@@ -265,7 +288,7 @@ async function invokeOnce(
     body: JSON.stringify({
       organs_enabled: body.organs_enabled ?? true,
       ...body,
-      payload: body.payload ?? {},
+      payload,
     }),
   });
 
@@ -281,6 +304,13 @@ async function invokeOnce(
   const json = (await res.json()) as RackUpCoachResponse;
   if (json == null || typeof json !== 'object') {
     throw new RealAiCoachError('RealAI coach returned non-object body');
+  }
+  if (isUnusableCoachEnvelope(json)) {
+    throw new RealAiCoachError(
+      'RealAI plugin returned a local-model placeholder; use rackup-coach with a cloud key on realai-api or Hive GPU',
+      res.status,
+      json,
+    );
   }
   // Normalize missing fields
   return {

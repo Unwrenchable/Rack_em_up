@@ -851,6 +851,7 @@ export async function analyzeShot(body: {
       analysis: 'Demo analysis: work the pre-shot routine, freeze on aim, firm enough for shape.',
       provider: 'demo',
       offlineFallback: true,
+      status: 'rules-fallback',
     };
   }
   return request<{
@@ -858,6 +859,9 @@ export async function analyzeShot(body: {
     provider: string;
     offlineFallback: boolean;
     model: string;
+    status?: string;
+    reason?: string | null;
+    ability?: string;
   }>('/training/analyze', { method: 'POST', body: JSON.stringify(body) });
 }
 
@@ -868,6 +872,8 @@ export async function fetchProviderHealth() {
       reachable: boolean;
       baseUrl: string;
       model: string;
+      coachPath?: string;
+      chatRequiresLocalGpu?: boolean;
     }>('/training/provider');
   } catch {
     return { configured: false, reachable: false, baseUrl: '', model: '' };

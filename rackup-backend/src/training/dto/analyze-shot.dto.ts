@@ -1,10 +1,10 @@
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class AnalyzeShotDto {
-  /** Public or signed URL to clip (future: multipart upload). */
+  /** Public, uploaded, or YouTube URL. Multipart clips: POST /training/clips first. */
   @IsOptional()
   @IsString()
-  @MaxLength(1024)
+  @MaxLength(2048)
   videoUrl?: string;
 
   /** Free-text what the player is working on. */

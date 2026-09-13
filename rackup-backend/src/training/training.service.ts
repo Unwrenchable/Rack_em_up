@@ -15,6 +15,7 @@ import {
   drillsFromCoachResult,
   type DrillPlan,
 } from './parse-coach-drills';
+import { buildCoachAnalyzePayload } from './video-analysis-payload';
 import { ObjectStorageService } from '../common/object-storage.service';
 import { randomUUID } from 'crypto';
 
@@ -92,8 +93,15 @@ export class TrainingService {
       );
     }
 
-    // Secondary harvest: OpenAI-compatible chat, with a tolerant parser
-    // (fenced JSON / practice_plan / numbered prose) — not a bare-array parse.
+    // Chat/completions needs a local default_llm (Hive). Render API-only
+    // hosts return a placeholder — skip unless explicitly opted in.
+    const allowChat =
+      process.env.REALAI_CHAT_FALLBACK === '1' ||
+      process.env.REALAI_CHAT_FALLBACK === 'true';
+    if (!allowChat) {
+      return { drills: rulesDrills, provider: 'offline-rules-fallback' };
+    }
+
     const ai = await realAiChatOrFallback(
       [
         {
@@ -166,16 +174,11 @@ export class TrainingService {
       discipline: dto.game ?? 'nine_ball',
       locale: 'en',
     };
-    const payload = {
-      mode: dto.videoUrl ? 'video_analysis' : 'full',
-      video_url: dto.videoUrl,
-      notes: dto.notes,
-      game: dto.game ?? '9-ball',
-      focus: dto.focus ?? 'general',
-      question: dto.notes ?? 'Analyze this shot and give 3 concrete fixes.',
-    };
+    const payload = buildCoachAnalyzePayload(dto);
+    const ability = dto.videoUrl ? 'video_analysis' : 'coach';
 
-    // Canonical: POST /v1/plugins/rackup-coach — never chat/completions (no default_llm on Render).
+    // Canonical: POST /v1/plugins/rackup-coach — never chat/completions
+    // (Render has no default_llm; Hive GPU stays on the operator PC).
     try {
       const result = dto.videoUrl
         ? await realaiVideoAnalysis({ player, payload })
@@ -187,13 +190,18 @@ export class TrainingService {
           });
       const text = coachingTextFromResult(result);
       if (text && !isUnusableRealAiText(text)) {
+        const persisted = await this.persistCoachResult(userId, ability, result, payload);
         return {
           analysis: text,
           provider: 'realai',
           model: 'rackup-coach',
           offlineFallback: false,
+          status: 'realai',
+          reason: null,
           videoUrl: dto.videoUrl ?? null,
-          ability: dto.videoUrl ? 'video_analysis' : 'coach',
+          ability,
+          result,
+          persistUrl: persisted,
         };
       }
       this.logger.warn('rackup-coach analyze returned no usable coaching text');
@@ -209,9 +217,44 @@ export class TrainingService {
       provider: 'rules-fallback',
       model: 'rules-fallback',
       offlineFallback: true,
+      status: 'rules-fallback',
+      reason: 'plugin_unavailable',
       videoUrl: dto.videoUrl ?? null,
-      ability: dto.videoUrl ? 'video_analysis' : 'coach',
+      ability,
+      result: null,
+      persistUrl: null,
     };
+  }
+
+  /** RackUp persists RealAI's result; Nest does not recompute coach math. */
+  private async persistCoachResult(
+    userId: string,
+    ability: string,
+    result: Record<string, unknown>,
+    payload: Record<string, unknown>,
+  ): Promise<string | null> {
+    try {
+      const stored = await this.storage.putBytes({
+        prefix: `analyses/${userId}`,
+        filename: `${Date.now()}-${randomUUID().slice(0, 8)}.json`,
+        body: Buffer.from(
+          JSON.stringify({
+            ability,
+            player_id: userId,
+            result,
+            video_meta: payload.video_meta ?? null,
+            persisted_at: new Date().toISOString(),
+          }),
+        ),
+        contentType: 'application/json',
+      });
+      return stored.url;
+    } catch (e) {
+      this.logger.warn(
+        `Could not persist rackup-coach result: ${e instanceof Error ? e.message : e}`,
+      );
+      return null;
+    }
   }
 
   async scoutOpponent(viewerId: string, opponentUserId: string) {

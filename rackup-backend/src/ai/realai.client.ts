@@ -5,8 +5,9 @@
  * `realai-coach.client.ts` → POST /v1/plugins/rackup-coach
  * (REALAI_RACKUP_WIRING_CONTRACT.md).
  *
- * This file remains for general /v1/chat/completions (training fallbacks).
- * Default local: http://127.0.0.1:8000
+ * This file remains for optional /v1/chat/completions (Hive GPU only).
+ * Render realai-api has no default_llm — do not use chat there for Coach.
+ * Local Hive: http://127.0.0.1:8001
  *
  * RealAI stays a separate process. RackUp never vendors that monorepo.
  */
@@ -27,11 +28,17 @@ export type RealAiStatus = {
   reachable: boolean;
   baseUrl: string;
   model: string;
+  coachPath: string;
+  chatRequiresLocalGpu: boolean;
   error?: string;
 };
 
 function baseUrl(): string {
-  return (process.env.REALAI_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '');
+  return (process.env.REALAI_BASE_URL ?? 'http://127.0.0.1:8001').replace(/\/$/, '');
+}
+
+function coachPath(): string {
+  return process.env.REALAI_COACH_PATH ?? '/v1/plugins/rackup-coach';
 }
 
 function modelName(): string {
@@ -55,16 +62,27 @@ export async function getRealAiStatus(): Promise<RealAiStatus> {
         reachable: false,
         baseUrl: url,
         model,
+        coachPath: coachPath(),
+        chatRequiresLocalGpu: true,
         error: `health ${res.status}`,
       };
     }
-    return { configured: true, reachable: true, baseUrl: url, model };
+    return {
+      configured: true,
+      reachable: true,
+      baseUrl: url,
+      model,
+      coachPath: coachPath(),
+      chatRequiresLocalGpu: true,
+    };
   } catch (e) {
     return {
       configured: true,
       reachable: false,
       baseUrl: url,
       model,
+      coachPath: coachPath(),
+      chatRequiresLocalGpu: true,
       error: e instanceof Error ? e.message : 'unreachable',
     };
   }
