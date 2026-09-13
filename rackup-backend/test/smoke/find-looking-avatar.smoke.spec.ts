@@ -9,6 +9,7 @@ import { ObjectStorageService } from '../../src/common/object-storage.service';
 import {
   haversineMeters,
   isLookingRequestActive,
+  LOOKING_BOARD_LIMIT,
   LOOKING_TTL_MS,
   mergeLookingByUser,
   rankLookingCandidate,
@@ -106,12 +107,22 @@ describe('Looking request expiry', () => {
       createdAt: new Date('2026-09-13T14:00:00Z'),
       expiresAt: new Date('2026-09-13T14:30:00Z'),
     };
+    const qb = {
+      delete: jest.fn().mockReturnThis(),
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 0 }),
+    };
     const repo = {
       findOne: jest.fn().mockResolvedValue(existing),
       create: jest.fn((x) => x),
       save: jest.fn(async (row) => row),
+      createQueryBuilder: jest.fn(() => qb),
     };
-    const v2Repo = { createQueryBuilder: jest.fn() };
+    const v2Repo = { createQueryBuilder: jest.fn(() => qb) };
     const gateway = { emitRequestCreated: jest.fn(), emitRequestCancelled: jest.fn(), emitMatchFound: jest.fn() };
     const svc = new MatchmakingService(
       repo as any,
@@ -141,6 +152,40 @@ describe('Looking request expiry', () => {
     expect(saved.expiresAt.getTime()).toBeGreaterThan(Date.now() + 20 * 60 * 1000);
     expect(isLookingRequestActive(saved.expiresAt)).toBe(true);
     expect(gateway.emitRequestCreated).toHaveBeenCalled();
+    expect(repo.createQueryBuilder).toHaveBeenCalled();
+  });
+
+  it('does not create a match when the opponent has blocked the challenger', async () => {
+    const matches = { create: jest.fn() };
+    const chat = {
+      getOrCreateDm: jest.fn().mockRejectedValue(Object.assign(new Error('blocked'), { status: 403 })),
+      send: jest.fn(),
+    };
+    const users = {
+      findById: jest.fn().mockResolvedValue({ id: 'u2', displayName: 'Pat' }),
+    };
+    const svc = new MatchmakingService(
+      { createQueryBuilder: jest.fn() } as any,
+      { createQueryBuilder: jest.fn() } as any,
+      matches as any,
+      { emitMatchFound: jest.fn() } as any,
+      chat as any,
+      users as any,
+    );
+    await expect(svc.challenge('u1', { opponentId: 'u2' })).rejects.toThrow(/blocked/);
+    expect(chat.getOrCreateDm).toHaveBeenCalledWith('u1', 'u2', { allowNonFriends: true });
+    expect(matches.create).not.toHaveBeenCalled();
+    expect(chat.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('Looking board limits', () => {
+  it('caps the public board so worldwide polls stay bounded', () => {
+    expect(LOOKING_BOARD_LIMIT).toBe(50);
+    const rows = Array.from({ length: 80 }, (_, i) =>
+      boardRow({ id: `r${i}`, user_id: `u${i}`, rank_score: i }),
+    );
+    expect(mergeLookingByUser(rows).slice(0, LOOKING_BOARD_LIMIT)).toHaveLength(50);
   });
 });
 

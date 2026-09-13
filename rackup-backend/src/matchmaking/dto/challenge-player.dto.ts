@@ -1,4 +1,4 @@
-import { IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class ChallengePlayerDto {
   @IsUUID()
@@ -15,7 +15,7 @@ export class ChallengePlayerDto {
   stakes?: string;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(1)
   @Max(21)
   raceTo?: number;

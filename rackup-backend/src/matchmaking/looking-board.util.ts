@@ -99,3 +99,5 @@ export function isLookingRequestActive(expiresAt: Date, now: Date = new Date()):
 }
 
 export const LOOKING_TTL_MS = 30 * 60 * 1000;
+/** Cap the discovery board so polls do not hydrate every live row worldwide. */
+export const LOOKING_BOARD_LIMIT = 50;
