@@ -314,6 +314,9 @@ export function PlayPage() {
               </button>
             </article>
           ))}
+          {!leagues?.length && leagues !== null && (
+            <div className="empty card">No leagues yet. Create or join a league to see weekly matches and standings.</div>
+          )}
         </div>
       )}
 

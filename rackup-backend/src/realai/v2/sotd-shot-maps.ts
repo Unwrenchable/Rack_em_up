@@ -10,7 +10,7 @@ export type SotdPoint = { x: number; y: number };
 
 export type SotdObjectBall = SotdPoint & {
   ballId: number;
-  role?: 'object' | 'blocker' | 'prop';
+  role?: 'object' | 'blocker' | 'prop' | 'helper';
 };
 
 export type SotdPathSegment = {
@@ -59,47 +59,47 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "medium",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 66.5,
-      "y": 21.7
+      "x": 66.6,
+      "y": 20.9
     },
     "object_ball_positions": [
       {
         "ballId": 1,
         "x": 62.5,
-        "y": 4.2,
+        "y": 3.4,
         "role": "object"
       },
       {
         "ballId": 9,
-        "x": 78,
-        "y": 38,
-        "role": "object"
+        "x": 86,
+        "y": 40,
+        "role": "prop"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 66.5,
-          "y": 21.7
+          "x": 66.6,
+          "y": 20.9
         },
         "to": {
           "x": 62.5,
-          "y": 4.2
+          "y": 3.4
         }
       },
       {
         "from": {
           "x": 62.5,
-          "y": 4.2
+          "y": 3.4
         },
         "to": {
-          "x": 61.5,
+          "x": 61.7,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 61.5,
+          "x": 61.7,
           "y": 0
         },
         "to": {
@@ -137,7 +137,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                   O                   │\n│                   ·                   │\n│                    ·                  │\n│                    ·         9        │\n│                    ·                  │\n│                     ·                 │\n│                     ·                 │\n│                      ·  C             │\n│                      ·  ·             │\n│                      · ·              │\n│                       ··              │\n│                       ·1              │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                   O                   │\n│                   ·                   │\n│                    ·            9     │\n│                    ·                  │\n│                    ·                  │\n│                     ·                 │\n│                     ·                 │\n│                      ·  C             │\n│                      ·  ·             │\n│                      ·  ·             │\n│                       ··              │\n│                       ·1              │\n│                        ·              │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-02",
@@ -148,32 +148,32 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 64.5,
-      "y": 18.8
+      "x": 65.1,
+      "y": 15.1
     },
     "object_ball_positions": [
       {
         "ballId": 1,
         "x": 75,
-        "y": 28,
+        "y": 25,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 64.5,
-          "y": 18.8
+          "x": 65.1,
+          "y": 15.1
         },
         "to": {
           "x": 75,
-          "y": 28
+          "y": 25
         }
       },
       {
         "from": {
           "x": 75,
-          "y": 28
+          "y": 25
         },
         "to": {
           "x": 100,
@@ -195,8 +195,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 70.5,
-        "y": 24,
+        "x": 70.8,
+        "y": 20.8,
         "label": "cb_rest"
       }
     ],
@@ -210,7 +210,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                  ·    │\n│                                ··     │\n│                               ·       │\n│                             1·        │\n│                           ··          │\n│                         C·            │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                   ·   │\n│                                 ··    │\n│                                ·      │\n│                              ··       │\n│                             1         │\n│                           ·           │\n│                         C·            │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-03",
@@ -221,32 +221,32 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "6-low",
     "cue_ball_start": {
-      "x": 66,
-      "y": 29.9
+      "x": 65.8,
+      "y": 34.2
     },
     "object_ball_positions": [
       {
         "ballId": 1,
         "x": 75,
-        "y": 22,
+        "y": 25,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 66,
-          "y": 29.9
+          "x": 65.8,
+          "y": 34.2
         },
         "to": {
           "x": 75,
-          "y": 22
+          "y": 25
         }
       },
       {
         "from": {
           "x": 75,
-          "y": 22
+          "y": 25
         },
         "to": {
           "x": 100,
@@ -268,8 +268,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 64.5,
-        "y": 31.2,
+        "x": 65.1,
+        "y": 34.9,
         "label": "cb_rest"
       }
     ],
@@ -283,7 +283,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                         C·            │\n│                           ·           │\n│                             1·        │\n│                               ·       │\n│                                ··     │\n│                                  ·    │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                         C             │\n│                          ··           │\n│                             1         │\n│                              ··       │\n│                                ·      │\n│                                 ··    │\n│                                   ·   │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-04",
@@ -294,44 +294,44 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "medium",
     "tip_zone": "12-high",
     "cue_ball_start": {
-      "x": 52.6,
-      "y": 19.3
+      "x": 57.9,
+      "y": 7.9
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 66,
-        "y": 28,
+        "x": 72,
+        "y": 22,
         "role": "object"
       },
       {
         "ballId": 2,
-        "x": 76,
-        "y": 35,
+        "x": 78,
+        "y": 14,
         "role": "prop"
       },
       {
         "ballId": 3,
         "x": 84,
-        "y": 41,
+        "y": 14,
         "role": "prop"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 52.6,
-          "y": 19.3
+          "x": 57.9,
+          "y": 7.9
         },
         "to": {
-          "x": 66,
-          "y": 28
+          "x": 72,
+          "y": 22
         }
       },
       {
         "from": {
-          "x": 66,
-          "y": 28
+          "x": 72,
+          "y": 22
         },
         "to": {
           "x": 100,
@@ -353,8 +353,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 77.8,
-        "y": 35.6,
+        "x": 81.9,
+        "y": 31.9,
         "label": "cb_rest"
       }
     ],
@@ -368,7 +368,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                   · · │\n│                                3··    │\n│                              · ·      │\n│                            ·2         │\n│                         1·            │\n│                       ··              │\n│                    C·                 │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                   ·   │\n│                                 ··    │\n│                                ·      │\n│                             · ·       │\n│                            ·          │\n│                          ·1           │\n│                         ·             │\n│                       ··     2 3      │\n│                      C                │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-05",
@@ -379,42 +379,36 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "3-right",
     "cue_ball_start": {
-      "x": 30,
-      "y": 16
+      "x": 58.1,
+      "y": 17.8
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 64,
-        "y": 30,
+        "x": 80,
+        "y": 16,
         "role": "object"
-      },
-      {
-        "ballId": 8,
-        "x": 46,
-        "y": 20,
-        "role": "blocker"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 30,
-          "y": 16
+          "x": 58.1,
+          "y": 17.8
         },
         "to": {
-          "x": 64,
-          "y": 30
+          "x": 80,
+          "y": 16
         }
       },
       {
         "from": {
-          "x": 64,
-          "y": 30
+          "x": 80,
+          "y": 16
         },
         "to": {
           "x": 100,
-          "y": 50
+          "y": 0
         }
       }
     ],
@@ -428,18 +422,18 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "landing_zones": [
       {
         "x": 100,
-        "y": 50,
+        "y": 0,
         "label": "pocket"
       },
       {
-        "x": 69.5,
-        "y": 40.3,
+        "x": 86,
+        "y": 23.5,
         "label": "cb_rest"
       }
     ],
     "pocket_target": {
       "x": 100,
-      "y": 50
+      "y": 0
     },
     "coordinate_system": {
       "x": "0=head rail → 100=foot rail",
@@ -447,7 +441,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                               · ·     │\n│                            · ·        │\n│                          ··           │\n│                       ·1              │\n│                   ···                 │\n│              · ·X                     │\n│           C ·                         │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                      C· ·· ··1        │\n│                                ··     │\n│                                  ·    │\n│                                   · · │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-06",
@@ -458,13 +452,13 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "medium",
     "tip_zone": "9-left",
     "cue_ball_start": {
-      "x": 38,
-      "y": 34
+      "x": 64,
+      "y": 36.1
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 70,
+        "x": 72,
         "y": 20,
         "role": "object"
       }
@@ -472,17 +466,17 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "intended_path": [
       {
         "from": {
-          "x": 38,
-          "y": 34
+          "x": 64,
+          "y": 36.1
         },
         "to": {
-          "x": 70,
+          "x": 72,
           "y": 20
         }
       },
       {
         "from": {
-          "x": 70,
+          "x": 72,
           "y": 20
         },
         "to": {
@@ -505,8 +499,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 75.5,
-        "y": 9.6,
+        "x": 74.7,
+        "y": 6.6,
         "label": "cb_rest"
       }
     ],
@@ -520,7 +514,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│              C ·                      │\n│                 ·· ·                  │\n│                     · ··              │\n│                         · 1           │\n│                            ··         │\n│                              · ·      │\n│                                 ··    │\n│                                   · · │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                        C              │\n│                         ·             │\n│                          ·            │\n│                          ··           │\n│                           1           │\n│                             ··        │\n│                               ··      │\n│                                 ··    │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-07",
@@ -531,13 +525,13 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "firm",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 14,
+      "x": 16,
       "y": 10
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 86,
+        "x": 84,
         "y": 38,
         "role": "object"
       }
@@ -545,37 +539,37 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "intended_path": [
       {
         "from": {
-          "x": 14,
+          "x": 16,
           "y": 10
         },
         "to": {
-          "x": 34.8,
+          "x": 36.8,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 34.8,
+          "x": 36.8,
           "y": 0
         },
         "to": {
           "x": 100,
-          "y": 31.3
+          "y": 30.3
         }
       },
       {
         "from": {
           "x": 100,
-          "y": 31.3
+          "y": 30.3
         },
         "to": {
-          "x": 86,
+          "x": 84,
           "y": 38
         }
       },
       {
         "from": {
-          "x": 86,
+          "x": 84,
           "y": 38
         },
         "to": {
@@ -598,8 +592,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 81.4,
-        "y": 34.1,
+        "x": 79.2,
+        "y": 34.4,
         "label": "cb_rest"
       }
     ],
@@ -613,7 +607,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                  ··   │\n│                                 1·    │\n│                                   · · │\n│                                   · · │\n│                                · ·    │\n│                            · ··       │\n│                          ··           │\n│                     · ··              │\n│     C ··          ··                  │\n│         · ·    ··                     │\n│            ·  ·                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                 ··    │\n│                                1·     │\n│                                   ··  │\n│                                     · │\n│                                 ···   │\n│                              ··       │\n│                          ·· ·         │\n│                       · ·             │\n│      C· ·         · ··                │\n│          ··     ··                    │\n│             · ·                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-08",
@@ -624,48 +618,48 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 54.3,
-      "y": 25.1
+      "x": 61.3,
+      "y": 28.3
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 66.6,
-        "y": 31.8,
+        "x": 73.5,
+        "y": 35.1,
         "role": "object"
       },
       {
         "ballId": 2,
-        "x": 78,
-        "y": 38,
+        "x": 84,
+        "y": 41,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 54.3,
-          "y": 25.1
+          "x": 61.3,
+          "y": 28.3
         },
         "to": {
-          "x": 66.6,
-          "y": 31.8
+          "x": 73.5,
+          "y": 35.1
         }
       },
       {
         "from": {
-          "x": 66.6,
-          "y": 31.8
+          "x": 73.5,
+          "y": 35.1
         },
         "to": {
-          "x": 78,
-          "y": 38
+          "x": 84,
+          "y": 41
         }
       },
       {
         "from": {
-          "x": 78,
-          "y": 38
+          "x": 84,
+          "y": 41
         },
         "to": {
           "x": 100,
@@ -687,8 +681,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 61.3,
-        "y": 28.9,
+        "x": 68.3,
+        "y": 32.2,
         "label": "cb_rest"
       }
     ],
@@ -702,7 +696,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                               ··      │\n│                            · 2        │\n│                         1 ·           │\n│                       ··              │\n│                     C·                │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  · ·  │\n│                                2·     │\n│                             · ·       │\n│                          ··1          │\n│                       C·              │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-09",
@@ -713,47 +707,47 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "12-high",
     "cue_ball_start": {
-      "x": 40.3,
-      "y": 36.2
+      "x": 45.4,
+      "y": 39.8
     },
     "object_ball_positions": [
       {
         "ballId": 9,
-        "x": 74,
-        "y": 16,
-        "role": "object"
+        "x": 58,
+        "y": 30,
+        "role": "helper"
       },
       {
         "ballId": 1,
-        "x": 54,
-        "y": 28,
+        "x": 76,
+        "y": 16,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 40.3,
-          "y": 36.2
+          "x": 45.4,
+          "y": 39.8
         },
         "to": {
-          "x": 54,
-          "y": 28
+          "x": 58,
+          "y": 30
         }
       },
       {
         "from": {
-          "x": 54,
-          "y": 28
+          "x": 58,
+          "y": 30
         },
         "to": {
-          "x": 74,
+          "x": 76,
           "y": 16
         }
       },
       {
         "from": {
-          "x": 74,
+          "x": 76,
           "y": 16
         },
         "to": {
@@ -776,8 +770,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 86,
-        "y": 8.8,
+        "x": 87.1,
+        "y": 7.4,
         "label": "cb_rest"
       }
     ],
@@ -791,7 +785,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│               C                       │\n│                 ··                    │\n│                   · 1                 │\n│                      ··               │\n│                        · ·            │\n│                           ·9          │\n│                             · ·       │\n│                                ··     │\n│                                  · ·  │\n│                                     ·O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                 C                     │\n│                  ·                    │\n│                    ··                 │\n│                      H·               │\n│                        ··             │\n│                           ·           │\n│                            ·1         │\n│                              ··       │\n│                                 ··    │\n│                                   · · │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-10",
@@ -802,32 +796,32 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "feather",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 46,
-      "y": 24
+      "x": 82.8,
+      "y": 24.5
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 84,
-        "y": 5.5,
+        "x": 86,
+        "y": 4.8,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 46,
-          "y": 24
+          "x": 82.8,
+          "y": 24.5
         },
         "to": {
-          "x": 84,
-          "y": 5.5
+          "x": 86,
+          "y": 4.8
         }
       },
       {
         "from": {
-          "x": 84,
-          "y": 5.5
+          "x": 86,
+          "y": 4.8
         },
         "to": {
           "x": 100,
@@ -849,8 +843,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 78.3,
-        "y": 7.5,
+        "x": 80.3,
+        "y": 6.7,
         "label": "cb_rest"
       }
     ],
@@ -864,7 +858,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                 C                     │\n│                   ···                 │\n│                       ··              │\n│                         · ··          │\n│                             · ·       │\n│                                1· ·   │\n│                                    · O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                               C       │\n│                                ·      │\n│                                ·      │\n│                                ·      │\n│                                ·      │\n│                                 1··   │\n│                                     ·O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-11",
@@ -937,7 +931,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                   ·   │\n│                                 ··    │\n│                                ·      │\n│                             · ·       │\n│                            ·          │\n│                          ·1           │\n│                         ·             │\n│                       ··              │\n│                      ·                │\n│                    C·                 │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                   ·   │\n│                                 ··    │\n│                                ·      │\n│                             · ·       │\n│                            ·          │\n│                          ·1           │\n│                         ·             │\n│                       ··              │\n│                      ·                │\n│                    C·                 │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-12",
@@ -1010,7 +1004,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                        C·             │\n│                         ·             │\n│                          ··           │\n│                            ·          │\n│                             1         │\n│                              ··       │\n│                                ·      │\n│                                 ·     │\n│                                  ·    │\n│                                   ·   │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                        C·             │\n│                         ·             │\n│                          ··           │\n│                            ·          │\n│                             1         │\n│                              ··       │\n│                                ·      │\n│                                 ·     │\n│                                  ·    │\n│                                   ·   │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-13",
@@ -1021,58 +1015,52 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "firm",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 50.6,
-      "y": 18.6
+      "x": 52.5,
+      "y": 20.7
     },
     "object_ball_positions": [
       {
         "ballId": 9,
-        "x": 36,
-        "y": 12,
-        "role": "object"
-      },
-      {
-        "ballId": 1,
-        "x": 58,
-        "y": 30,
+        "x": 38,
+        "y": 14,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 50.6,
-          "y": 18.6
+          "x": 52.5,
+          "y": 20.7
         },
         "to": {
-          "x": 36,
-          "y": 12
+          "x": 38,
+          "y": 14
         }
       },
       {
         "from": {
-          "x": 36,
-          "y": 12
+          "x": 38,
+          "y": 14
         },
         "to": {
-          "x": 9.7,
+          "x": 7.8,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 9.7,
+          "x": 7.8,
           "y": 0
         },
         "to": {
           "x": 0,
-          "y": 4.4
+          "y": 3.6
         }
       },
       {
         "from": {
           "x": 0,
-          "y": 4.4
+          "y": 3.6
         },
         "to": {
           "x": 100,
@@ -1094,8 +1082,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 30.8,
-        "y": 8.9,
+        "x": 32.8,
+        "y": 11,
         "label": "cb_rest"
       }
     ],
@@ -1109,7 +1097,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                              ···      │\n│                           ··          │\n│                       ···             │\n│                    ··1                │\n│               · ··                    │\n│             ··                        │\n│          ··    · ·C                   │\n│      ···     9·                       │\n│   ··    · ··                          │\n│ ·     ··                              │\n│  ·  ·                                 │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                              ·· ·     │\n│                           · ·         │\n│                       ·· ·            │\n│                    · ·                │\n│                · ··                   │\n│              ··   ·C                  │\n│          ···   ··                     │\n│       ··   ··9                        │\n│   ···   ··                            │\n│ ·    ··                               │\n│ ·  ·                                  │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-14",
@@ -1120,14 +1108,14 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "1:30-high-right",
     "cue_ball_start": {
-      "x": 26,
-      "y": 18
+      "x": 28,
+      "y": 16
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 72,
-        "y": 34,
+        "x": 74,
+        "y": 36,
         "role": "object"
       },
       {
@@ -1140,38 +1128,28 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "intended_path": [
       {
         "from": {
-          "x": 26,
-          "y": 18
-        },
-        "to": {
-          "x": 38,
-          "y": 10
-        }
-      },
-      {
-        "from": {
-          "x": 38,
-          "y": 10
-        },
-        "to": {
-          "x": 54,
-          "y": 16
-        }
-      },
-      {
-        "from": {
-          "x": 54,
+          "x": 28,
           "y": 16
         },
         "to": {
-          "x": 72,
-          "y": 34
+          "x": 47,
+          "y": 35.2
         }
       },
       {
         "from": {
-          "x": 72,
-          "y": 34
+          "x": 47,
+          "y": 35.2
+        },
+        "to": {
+          "x": 74,
+          "y": 36
+        }
+      },
+      {
+        "from": {
+          "x": 74,
+          "y": 36
         },
         "to": {
           "x": 100,
@@ -1193,8 +1171,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 85.2,
-        "y": 38.6,
+        "x": 86.8,
+        "y": 41.6,
         "label": "cb_rest"
       }
     ],
@@ -1208,7 +1186,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                               · ·     │\n│                             ··        │\n│                           1           │\n│                         ··            │\n│                   X    ·              │\n│                      ··               │\n│          C·                           │\n│            ··  ·· ·                   │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                               ··      │\n│                      · ·· ·1 ·        │\n│                 · · ·                 │\n│                ·                      │\n│              ··   X                   │\n│             ·                         │\n│           C·                          │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-15",
@@ -1219,38 +1197,48 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "firm",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 26,
-      "y": 24
+      "x": 30,
+      "y": 22
     },
     "object_ball_positions": [
       {
         "ballId": 1,
         "x": 78,
-        "y": 20,
+        "y": 18,
         "role": "object"
       },
       {
         "ballId": 7,
-        "x": 50,
-        "y": 22,
+        "x": 54,
+        "y": 20,
         "role": "blocker"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 26,
-          "y": 24
+          "x": 30,
+          "y": 22
+        },
+        "to": {
+          "x": 53.3,
+          "y": 11
+        }
+      },
+      {
+        "from": {
+          "x": 53.3,
+          "y": 11
         },
         "to": {
           "x": 78,
-          "y": 20
+          "y": 18
         }
       },
       {
         "from": {
           "x": 78,
-          "y": 20
+          "y": 18
         },
         "to": {
           "x": 100,
@@ -1272,8 +1260,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 73.6,
-        "y": 24,
+        "x": 73.4,
+        "y": 21.8,
         "label": "cb_rest"
       }
     ],
@@ -1287,7 +1275,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│          C· ··                        │\n│                ·· X ·· ·· ·· 1        │\n│                               ·       │\n│                                ··     │\n│                                  ·    │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│           C ·       X                 │\n│              · ··         ·· 1·       │\n│                   ·  ·· ·      ·      │\n│                                 ··    │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-16",
@@ -1298,8 +1286,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "4:30-low-right",
     "cue_ball_start": {
-      "x": 34,
-      "y": 14
+      "x": 22,
+      "y": 12
     },
     "object_ball_positions": [
       {
@@ -1310,35 +1298,35 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       },
       {
         "ballId": 5,
-        "x": 48,
-        "y": 28,
+        "x": 40,
+        "y": 24,
         "role": "blocker"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 34,
-          "y": 14
+          "x": 22,
+          "y": 12
         },
         "to": {
-          "x": 24,
+          "x": 20,
           "y": 28
         }
       },
       {
         "from": {
-          "x": 24,
+          "x": 20,
           "y": 28
         },
         "to": {
-          "x": 40,
+          "x": 36,
           "y": 42
         }
       },
       {
         "from": {
-          "x": 40,
+          "x": 36,
           "y": 42
         },
         "to": {
@@ -1371,8 +1359,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 52.7,
-        "y": 27.7,
+        "x": 51.8,
+        "y": 29.1,
         "label": "cb_rest"
       }
     ],
@@ -1386,7 +1374,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                 ···   │\n│                 ··         · ··       │\n│             ··     ·· ·1 ··           │\n│            ·                          │\n│          ·       X                    │\n│          ·                            │\n│           ·                           │\n│            ·                          │\n│             C                         │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                 ···   │\n│               · ·          · ··       │\n│           ··     · ·· ·1 ··           │\n│          ·                            │\n│         ·                             │\n│        ·      X                       │\n│        ·                              │\n│        ·                              │\n│        C                              │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-17",
@@ -1469,7 +1457,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                   · · │\n│                                 ··    │\n│                              1 ·      │\n│                             ·         │\n│                           ··          │\n│                        · ·            │\n│                      ··               │\n│                     ·                 │\n│      C           ··                   │\n│       · ·      ··                     │\n│          ·· · ·                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                   · · │\n│                                 ··    │\n│                              1 ·      │\n│                             ·         │\n│                           ··          │\n│                        · ·            │\n│                      ··               │\n│                     ·                 │\n│      C           ··                   │\n│       · ·      ··                     │\n│          ·· · ·                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-18",
@@ -1480,48 +1468,48 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 64.9,
-      "y": 30.7
+      "x": 71.2,
+      "y": 33.5
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 77.2,
-        "y": 37.5,
+        "x": 83.3,
+        "y": 40.5,
         "role": "object"
       },
       {
         "ballId": 2,
-        "x": 80,
-        "y": 39,
+        "x": 86,
+        "y": 42,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 64.9,
-          "y": 30.7
+          "x": 71.2,
+          "y": 33.5
         },
         "to": {
-          "x": 77.2,
-          "y": 37.5
+          "x": 83.3,
+          "y": 40.5
         }
       },
       {
         "from": {
-          "x": 77.2,
-          "y": 37.5
+          "x": 83.3,
+          "y": 40.5
         },
         "to": {
-          "x": 80,
-          "y": 39
+          "x": 86,
+          "y": 42
         }
       },
       {
         "from": {
-          "x": 80,
-          "y": 39
+          "x": 86,
+          "y": 42
         },
         "to": {
           "x": 100,
@@ -1543,8 +1531,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 71.9,
-        "y": 34.6,
+        "x": 78.1,
+        "y": 37.5,
         "label": "cb_rest"
       }
     ],
@@ -1558,7 +1546,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                                ··     │\n│                            ·12        │\n│                          ··           │\n│                         C             │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                                12     │\n│                             · ·       │\n│                           C·          │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-19",
@@ -1569,47 +1557,41 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "medium",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 82.5,
-      "y": 16.5
+      "x": 82.6,
+      "y": 15.1
     },
     "object_ball_positions": [
       {
         "ballId": 1,
         "x": 70,
-        "y": 6.5,
-        "role": "object"
-      },
-      {
-        "ballId": 9,
-        "x": 42,
-        "y": 34,
+        "y": 5.2,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 82.5,
-          "y": 16.5
+          "x": 82.6,
+          "y": 15.1
         },
         "to": {
           "x": 70,
-          "y": 6.5
+          "y": 5.2
         }
       },
       {
         "from": {
           "x": 70,
-          "y": 6.5
+          "y": 5.2
         },
         "to": {
-          "x": 61.9,
+          "x": 63.4,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 61.9,
+          "x": 63.4,
           "y": 0
         },
         "to": {
@@ -1633,7 +1615,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       },
       {
         "x": 75.1,
-        "y": 3.3,
+        "y": 3,
         "label": "cb_rest"
       }
     ],
@@ -1647,7 +1629,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│O                                      │\n│ ··                                    │\n│    ··                                 │\n│      ·                                │\n│       ··       9                      │\n│         · ·                           │\n│            ·                          │\n│             ··                        │\n│               ··              C       │\n│                  ·          ··        │\n│                   ··      1·          │\n│                     ··  ··            │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│O                                      │\n│ ··                                    │\n│    ··                                 │\n│      ·                                │\n│       ··                              │\n│          ··                           │\n│            ·                          │\n│             ··                        │\n│                ··             C       │\n│                  ·           ·        │\n│                   ··       ··         │\n│                      ·· · 1           │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-20",
@@ -1658,13 +1640,13 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "medium",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 35.7,
-      "y": 11.4
+      "x": 50.1,
+      "y": 9.2
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 70,
+        "x": 78,
         "y": 32,
         "role": "object"
       }
@@ -1672,17 +1654,17 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "intended_path": [
       {
         "from": {
-          "x": 35.7,
-          "y": 11.4
+          "x": 50.1,
+          "y": 9.2
         },
         "to": {
-          "x": 70,
+          "x": 78,
           "y": 32
         }
       },
       {
         "from": {
-          "x": 70,
+          "x": 78,
           "y": 32
         },
         "to": {
@@ -1705,8 +1687,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 64.9,
-        "y": 28.9,
+        "x": 73.4,
+        "y": 28.2,
         "label": "cb_rest"
       }
     ],
@@ -1720,7 +1702,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                                ··     │\n│                             ··        │\n│                           1·          │\n│                        ··             │\n│                     · ·               │\n│                   ··                  │\n│                ··                     │\n│              C·                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                 ··    │\n│                                ·      │\n│                              1·       │\n│                            ·          │\n│                          ··           │\n│                        ··             │\n│                       ·               │\n│                    ··                 │\n│                   C                   │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-21",
@@ -1731,47 +1713,41 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "9-left",
     "cue_ball_start": {
-      "x": 25.6,
-      "y": 4.5
+      "x": 27.9,
+      "y": 4.6
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 22,
+        "x": 24,
         "y": 18,
-        "role": "object"
-      },
-      {
-        "ballId": 9,
-        "x": 48,
-        "y": 32,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 25.6,
-          "y": 4.5
+          "x": 27.9,
+          "y": 4.6
         },
         "to": {
-          "x": 22,
+          "x": 24,
           "y": 18
         }
       },
       {
         "from": {
-          "x": 22,
+          "x": 24,
           "y": 18
         },
         "to": {
-          "x": 13.4,
+          "x": 14.6,
           "y": 50
         }
       },
       {
         "from": {
-          "x": 13.4,
+          "x": 14.6,
           "y": 50
         },
         "to": {
@@ -1794,7 +1770,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 20.4,
+        "x": 22.3,
         "y": 15.8,
         "label": "cb_rest"
       }
@@ -1809,7 +1785,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│     ··                                │\n│    · ·                                │\n│    · ·                                │\n│    ·  ·          9                    │\n│   ·   ·                               │\n│  ··    ·                              │\n│  ·     ·                              │\n│  ·     1·                             │\n│ ·       ·                             │\n│ ·       ·                             │\n│·         C                            │\n│O                                      │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│     ··                                │\n│     ··                                │\n│    ·  ·                               │\n│    ·  ·                               │\n│   ·    ·                              │\n│   ·    ·                              │\n│  ·      ·                             │\n│  ·      1                             │\n│ ·        ·                            │\n│ ·        ·                            │\n│·          C                           │\n│O                                      │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-22",
@@ -1826,8 +1802,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 52.5,
-        "y": 4.4,
+        "x": 54,
+        "y": 4.6,
         "role": "object"
       }
     ],
@@ -1838,24 +1814,24 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
           "y": 14
         },
         "to": {
-          "x": 34.3,
+          "x": 35,
           "y": 50
         }
       },
       {
         "from": {
-          "x": 34.3,
+          "x": 35,
           "y": 50
         },
         "to": {
-          "x": 52.5,
-          "y": 4.4
+          "x": 54,
+          "y": 4.6
         }
       },
       {
         "from": {
-          "x": 52.5,
-          "y": 4.4
+          "x": 54,
+          "y": 4.6
         },
         "to": {
           "x": 50,
@@ -1877,8 +1853,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 55.5,
-        "y": 9.6,
+        "x": 57.9,
+        "y": 9.1,
         "label": "cb_rest"
       }
     ],
@@ -1892,7 +1868,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│             ··                        │\n│            · ·                        │\n│           ·   ·                       │\n│          ·    ·                       │\n│          ·     ·                      │\n│         ·       ·                     │\n│         ·        ·                    │\n│        ·         ·                    │\n│        C          ·                   │\n│                   ·                   │\n│                   ·1                  │\n│                   O                   │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│             ··                        │\n│            ·  ·                       │\n│           ··  ·                       │\n│          ·     ·                      │\n│          ·     ··                     │\n│         ·        ·                    │\n│         ·        ·                    │\n│        ·          ·                   │\n│        C          ·                   │\n│                    ·                  │\n│                    ·1                 │\n│                   O                   │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-23",
@@ -1903,44 +1879,44 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 58.3,
-      "y": 14.3
+      "x": 56.4,
+      "y": 12.2
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 72,
-        "y": 26,
+        "x": 70,
+        "y": 24,
         "role": "object"
       },
       {
         "ballId": 2,
-        "x": 76,
-        "y": 22,
+        "x": 80,
+        "y": 16,
         "role": "prop"
       },
       {
         "ballId": 3,
-        "x": 76,
-        "y": 30,
+        "x": 80,
+        "y": 10,
         "role": "prop"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 58.3,
-          "y": 14.3
+          "x": 56.4,
+          "y": 12.2
         },
         "to": {
-          "x": 72,
-          "y": 26
+          "x": 70,
+          "y": 24
         }
       },
       {
         "from": {
-          "x": 72,
-          "y": 26
+          "x": 70,
+          "y": 24
         },
         "to": {
           "x": 100,
@@ -1962,8 +1938,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 67.4,
-        "y": 22.1,
+        "x": 65.5,
+        "y": 20.1,
         "label": "cb_rest"
       }
     ],
@@ -1977,7 +1953,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                  ·    │\n│                                ··     │\n│                              ··       │\n│                             3         │\n│                          ·1           │\n│                        ··   2         │\n│                       ·               │\n│                      C                │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                 · ·   │\n│                                ·      │\n│                              ··       │\n│                             ·         │\n│                           1·          │\n│                         ··            │\n│                       ·      2        │\n│                     C·                │\n│                              3        │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-24",
@@ -1994,15 +1970,15 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 72,
-        "y": 20,
+        "x": 74,
+        "y": 18,
         "role": "object"
       },
       {
         "ballId": 8,
-        "x": 60,
-        "y": 34,
-        "role": "object"
+        "x": 48,
+        "y": 40,
+        "role": "prop"
       }
     ],
     "intended_path": [
@@ -2012,24 +1988,24 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
           "y": 24
         },
         "to": {
-          "x": 46.5,
+          "x": 49.1,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 46.5,
+          "x": 49.1,
           "y": 0
         },
         "to": {
-          "x": 72,
-          "y": 20
+          "x": 74,
+          "y": 18
         }
       },
       {
         "from": {
-          "x": 72,
-          "y": 20
+          "x": 74,
+          "y": 18
         },
         "to": {
           "x": 100,
@@ -2051,8 +2027,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 67.1,
-        "y": 23.5,
+        "x": 69.1,
+        "y": 21.4,
         "label": "cb_rest"
       }
     ],
@@ -2066,7 +2042,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                       8               │\n│                                       │\n│      C                                │\n│       ··                  1           │\n│          ·              ··  ··        │\n│           ··           ·      ··      │\n│             ··      · ·         ··    │\n│               · · ··               ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                  8                    │\n│                                       │\n│                                       │\n│                                       │\n│      C                                │\n│       · ·                             │\n│          ·                ·1·         │\n│           ··            ··    ··      │\n│              ··      ··         ··    │\n│                ··  ··              ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-25",
@@ -2077,48 +2053,32 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "1:30-high-right",
     "cue_ball_start": {
-      "x": 39.2,
-      "y": 33.8
+      "x": 64.2,
+      "y": 3.6
     },
     "object_ball_positions": [
       {
-        "ballId": 9,
-        "x": 70,
-        "y": 15,
-        "role": "object"
-      },
-      {
         "ballId": 1,
-        "x": 52,
-        "y": 26,
+        "x": 70,
+        "y": 3.4,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 39.2,
-          "y": 33.8
-        },
-        "to": {
-          "x": 52,
-          "y": 26
-        }
-      },
-      {
-        "from": {
-          "x": 52,
-          "y": 26
+          "x": 64.2,
+          "y": 3.6
         },
         "to": {
           "x": 70,
-          "y": 15
+          "y": 3.4
         }
       },
       {
         "from": {
           "x": 70,
-          "y": 15
+          "y": 3.4
         },
         "to": {
           "x": 100,
@@ -2140,8 +2100,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 81.9,
-        "y": 7.7,
+        "x": 84,
+        "y": 3,
         "label": "cb_rest"
       }
     ],
@@ -2155,7 +2115,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│               C·                      │\n│                 · ·                   │\n│                    1·                 │\n│                      · ·              │\n│                         · 9           │\n│                            ··         │\n│                               ··      │\n│                                  ··   │\n│                                     ·O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                        C· 1·· ·       │\n│                                · ·· ·O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-26",
@@ -2166,32 +2126,32 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 34,
-      "y": 32
+      "x": 56,
+      "y": 31.9
     },
     "object_ball_positions": [
       {
         "ballId": 1,
         "x": 58,
-        "y": 16,
+        "y": 14,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 34,
-          "y": 32
+          "x": 56,
+          "y": 31.9
         },
         "to": {
           "x": 58,
-          "y": 16
+          "y": 14
         }
       },
       {
         "from": {
           "x": 58,
-          "y": 16
+          "y": 14
         },
         "to": {
           "x": 50,
@@ -2213,8 +2173,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 60.7,
-        "y": 21.4,
+        "x": 61,
+        "y": 19.2,
         "label": "cb_rest"
       }
     ],
@@ -2228,7 +2188,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│             C                         │\n│              · ·                      │\n│                 ·                     │\n│                  ··                   │\n│                     ·1                │\n│                     ·                 │\n│                     ·                 │\n│                    ·                  │\n│                   O                   │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                     C                 │\n│                     ·                 │\n│                      ·                │\n│                      ·                │\n│                      ·                │\n│                     ·1                │\n│                     ·                 │\n│                    ·                  │\n│                   O                   │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-27",
@@ -2239,47 +2199,41 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "firm",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 23.1,
-      "y": 18.7
+      "x": 37.9,
+      "y": 26.4
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 35,
-        "y": 8,
-        "role": "object"
-      },
-      {
-        "ballId": 9,
-        "x": 62,
-        "y": 36,
+        "x": 48,
+        "y": 14,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 23.1,
-          "y": 18.7
+          "x": 37.9,
+          "y": 26.4
         },
         "to": {
-          "x": 35,
-          "y": 8
+          "x": 48,
+          "y": 14
         }
       },
       {
         "from": {
-          "x": 35,
-          "y": 8
+          "x": 48,
+          "y": 14
         },
         "to": {
-          "x": 44,
+          "x": 59.4,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 44,
+          "x": 59.4,
           "y": 0
         },
         "to": {
@@ -2302,8 +2256,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 30,
-        "y": 4.7,
+        "x": 43.1,
+        "y": 10.6,
         "label": "cb_rest"
       }
     ],
@@ -2317,7 +2271,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                   ·   │\n│                        9       · ·    │\n│                              ··       │\n│                             ·         │\n│                           ··          │\n│                          ·            │\n│         C·            · ·             │\n│           ··        ··                │\n│             1      ·                  │\n│              · · ··                   │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                     · │\n│                                   ··  │\n│                                  ·    │\n│                                 ·     │\n│                               ··      │\n│              C·              ·        │\n│                ·            ·         │\n│                 ·         ··          │\n│                  1·      ·            │\n│                    ·    ·             │\n│                     ·· ·              │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-28",
@@ -2334,14 +2288,14 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 78,
+        "x": 80,
         "y": 36,
         "role": "object"
       },
       {
         "ballId": 8,
-        "x": 58,
-        "y": 22,
+        "x": 42,
+        "y": 40,
         "role": "prop"
       }
     ],
@@ -2352,14 +2306,599 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
           "y": 10
         },
         "to": {
-          "x": 29.5,
+          "x": 29.9,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 29.5,
+          "x": 29.9,
           "y": 0
+        },
+        "to": {
+          "x": 80,
+          "y": 36
+        }
+      },
+      {
+        "from": {
+          "x": 80,
+          "y": 36
+        },
+        "to": {
+          "x": 100,
+          "y": 50
+        }
+      }
+    ],
+    "english": {
+      "tip_zone": "center",
+      "sidespin": 0,
+      "backspin": 0,
+      "follow": 0,
+      "label": "none"
+    },
+    "landing_zones": [
+      {
+        "x": 100,
+        "y": 50,
+        "label": "pocket"
+      },
+      {
+        "x": 75.1,
+        "y": 32.6,
+        "label": "cb_rest"
+      }
+    ],
+    "pocket_target": {
+      "x": 100,
+      "y": 50
+    },
+    "coordinate_system": {
+      "x": "0=head rail → 100=foot rail",
+      "y": "0=bottom long rail → 50=top long rail",
+      "units": "normalized table percent (9-foot aspect 2:1)"
+    },
+    "source": "catalogue",
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                   · · │\n│                8                ··    │\n│                              1 ·      │\n│                             ·         │\n│                           ··          │\n│                        ··             │\n│                      ··               │\n│                    ·                  │\n│                  ··                   │\n│      C·       ··                      │\n│         ··  ··                        │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
+  },
+  {
+    "id": "sotd-29",
+    "name": "Elevated Draw Over a Rail Nip",
+    "difficulty": "Hard",
+    "difficulty_rating": 3,
+    "category": "position",
+    "speed_category": "soft",
+    "tip_zone": "6-low",
+    "cue_ball_start": {
+      "x": 64.9,
+      "y": 20.4
+    },
+    "object_ball_positions": [
+      {
+        "ballId": 1,
+        "x": 74,
+        "y": 7.2,
+        "role": "object"
+      }
+    ],
+    "intended_path": [
+      {
+        "from": {
+          "x": 64.9,
+          "y": 20.4
+        },
+        "to": {
+          "x": 74,
+          "y": 7.2
+        }
+      },
+      {
+        "from": {
+          "x": 74,
+          "y": 7.2
+        },
+        "to": {
+          "x": 100,
+          "y": 0
+        }
+      }
+    ],
+    "english": {
+      "tip_zone": "6-low",
+      "sidespin": 0,
+      "backspin": 0.75,
+      "follow": 0,
+      "label": "draw"
+    },
+    "landing_zones": [
+      {
+        "x": 100,
+        "y": 0,
+        "label": "pocket"
+      },
+      {
+        "x": 66.1,
+        "y": 18.7,
+        "label": "cb_rest"
+      }
+    ],
+    "pocket_target": {
+      "x": 100,
+      "y": 0
+    },
+    "coordinate_system": {
+      "x": "0=head rail → 100=foot rail",
+      "y": "0=bottom long rail → 50=top long rail",
+      "units": "normalized table percent (9-foot aspect 2:1)"
+    },
+    "source": "catalogue",
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                         C             │\n│                          ·            │\n│                          ··           │\n│                            1          │\n│                              ··· ·    │\n│                                   · ·O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
+  },
+  {
+    "id": "sotd-30",
+    "name": "Clockwise Curve Drag",
+    "difficulty": "Medium",
+    "difficulty_rating": 2,
+    "category": "curve",
+    "speed_category": "soft",
+    "tip_zone": "1:30-high-right",
+    "cue_ball_start": {
+      "x": 28,
+      "y": 14
+    },
+    "object_ball_positions": [
+      {
+        "ballId": 1,
+        "x": 72,
+        "y": 36,
+        "role": "object"
+      },
+      {
+        "ballId": 8,
+        "x": 50,
+        "y": 24,
+        "role": "blocker"
+      }
+    ],
+    "intended_path": [
+      {
+        "from": {
+          "x": 28,
+          "y": 14
+        },
+        "to": {
+          "x": 45.1,
+          "y": 34.8
+        }
+      },
+      {
+        "from": {
+          "x": 45.1,
+          "y": 34.8
+        },
+        "to": {
+          "x": 72,
+          "y": 36
+        }
+      },
+      {
+        "from": {
+          "x": 72,
+          "y": 36
+        },
+        "to": {
+          "x": 100,
+          "y": 50
+        }
+      }
+    ],
+    "english": {
+      "tip_zone": "1:30-high-right",
+      "sidespin": 0.45,
+      "backspin": 0,
+      "follow": 0.5,
+      "label": "high-right"
+    },
+    "landing_zones": [
+      {
+        "x": 100,
+        "y": 50,
+        "label": "pocket"
+      },
+      {
+        "x": 84.5,
+        "y": 42.3,
+        "label": "cb_rest"
+      }
+    ],
+    "pocket_target": {
+      "x": 100,
+      "y": 50
+    },
+    "coordinate_system": {
+      "x": "0=head rail → 100=foot rail",
+      "y": "0=bottom long rail → 50=top long rail",
+      "units": "normalized table percent (9-foot aspect 2:1)"
+    },
+    "source": "catalogue",
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                               · ·     │\n│                       ·· ·1 ··        │\n│                ·  ·· ·                │\n│               ·                       │\n│             ··    X                   │\n│            ·                          │\n│            ·                          │\n│           C                           │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
+  },
+  {
+    "id": "sotd-31",
+    "name": "Three-Ball Line Combo",
+    "difficulty": "Medium",
+    "difficulty_rating": 2,
+    "category": "combo",
+    "speed_category": "soft",
+    "tip_zone": "center",
+    "cue_ball_start": {
+      "x": 55.6,
+      "y": 24.6
+    },
+    "object_ball_positions": [
+      {
+        "ballId": 1,
+        "x": 66.9,
+        "y": 31.1,
+        "role": "object"
+      },
+      {
+        "ballId": 2,
+        "x": 76.4,
+        "y": 36.5,
+        "role": "object"
+      },
+      {
+        "ballId": 3,
+        "x": 86,
+        "y": 42,
+        "role": "object"
+      }
+    ],
+    "intended_path": [
+      {
+        "from": {
+          "x": 55.6,
+          "y": 24.6
+        },
+        "to": {
+          "x": 66.9,
+          "y": 31.1
+        }
+      },
+      {
+        "from": {
+          "x": 66.9,
+          "y": 31.1
+        },
+        "to": {
+          "x": 76.4,
+          "y": 36.5
+        }
+      },
+      {
+        "from": {
+          "x": 76.4,
+          "y": 36.5
+        },
+        "to": {
+          "x": 86,
+          "y": 42
+        }
+      },
+      {
+        "from": {
+          "x": 86,
+          "y": 42
+        },
+        "to": {
+          "x": 100,
+          "y": 50
+        }
+      }
+    ],
+    "english": {
+      "tip_zone": "center",
+      "sidespin": 0,
+      "backspin": 0,
+      "follow": 0,
+      "label": "none"
+    },
+    "landing_zones": [
+      {
+        "x": 100,
+        "y": 50,
+        "label": "pocket"
+      },
+      {
+        "x": 61.7,
+        "y": 28.1,
+        "label": "cb_rest"
+      }
+    ],
+    "pocket_target": {
+      "x": 100,
+      "y": 50
+    },
+    "coordinate_system": {
+      "x": "0=head rail → 100=foot rail",
+      "y": "0=bottom long rail → 50=top long rail",
+      "units": "normalized table percent (9-foot aspect 2:1)"
+    },
+    "source": "catalogue",
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                               · 3     │\n│                             2·        │\n│                           ··          │\n│                        ·1             │\n│                     C ·               │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
+  },
+  {
+    "id": "sotd-32",
+    "name": "Jump-Draw Hybrid Tease",
+    "difficulty": "Insane",
+    "difficulty_rating": 4,
+    "category": "jump",
+    "speed_category": "firm",
+    "tip_zone": "6-low",
+    "cue_ball_start": {
+      "x": 24,
+      "y": 16
+    },
+    "object_ball_positions": [
+      {
+        "ballId": 1,
+        "x": 76,
+        "y": 34,
+        "role": "object"
+      },
+      {
+        "ballId": 7,
+        "x": 50,
+        "y": 24,
+        "role": "blocker"
+      }
+    ],
+    "intended_path": [
+      {
+        "from": {
+          "x": 24,
+          "y": 16
+        },
+        "to": {
+          "x": 46.7,
+          "y": 34.4
+        }
+      },
+      {
+        "from": {
+          "x": 46.7,
+          "y": 34.4
+        },
+        "to": {
+          "x": 76,
+          "y": 34
+        }
+      },
+      {
+        "from": {
+          "x": 76,
+          "y": 34
+        },
+        "to": {
+          "x": 100,
+          "y": 50
+        }
+      }
+    ],
+    "english": {
+      "tip_zone": "6-low",
+      "sidespin": 0,
+      "backspin": 0.75,
+      "follow": 0,
+      "label": "draw"
+    },
+    "landing_zones": [
+      {
+        "x": 100,
+        "y": 50,
+        "label": "pocket"
+      },
+      {
+        "x": 62.8,
+        "y": 29.4,
+        "label": "cb_rest"
+      }
+    ],
+    "pocket_target": {
+      "x": 100,
+      "y": 50
+    },
+    "coordinate_system": {
+      "x": "0=head rail → 100=foot rail",
+      "y": "0=bottom long rail → 50=top long rail",
+      "units": "normalized table percent (9-foot aspect 2:1)"
+    },
+    "source": "catalogue",
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                   · · │\n│                                 ··    │\n│                              ··       │\n│                 · · · ·· ·· 1         │\n│               ·                       │\n│             ··    X                   │\n│            ·                          │\n│         C·                            │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
+  },
+  {
+    "id": "sotd-33",
+    "name": "Hold-Up English Along the Rail",
+    "difficulty": "Hard",
+    "difficulty_rating": 3,
+    "category": "position",
+    "speed_category": "medium",
+    "tip_zone": "7:30-low-left",
+    "cue_ball_start": {
+      "x": 67.6,
+      "y": 17.6
+    },
+    "object_ball_positions": [
+      {
+        "ballId": 1,
+        "x": 58,
+        "y": 4.8,
+        "role": "object"
+      }
+    ],
+    "intended_path": [
+      {
+        "from": {
+          "x": 67.6,
+          "y": 17.6
+        },
+        "to": {
+          "x": 58,
+          "y": 4.8
+        }
+      },
+      {
+        "from": {
+          "x": 58,
+          "y": 4.8
+        },
+        "to": {
+          "x": 50,
+          "y": 0
+        }
+      }
+    ],
+    "english": {
+      "tip_zone": "7:30-low-left",
+      "sidespin": -0.4,
+      "backspin": 0.55,
+      "follow": 0,
+      "label": "low-left"
+    },
+    "landing_zones": [
+      {
+        "x": 50,
+        "y": 0,
+        "label": "pocket"
+      },
+      {
+        "x": 66.4,
+        "y": 16,
+        "label": "cb_rest"
+      }
+    ],
+    "pocket_target": {
+      "x": 50,
+      "y": 0
+    },
+    "coordinate_system": {
+      "x": "0=head rail → 100=foot rail",
+      "y": "0=bottom long rail → 50=top long rail",
+      "units": "normalized table percent (9-foot aspect 2:1)"
+    },
+    "source": "catalogue",
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                          C            │\n│                        ··             │\n│                       ·               │\n│                     ·1                │\n│                   O                   │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
+  },
+  {
+    "id": "sotd-34",
+    "name": "Dead Ball Bank (Soft)",
+    "difficulty": "Medium",
+    "difficulty_rating": 2,
+    "category": "bank",
+    "speed_category": "soft",
+    "tip_zone": "center",
+    "cue_ball_start": {
+      "x": 73.4,
+      "y": 20.1
+    },
+    "object_ball_positions": [
+      {
+        "ballId": 1,
+        "x": 68,
+        "y": 4,
+        "role": "object"
+      }
+    ],
+    "intended_path": [
+      {
+        "from": {
+          "x": 73.4,
+          "y": 20.1
+        },
+        "to": {
+          "x": 68,
+          "y": 4
+        }
+      },
+      {
+        "from": {
+          "x": 68,
+          "y": 4
+        },
+        "to": {
+          "x": 66.7,
+          "y": 0
+        }
+      },
+      {
+        "from": {
+          "x": 66.7,
+          "y": 0
+        },
+        "to": {
+          "x": 50,
+          "y": 50
+        }
+      }
+    ],
+    "english": {
+      "tip_zone": "center",
+      "sidespin": 0,
+      "backspin": 0,
+      "follow": 0,
+      "label": "none"
+    },
+    "landing_zones": [
+      {
+        "x": 50,
+        "y": 50,
+        "label": "pocket"
+      },
+      {
+        "x": 70.2,
+        "y": 3,
+        "label": "cb_rest"
+      }
+    ],
+    "pocket_target": {
+      "x": 50,
+      "y": 50
+    },
+    "coordinate_system": {
+      "x": "0=head rail → 100=foot rail",
+      "y": "0=bottom long rail → 50=top long rail",
+      "units": "normalized table percent (9-foot aspect 2:1)"
+    },
+    "source": "catalogue",
+    "ascii_table": "O───────────────────────────────────────O\n│                   O                   │\n│                   ·                   │\n│                    ·                  │\n│                    ·                  │\n│                     ·                 │\n│                     ·                 │\n│                      ·                │\n│                       ·    C          │\n│                       ·   ·           │\n│                        ·  ·           │\n│                        · ·            │\n│                         ·1            │\n│                          ·            │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
+  },
+  {
+    "id": "sotd-35",
+    "name": "Point-to-Point Long Pot",
+    "difficulty": "Easy",
+    "difficulty_rating": 1,
+    "category": "position",
+    "speed_category": "medium",
+    "tip_zone": "center",
+    "cue_ball_start": {
+      "x": 44.3,
+      "y": 14.5
+    },
+    "object_ball_positions": [
+      {
+        "ballId": 1,
+        "x": 78,
+        "y": 36,
+        "role": "object"
+      }
+    ],
+    "intended_path": [
+      {
+        "from": {
+          "x": 44.3,
+          "y": 14.5
         },
         "to": {
           "x": 78,
@@ -2406,598 +2945,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  · ·  │\n│                                ··     │\n│                              1·       │\n│                            ·          │\n│                          ··           │\n│                       · ·             │\n│                     ·8                │\n│                    ·                  │\n│                 · ·                   │\n│      C·       ··                      │\n│         ·· · ·                        │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
-  },
-  {
-    "id": "sotd-29",
-    "name": "Elevated Draw Over a Rail Nip",
-    "difficulty": "Hard",
-    "difficulty_rating": 3,
-    "category": "position",
-    "speed_category": "soft",
-    "tip_zone": "6-low",
-    "cue_ball_start": {
-      "x": 46,
-      "y": 22
-    },
-    "object_ball_positions": [
-      {
-        "ballId": 1,
-        "x": 72,
-        "y": 7.5,
-        "role": "object"
-      }
-    ],
-    "intended_path": [
-      {
-        "from": {
-          "x": 46,
-          "y": 22
-        },
-        "to": {
-          "x": 72,
-          "y": 7.5
-        }
-      },
-      {
-        "from": {
-          "x": 72,
-          "y": 7.5
-        },
-        "to": {
-          "x": 100,
-          "y": 0
-        }
-      }
-    ],
-    "english": {
-      "tip_zone": "6-low",
-      "sidespin": 0,
-      "backspin": 0.75,
-      "follow": 0,
-      "label": "draw"
-    },
-    "landing_zones": [
-      {
-        "x": 100,
-        "y": 0,
-        "label": "pocket"
-      },
-      {
-        "x": 59.8,
-        "y": 14.3,
-        "label": "cb_rest"
-      }
-    ],
-    "pocket_target": {
-      "x": 100,
-      "y": 0
-    },
-    "coordinate_system": {
-      "x": "0=head rail → 100=foot rail",
-      "y": "0=bottom long rail → 50=top long rail",
-      "units": "normalized table percent (9-foot aspect 2:1)"
-    },
-    "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                 C ·                   │\n│                    · ·                │\n│                       · ·             │\n│                          ·1 ·         │\n│                              · ·· ·   │\n│                                    · O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
-  },
-  {
-    "id": "sotd-30",
-    "name": "Clockwise Curve Drag",
-    "difficulty": "Medium",
-    "difficulty_rating": 2,
-    "category": "curve",
-    "speed_category": "soft",
-    "tip_zone": "1:30-high-right",
-    "cue_ball_start": {
-      "x": 28,
-      "y": 16
-    },
-    "object_ball_positions": [
-      {
-        "ballId": 1,
-        "x": 70,
-        "y": 34,
-        "role": "object"
-      },
-      {
-        "ballId": 8,
-        "x": 50,
-        "y": 24,
-        "role": "blocker"
-      }
-    ],
-    "intended_path": [
-      {
-        "from": {
-          "x": 28,
-          "y": 16
-        },
-        "to": {
-          "x": 40,
-          "y": 9
-        }
-      },
-      {
-        "from": {
-          "x": 40,
-          "y": 9
-        },
-        "to": {
-          "x": 56,
-          "y": 14
-        }
-      },
-      {
-        "from": {
-          "x": 56,
-          "y": 14
-        },
-        "to": {
-          "x": 70,
-          "y": 34
-        }
-      },
-      {
-        "from": {
-          "x": 70,
-          "y": 34
-        },
-        "to": {
-          "x": 100,
-          "y": 50
-        }
-      }
-    ],
-    "english": {
-      "tip_zone": "1:30-high-right",
-      "sidespin": 0.45,
-      "backspin": 0,
-      "follow": 0.5,
-      "label": "high-right"
-    },
-    "landing_zones": [
-      {
-        "x": 100,
-        "y": 50,
-        "label": "pocket"
-      },
-      {
-        "x": 82.9,
-        "y": 39.5,
-        "label": "cb_rest"
-      }
-    ],
-    "pocket_target": {
-      "x": 100,
-      "y": 50
-    },
-    "coordinate_system": {
-      "x": "0=head rail → 100=foot rail",
-      "y": "0=bottom long rail → 50=top long rail",
-      "units": "normalized table percent (9-foot aspect 2:1)"
-    },
-    "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                                ··     │\n│                            ···        │\n│                           1           │\n│                         ··            │\n│                   X    ·              │\n│                       ·               │\n│           C          ·                │\n│            · ·   · ·                  │\n│                 ·                     │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
-  },
-  {
-    "id": "sotd-31",
-    "name": "Three-Ball Line Combo",
-    "difficulty": "Medium",
-    "difficulty_rating": 2,
-    "category": "combo",
-    "speed_category": "soft",
-    "tip_zone": "center",
-    "cue_ball_start": {
-      "x": 49.7,
-      "y": 22
-    },
-    "object_ball_positions": [
-      {
-        "ballId": 1,
-        "x": 61,
-        "y": 28.3,
-        "role": "object"
-      },
-      {
-        "ballId": 2,
-        "x": 71.5,
-        "y": 34.2,
-        "role": "object"
-      },
-      {
-        "ballId": 3,
-        "x": 82,
-        "y": 40,
-        "role": "object"
-      }
-    ],
-    "intended_path": [
-      {
-        "from": {
-          "x": 49.7,
-          "y": 22
-        },
-        "to": {
-          "x": 61,
-          "y": 28.3
-        }
-      },
-      {
-        "from": {
-          "x": 61,
-          "y": 28.3
-        },
-        "to": {
-          "x": 71.5,
-          "y": 34.2
-        }
-      },
-      {
-        "from": {
-          "x": 71.5,
-          "y": 34.2
-        },
-        "to": {
-          "x": 82,
-          "y": 40
-        }
-      },
-      {
-        "from": {
-          "x": 82,
-          "y": 40
-        },
-        "to": {
-          "x": 100,
-          "y": 50
-        }
-      }
-    ],
-    "english": {
-      "tip_zone": "center",
-      "sidespin": 0,
-      "backspin": 0,
-      "follow": 0,
-      "label": "none"
-    },
-    "landing_zones": [
-      {
-        "x": 100,
-        "y": 50,
-        "label": "pocket"
-      },
-      {
-        "x": 55.8,
-        "y": 25.4,
-        "label": "cb_rest"
-      }
-    ],
-    "pocket_target": {
-      "x": 100,
-      "y": 50
-    },
-    "coordinate_system": {
-      "x": "0=head rail → 100=foot rail",
-      "y": "0=bottom long rail → 50=top long rail",
-      "units": "normalized table percent (9-foot aspect 2:1)"
-    },
-    "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                               3 ·     │\n│                             ··        │\n│                          ·2           │\n│                       1 ·             │\n│                    · ·                │\n│                   C                   │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
-  },
-  {
-    "id": "sotd-32",
-    "name": "Jump-Draw Hybrid Tease",
-    "difficulty": "Insane",
-    "difficulty_rating": 4,
-    "category": "jump",
-    "speed_category": "firm",
-    "tip_zone": "6-low",
-    "cue_ball_start": {
-      "x": 24,
-      "y": 18
-    },
-    "object_ball_positions": [
-      {
-        "ballId": 1,
-        "x": 76,
-        "y": 34,
-        "role": "object"
-      },
-      {
-        "ballId": 7,
-        "x": 50,
-        "y": 26,
-        "role": "blocker"
-      }
-    ],
-    "intended_path": [
-      {
-        "from": {
-          "x": 24,
-          "y": 18
-        },
-        "to": {
-          "x": 76,
-          "y": 34
-        }
-      },
-      {
-        "from": {
-          "x": 76,
-          "y": 34
-        },
-        "to": {
-          "x": 100,
-          "y": 50
-        }
-      }
-    ],
-    "english": {
-      "tip_zone": "6-low",
-      "sidespin": 0,
-      "backspin": 0.75,
-      "follow": 0,
-      "label": "draw"
-    },
-    "landing_zones": [
-      {
-        "x": 100,
-        "y": 50,
-        "label": "pocket"
-      },
-      {
-        "x": 62.6,
-        "y": 29.9,
-        "label": "cb_rest"
-      }
-    ],
-    "pocket_target": {
-      "x": 100,
-      "y": 50
-    },
-    "coordinate_system": {
-      "x": "0=head rail → 100=foot rail",
-      "y": "0=bottom long rail → 50=top long rail",
-      "units": "normalized table percent (9-foot aspect 2:1)"
-    },
-    "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                   · · │\n│                                 ··    │\n│                              ··       │\n│                          ·· 1         │\n│                    · ·· ·             │\n│                · ·X                   │\n│           ··· ·                       │\n│         C                             │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
-  },
-  {
-    "id": "sotd-33",
-    "name": "Hold-Up English Along the Rail",
-    "difficulty": "Hard",
-    "difficulty_rating": 3,
-    "category": "position",
-    "speed_category": "medium",
-    "tip_zone": "7:30-low-left",
-    "cue_ball_start": {
-      "x": 30,
-      "y": 20
-    },
-    "object_ball_positions": [
-      {
-        "ballId": 1,
-        "x": 56,
-        "y": 4.6,
-        "role": "object"
-      }
-    ],
-    "intended_path": [
-      {
-        "from": {
-          "x": 30,
-          "y": 20
-        },
-        "to": {
-          "x": 56,
-          "y": 4.6
-        }
-      },
-      {
-        "from": {
-          "x": 56,
-          "y": 4.6
-        },
-        "to": {
-          "x": 50,
-          "y": 0
-        }
-      }
-    ],
-    "english": {
-      "tip_zone": "7:30-low-left",
-      "sidespin": -0.4,
-      "backspin": 0.55,
-      "follow": 0,
-      "label": "low-left"
-    },
-    "landing_zones": [
-      {
-        "x": 50,
-        "y": 0,
-        "label": "pocket"
-      },
-      {
-        "x": 44,
-        "y": 11.7,
-        "label": "cb_rest"
-      }
-    ],
-    "pocket_target": {
-      "x": 50,
-      "y": 0
-    },
-    "coordinate_system": {
-      "x": "0=head rail → 100=foot rail",
-      "y": "0=bottom long rail → 50=top long rail",
-      "units": "normalized table percent (9-foot aspect 2:1)"
-    },
-    "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│           C                           │\n│             ··                        │\n│               ··                      │\n│                  ···                  │\n│                    ·1                 │\n│                   O                   │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
-  },
-  {
-    "id": "sotd-34",
-    "name": "Dead Ball Bank (Soft)",
-    "difficulty": "Medium",
-    "difficulty_rating": 2,
-    "category": "bank",
-    "speed_category": "soft",
-    "tip_zone": "center",
-    "cue_ball_start": {
-      "x": 73.3,
-      "y": 20.5
-    },
-    "object_ball_positions": [
-      {
-        "ballId": 1,
-        "x": 68,
-        "y": 4.4,
-        "role": "object"
-      },
-      {
-        "ballId": 9,
-        "x": 82,
-        "y": 34,
-        "role": "object"
-      }
-    ],
-    "intended_path": [
-      {
-        "from": {
-          "x": 73.3,
-          "y": 20.5
-        },
-        "to": {
-          "x": 68,
-          "y": 4.4
-        }
-      },
-      {
-        "from": {
-          "x": 68,
-          "y": 4.4
-        },
-        "to": {
-          "x": 66.5,
-          "y": 0
-        }
-      },
-      {
-        "from": {
-          "x": 66.5,
-          "y": 0
-        },
-        "to": {
-          "x": 50,
-          "y": 50
-        }
-      }
-    ],
-    "english": {
-      "tip_zone": "center",
-      "sidespin": 0,
-      "backspin": 0,
-      "follow": 0,
-      "label": "none"
-    },
-    "landing_zones": [
-      {
-        "x": 50,
-        "y": 50,
-        "label": "pocket"
-      },
-      {
-        "x": 70.2,
-        "y": 3,
-        "label": "cb_rest"
-      }
-    ],
-    "pocket_target": {
-      "x": 50,
-      "y": 50
-    },
-    "coordinate_system": {
-      "x": "0=head rail → 100=foot rail",
-      "y": "0=bottom long rail → 50=top long rail",
-      "units": "normalized table percent (9-foot aspect 2:1)"
-    },
-    "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                   O                   │\n│                   ·                   │\n│                    ·                  │\n│                    ·                  │\n│                     ·         9       │\n│                     ·                 │\n│                      ·                │\n│                       ·    C          │\n│                       ·   ·           │\n│                        ·  ·           │\n│                        · ·            │\n│                         ·1            │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
-  },
-  {
-    "id": "sotd-35",
-    "name": "Point-to-Point Long Pot",
-    "difficulty": "Easy",
-    "difficulty_rating": 1,
-    "category": "position",
-    "speed_category": "medium",
-    "tip_zone": "center",
-    "cue_ball_start": {
-      "x": 38.2,
-      "y": 12
-    },
-    "object_ball_positions": [
-      {
-        "ballId": 1,
-        "x": 74,
-        "y": 34,
-        "role": "object"
-      }
-    ],
-    "intended_path": [
-      {
-        "from": {
-          "x": 38.2,
-          "y": 12
-        },
-        "to": {
-          "x": 74,
-          "y": 34
-        }
-      },
-      {
-        "from": {
-          "x": 74,
-          "y": 34
-        },
-        "to": {
-          "x": 100,
-          "y": 50
-        }
-      }
-    ],
-    "english": {
-      "tip_zone": "center",
-      "sidespin": 0,
-      "backspin": 0,
-      "follow": 0,
-      "label": "none"
-    },
-    "landing_zones": [
-      {
-        "x": 100,
-        "y": 50,
-        "label": "pocket"
-      },
-      {
-        "x": 68.9,
-        "y": 30.9,
-        "label": "cb_rest"
-      }
-    ],
-    "pocket_target": {
-      "x": 100,
-      "y": 50
-    },
-    "coordinate_system": {
-      "x": "0=head rail → 100=foot rail",
-      "y": "0=bottom long rail → 50=top long rail",
-      "units": "normalized table percent (9-foot aspect 2:1)"
-    },
-    "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  · ·  │\n│                                ··     │\n│                             · ·       │\n│                           ·1          │\n│                        · ·            │\n│                      ··               │\n│                   · ·                 │\n│                 ··                    │\n│               C·                      │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  · ·  │\n│                                ··     │\n│                              1·       │\n│                           ··          │\n│                         ··            │\n│                      ··               │\n│                   · ·                 │\n│                  ·                    │\n│                 C                     │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-36",
@@ -3008,8 +2956,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "firm",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 14,
-      "y": 14
+      "x": 16,
+      "y": 12
     },
     "object_ball_positions": [
       {
@@ -3022,17 +2970,17 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "intended_path": [
       {
         "from": {
-          "x": 14,
-          "y": 14
+          "x": 16,
+          "y": 12
         },
         "to": {
-          "x": 63,
+          "x": 64.2,
           "y": 50
         }
       },
       {
         "from": {
-          "x": 63,
+          "x": 64.2,
           "y": 50
         },
         "to": {
@@ -3080,7 +3028,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                     · · ··         ·· │\n│                   ··       ··   · ·   │\n│                · ·           ·1·      │\n│               ·                       │\n│             ··                        │\n│          · ·                          │\n│        ··                             │\n│       ·                               │\n│     C                                 │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                      ··  ··        ·· │\n│                    ··      ··   · ·   │\n│                  ·           ·1·      │\n│                ··                     │\n│             · ·                       │\n│            ·                          │\n│          ··                           │\n│         ·                             │\n│      C·                               │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-37",
@@ -3097,15 +3045,9 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 58,
+        "x": 56,
         "y": 16,
         "role": "object"
-      },
-      {
-        "ballId": 8,
-        "x": 40,
-        "y": 28,
-        "role": "blocker"
       }
     ],
     "intended_path": [
@@ -3115,23 +3057,23 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
           "y": 14
         },
         "to": {
-          "x": 40.5,
+          "x": 39.5,
           "y": 50
         }
       },
       {
         "from": {
-          "x": 40.5,
+          "x": 39.5,
           "y": 50
         },
         "to": {
-          "x": 58,
+          "x": 56,
           "y": 16
         }
       },
       {
         "from": {
-          "x": 58,
+          "x": 56,
           "y": 16
         },
         "to": {
@@ -3154,8 +3096,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 64,
-        "y": 24.3,
+        "x": 62,
+        "y": 24.4,
         "label": "cb_rest"
       }
     ],
@@ -3169,7 +3111,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│               ··                      │\n│              ·  ·                     │\n│             ·    ·                    │\n│            ·      ·                   │\n│           ·   X   ·                   │\n│          ·         ·                  │\n│          ·          ·                 │\n│         ·            1                │\n│        C            ·                 │\n│                     ·                 │\n│                    ·                  │\n│                   O                   │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│              · ·                      │\n│              · ·                      │\n│            ··   ·                     │\n│            ·     ·                    │\n│           ·      ··                   │\n│          ·         ·                  │\n│          ·          ·                 │\n│         ·           1                 │\n│        C            ·                 │\n│                    ·                  │\n│                    ·                  │\n│                   O                   │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-38",
@@ -3180,32 +3122,32 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 40,
-      "y": 16
+      "x": 52,
+      "y": 26.7
     },
     "object_ball_positions": [
       {
         "ballId": 8,
-        "x": 72,
-        "y": 30,
+        "x": 70,
+        "y": 28,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 40,
-          "y": 16
+          "x": 52,
+          "y": 26.7
         },
         "to": {
-          "x": 72,
-          "y": 30
+          "x": 70,
+          "y": 28
         }
       },
       {
         "from": {
-          "x": 72,
-          "y": 30
+          "x": 70,
+          "y": 28
         },
         "to": {
           "x": 100,
@@ -3227,8 +3169,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 67.1,
-        "y": 26.5,
+        "x": 65.2,
+        "y": 24.5,
         "label": "cb_rest"
       }
     ],
@@ -3242,7 +3184,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                 ··    │\n│                               ··      │\n│                             ··        │\n│                          ·8           │\n│                      ·· ·             │\n│                  ·· ·                 │\n│               C ·                     │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                   · · │\n│                                 ··    │\n│                                ·      │\n│                             ··        │\n│                       ··· 8·          │\n│                    C·                 │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-39",
@@ -3253,72 +3195,72 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "firm",
     "tip_zone": "12-high",
     "cue_ball_start": {
-      "x": 18,
+      "x": 16,
       "y": 12
     },
     "object_ball_positions": [
       {
         "ballId": 1,
         "x": 70,
-        "y": 34,
+        "y": 40,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 18,
+          "x": 16,
           "y": 12
         },
         "to": {
-          "x": 56.8,
-          "y": 0
-        }
-      },
-      {
-        "from": {
-          "x": 56.8,
-          "y": 0
-        },
-        "to": {
-          "x": 100,
-          "y": 13.4
-        }
-      },
-      {
-        "from": {
-          "x": 100,
-          "y": 13.4
-        },
-        "to": {
-          "x": 0,
-          "y": 44.3
-        }
-      },
-      {
-        "from": {
-          "x": 0,
-          "y": 44.3
-        },
-        "to": {
-          "x": 18.3,
+          "x": 91.4,
           "y": 50
         }
       },
       {
         "from": {
-          "x": 18.3,
+          "x": 91.4,
           "y": 50
         },
         "to": {
+          "x": 100,
+          "y": 45.7
+        }
+      },
+      {
+        "from": {
+          "x": 100,
+          "y": 45.7
+        },
+        "to": {
+          "x": 9.4,
+          "y": 0
+        }
+      },
+      {
+        "from": {
+          "x": 9.4,
+          "y": 0
+        },
+        "to": {
+          "x": 0,
+          "y": 4.7
+        }
+      },
+      {
+        "from": {
+          "x": 0,
+          "y": 4.7
+        },
+        "to": {
           "x": 70,
-          "y": 34
+          "y": 40
         }
       },
       {
         "from": {
           "x": 70,
-          "y": 34
+          "y": 40
         },
         "to": {
           "x": 100,
@@ -3340,8 +3282,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 82.9,
-        "y": 39.5,
+        "x": 82.4,
+        "y": 46.4,
         "label": "cb_rest"
       }
     ],
@@ -3355,7 +3297,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│      · ·                            ·O│\n│ · ··     ·· ··                   ··   │\n│ · ··          · ·· ·           ··     │\n│      ·· ··          ·· ·   ···        │\n│            ·· ·         · 1           │\n│                · ···                  │\n│                      ·· ·             │\n│                          · ·· ·       │\n│                                · ··   │\n│       C·                          · · │\n│          ·· ·                 ·· ·    │\n│              · ·· ·     ·· ··         │\n│                    ·  ·               │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                 ·   ·O│\n│                               ·· ···· │\n│                           1·· ·  ··   │\n│                        ·· ·   ··      │\n│                     ···    · ·        │\n│                 ····   · ··           │\n│               ···   · ·               │\n│           ····    ··                  │\n│        ···    ···                     │\n│     ·C·    ··                         │\n│ · ··    ··                            │\n│ ·    · ·                              │\n│  ·  ·                                 │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-40",
@@ -3366,8 +3308,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "medium",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 36.6,
-      "y": 30.1
+      "x": 36.1,
+      "y": 29.4
     },
     "object_ball_positions": [
       {
@@ -3378,7 +3320,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       },
       {
         "ballId": 2,
-        "x": 62,
+        "x": 64,
         "y": 12,
         "role": "object"
       }
@@ -3386,8 +3328,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "intended_path": [
       {
         "from": {
-          "x": 36.6,
-          "y": 30.1
+          "x": 36.1,
+          "y": 29.4
         },
         "to": {
           "x": 48,
@@ -3400,23 +3342,23 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
           "y": 22
         },
         "to": {
-          "x": 62,
+          "x": 64,
           "y": 12
         }
       },
       {
         "from": {
-          "x": 62,
+          "x": 64,
           "y": 12
         },
         "to": {
-          "x": 69.4,
+          "x": 71,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 69.4,
+          "x": 71,
           "y": 0
         },
         "to": {
@@ -3454,7 +3396,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                     · │\n│                                    ·  │\n│                                   ·   │\n│                                  ·    │\n│              C·                 ·     │\n│                ··              ··     │\n│                  1 ·          ·       │\n│                     ·        ·        │\n│                      · 2    ·         │\n│                        ·   ··         │\n│                         ···           │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                     · │\n│                                    ·  │\n│                                   ··  │\n│                                  ·    │\n│              C·                 ·     │\n│                ··              ·      │\n│                  1·            ·      │\n│                     ··        ·       │\n│                       ·2    ··        │\n│                         ·   ·         │\n│                          · ·          │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-41",
@@ -3465,48 +3407,38 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "firm",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 30,
-      "y": 25
+      "x": 48,
+      "y": 18.6
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 64,
+        "x": 66,
         "y": 18,
         "role": "object"
       },
       {
         "ballId": 8,
-        "x": 64,
-        "y": 32,
-        "role": "object"
+        "x": 66,
+        "y": 38,
+        "role": "prop"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 30,
-          "y": 25
+          "x": 48,
+          "y": 18.6
         },
         "to": {
-          "x": 64,
+          "x": 66,
           "y": 18
         }
       },
       {
         "from": {
-          "x": 64,
+          "x": 66,
           "y": 18
-        },
-        "to": {
-          "x": 64,
-          "y": 32
-        }
-      },
-      {
-        "from": {
-          "x": 64,
-          "y": 32
         },
         "to": {
           "x": 100,
@@ -3528,8 +3460,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 58.6,
-        "y": 20.7,
+        "x": 60.7,
+        "y": 20.8,
         "label": "cb_rest"
       }
     ],
@@ -3543,7 +3475,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                        8              │\n│                        ··             │\n│           C ··         ·  ··          │\n│                ·· ··· ··    ·         │\n│                        1     ··       │\n│                                ··     │\n│                                   ·   │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                         8             │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                  C ··· ·1·            │\n│                            ···        │\n│                                ··     │\n│                                  ··   │\n│                                     ·O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-42",
@@ -3554,64 +3486,64 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "medium",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 53.5,
-      "y": 23.8
+      "x": 55.6,
+      "y": 24.6
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 64.8,
-        "y": 30.2,
+        "x": 66.9,
+        "y": 31.1,
         "role": "object"
       },
       {
         "ballId": 2,
-        "x": 74.4,
-        "y": 35.6,
+        "x": 76.4,
+        "y": 36.5,
         "role": "object"
       },
       {
         "ballId": 3,
-        "x": 84,
-        "y": 41,
+        "x": 86,
+        "y": 42,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 53.5,
-          "y": 23.8
+          "x": 55.6,
+          "y": 24.6
         },
         "to": {
-          "x": 64.8,
-          "y": 30.2
+          "x": 66.9,
+          "y": 31.1
         }
       },
       {
         "from": {
-          "x": 64.8,
-          "y": 30.2
+          "x": 66.9,
+          "y": 31.1
         },
         "to": {
-          "x": 74.4,
-          "y": 35.6
+          "x": 76.4,
+          "y": 36.5
         }
       },
       {
         "from": {
-          "x": 74.4,
-          "y": 35.6
+          "x": 76.4,
+          "y": 36.5
         },
         "to": {
-          "x": 84,
-          "y": 41
+          "x": 86,
+          "y": 42
         }
       },
       {
         "from": {
-          "x": 84,
-          "y": 41
+          "x": 86,
+          "y": 42
         },
         "to": {
           "x": 100,
@@ -3633,8 +3565,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 59.6,
-        "y": 27.3,
+        "x": 61.7,
+        "y": 28.1,
         "label": "cb_rest"
       }
     ],
@@ -3648,7 +3580,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  · ·  │\n│                                3·     │\n│                            2· ·       │\n│                          ··           │\n│                       · 1             │\n│                    C ·                │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  ··   │\n│                               · 3     │\n│                             2·        │\n│                           ··          │\n│                        ·1             │\n│                     C ·               │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-43",
@@ -3659,43 +3591,43 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "feather",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 36,
-      "y": 22
+      "x": 24,
+      "y": 26
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 70,
+        "x": 78,
         "y": 26,
         "role": "object"
       },
       {
         "ballId": 8,
-        "x": 64,
-        "y": 31.5,
+        "x": 50,
+        "y": 20.5,
         "role": "blocker"
       },
       {
         "ballId": 7,
-        "x": 64,
-        "y": 20.5,
+        "x": 50,
+        "y": 31.5,
         "role": "blocker"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 36,
-          "y": 22
+          "x": 24,
+          "y": 26
         },
         "to": {
-          "x": 70,
+          "x": 78,
           "y": 26
         }
       },
       {
         "from": {
-          "x": 70,
+          "x": 78,
           "y": 26
         },
         "to": {
@@ -3718,8 +3650,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 65.3,
-        "y": 22.3,
+        "x": 73.9,
+        "y": 21.6,
         "label": "cb_rest"
       }
     ],
@@ -3733,7 +3665,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                 · ·   │\n│                               ··      │\n│                        X     ·        │\n│                            ··         │\n│                  ·· ·· ·· 1           │\n│              C· ·      X              │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                                   ·   │\n│                                  ·    │\n│                   X            ··     │\n│                               ·       │\n│         C ·· ··· ·· ·· ·· ·· 1        │\n│                   X                   │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-44",
@@ -3745,12 +3677,12 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "tip_zone": "12-high",
     "cue_ball_start": {
       "x": 20,
-      "y": 10
+      "y": 12
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 68,
+        "x": 72,
         "y": 36,
         "role": "object"
       }
@@ -3759,46 +3691,46 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       {
         "from": {
           "x": 20,
-          "y": 10
+          "y": 12
         },
         "to": {
-          "x": 35.1,
+          "x": 37.1,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 35.1,
+          "x": 37.1,
           "y": 0
         },
         "to": {
           "x": 100,
-          "y": 42.9
+          "y": 44.3
         }
       },
       {
         "from": {
           "x": 100,
-          "y": 42.9
+          "y": 44.3
         },
         "to": {
-          "x": 89.2,
+          "x": 91.9,
           "y": 50
         }
       },
       {
         "from": {
-          "x": 89.2,
+          "x": 91.9,
           "y": 50
         },
         "to": {
-          "x": 68,
+          "x": 72,
           "y": 36
         }
       },
       {
         "from": {
-          "x": 68,
+          "x": 72,
           "y": 36
         },
         "to": {
@@ -3821,8 +3753,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 80.3,
-        "y": 42.7,
+        "x": 84.7,
+        "y": 41.9,
         "label": "cb_rest"
       }
     ],
@@ -3836,7 +3768,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                               · ··· · │\n│                             ···     · │\n│                          1· ·    ··   │\n│                                ··     │\n│                              ·        │\n│                            ··         │\n│                         ··            │\n│                      · ·              │\n│                    ··                 │\n│        C·       · ·                   │\n│          ··   ··                      │\n│            ·                          │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                · ···  │\n│                              ·· · · · │\n│                           1 ··   ·    │\n│                                ··     │\n│                             ··        │\n│                           ··          │\n│                         ·             │\n│                       ··              │\n│        C           · ·                │\n│         ··       ··                   │\n│           · · · ·                     │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-45",
@@ -3854,13 +3786,13 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       {
         "ballId": 1,
         "x": 80,
-        "y": 18,
+        "y": 16,
         "role": "object"
       },
       {
         "ballId": 7,
         "x": 50,
-        "y": 24,
+        "y": 22,
         "role": "blocker"
       }
     ],
@@ -3871,14 +3803,24 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
           "y": 28
         },
         "to": {
+          "x": 53,
+          "y": 31.8
+        }
+      },
+      {
+        "from": {
+          "x": 53,
+          "y": 31.8
+        },
+        "to": {
           "x": 80,
-          "y": 18
+          "y": 16
         }
       },
       {
         "from": {
           "x": 80,
-          "y": 18
+          "y": 16
         },
         "to": {
           "x": 100,
@@ -3900,8 +3842,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 75.5,
-        "y": 22,
+        "x": 75.3,
+        "y": 19.7,
         "label": "cb_rest"
       }
     ],
@@ -3915,7 +3857,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│        C ·                            │\n│           · ·· ·· X                   │\n│                    · ·· ···           │\n│                             ·1·       │\n│                                 ·     │\n│                                  ··   │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                   ·                   │\n│        C ·· ·· ··   · ·               │\n│                        ··             │\n│                   X       ··          │\n│                             ·1        │\n│                                ··     │\n│                                  ·    │\n│                                   · · │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-46",
@@ -3926,57 +3868,51 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 24,
-      "y": 20.7
+      "x": 26.3,
+      "y": 22.9
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 32,
-        "y": 8,
-        "role": "object"
-      },
-      {
-        "ballId": 9,
-        "x": 55,
-        "y": 30,
+        "x": 34,
+        "y": 10,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 24,
-          "y": 20.7
+          "x": 26.3,
+          "y": 22.9
         },
         "to": {
-          "x": 32,
-          "y": 8
+          "x": 34,
+          "y": 10
         }
       },
       {
         "from": {
-          "x": 32,
-          "y": 8
+          "x": 34,
+          "y": 10
         },
         "to": {
-          "x": 37,
+          "x": 40,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 37,
+          "x": 40,
           "y": 0
         },
         "to": {
-          "x": 68.5,
+          "x": 70,
           "y": 50
         }
       },
       {
         "from": {
-          "x": 68.5,
+          "x": 70,
           "y": 50
         },
         "to": {
@@ -3999,8 +3935,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 26,
-        "y": 8.7,
+        "x": 28.1,
+        "y": 10.9,
         "label": "cb_rest"
       }
     ],
@@ -4014,7 +3950,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                         · ·           │\n│                        ·   ·          │\n│                       ·     ·         │\n│                      ·       ·        │\n│                     9         ·       │\n│                    ·           ·      │\n│         C         ·             ·     │\n│          ·       ·               ·    │\n│           ·     ·                 ·   │\n│            1   ·                   ·  │\n│             · ·                     · │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                          ··           │\n│                        ··  ··         │\n│                        ·     ·        │\n│                       ·      ·        │\n│                      ·        ·       │\n│                     ·          ··     │\n│          C·        ·            ·     │\n│           ·       ·              ·    │\n│            ·     ·                ·   │\n│             1·  ·                  ·  │\n│              · ·                    · │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-47",
@@ -4037,8 +3973,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       },
       {
         "ballId": 8,
-        "x": 64.8,
-        "y": 24,
+        "x": 60,
+        "y": 32,
         "role": "prop"
       }
     ],
@@ -4093,7 +4029,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                   · · │\n│                                 ··    │\n│                              · ·      │\n│                            ··         │\n│                         · ·           │\n│                       1·8             │\n│                     ··                │\n│                  ··                   │\n│                 C                     │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                   · · │\n│                                 ··    │\n│                              · ·      │\n│                       8    ··         │\n│                         · ·           │\n│                       1·              │\n│                     ··                │\n│                  ··                   │\n│                 C                     │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-48",
@@ -4104,8 +4040,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "medium",
     "tip_zone": "3-right",
     "cue_ball_start": {
-      "x": 38,
-      "y": 38
+      "x": 65.2,
+      "y": 43.8
     },
     "object_ball_positions": [
       {
@@ -4118,8 +4054,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "intended_path": [
       {
         "from": {
-          "x": 38,
-          "y": 38
+          "x": 65.2,
+          "y": 43.8
         },
         "to": {
           "x": 68,
@@ -4151,8 +4087,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 73.6,
-        "y": 31.8,
+        "x": 68.9,
+        "y": 28.1,
         "label": "cb_rest"
       }
     ],
@@ -4166,7 +4102,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│              C ·                      │\n│                 · ··                  │\n│                      ···              │\n│                          1·           │\n│                            ·          │\n│                             · ·       │\n│                                ·      │\n│                                 ··    │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                         C             │\n│                                       │\n│                         ·             │\n│                         ·             │\n│                          ·            │\n│                          1·           │\n│                            ·          │\n│                             · ·       │\n│                                ·      │\n│                                 ··    │\n│                                    ·· │\n│                                      O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-49",
@@ -4177,32 +4113,32 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "feather",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 42,
-      "y": 34
+      "x": 85.2,
+      "y": 29.5
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 82,
-        "y": 8,
+        "x": 84,
+        "y": 7.5,
         "role": "object"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 42,
-          "y": 34
+          "x": 85.2,
+          "y": 29.5
         },
         "to": {
-          "x": 82,
-          "y": 8
+          "x": 84,
+          "y": 7.5
         }
       },
       {
         "from": {
-          "x": 82,
-          "y": 8
+          "x": 84,
+          "y": 7.5
         },
         "to": {
           "x": 100,
@@ -4224,8 +4160,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 76.5,
-        "y": 10.4,
+        "x": 78.6,
+        "y": 10,
         "label": "cb_rest"
       }
     ],
@@ -4239,7 +4175,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                C·                     │\n│                  · ·                  │\n│                     ··                │\n│                        ··             │\n│                          ·            │\n│                           · ·         │\n│                              ·1 ·     │\n│                                  ··   │\n│                                     ·O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                C      │\n│                                ·      │\n│                                ·      │\n│                                ·      │\n│                                ·      │\n│                                1      │\n│                                 · ·   │\n│                                    · O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-50",
@@ -4251,7 +4187,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "tip_zone": "1:30-high-right",
     "cue_ball_start": {
       "x": 24,
-      "y": 16
+      "y": 14
     },
     "object_ball_positions": [
       {
@@ -4263,7 +4199,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       {
         "ballId": 7,
         "x": 48,
-        "y": 24,
+        "y": 22,
         "role": "blocker"
       }
     ],
@@ -4271,17 +4207,17 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       {
         "from": {
           "x": 24,
-          "y": 16
+          "y": 14
         },
         "to": {
-          "x": 40,
-          "y": 9
+          "x": 44.9,
+          "y": 34.2
         }
       },
       {
         "from": {
-          "x": 40,
-          "y": 9
+          "x": 44.9,
+          "y": 34.2
         },
         "to": {
           "x": 74,
@@ -4313,8 +4249,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 87.2,
-        "y": 38.7,
+        "x": 87,
+        "y": 39.2,
         "label": "cb_rest"
       }
     ],
@@ -4328,7 +4264,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  · ·  │\n│                                ··     │\n│                             · ·       │\n│                           ·1          │\n│                         ··            │\n│                  X    ·               │\n│                     ··                │\n│         C         ··                  │\n│           ·· · · ·                    │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                  · ·  │\n│                                ··     │\n│                             · ·       │\n│                ·  ·· ·· · ·1          │\n│               ·                       │\n│              ·                        │\n│           · ·    X                    │\n│          ·                            │\n│         C                             │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-51",
@@ -4340,19 +4276,13 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "tip_zone": "center",
     "cue_ball_start": {
       "x": 78.4,
-      "y": 20.4
+      "y": 20
     },
     "object_ball_positions": [
       {
         "ballId": 1,
         "x": 72,
-        "y": 4.6,
-        "role": "object"
-      },
-      {
-        "ballId": 9,
-        "x": 40,
-        "y": 32,
+        "y": 4.2,
         "role": "object"
       }
     ],
@@ -4360,26 +4290,26 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       {
         "from": {
           "x": 78.4,
-          "y": 20.4
+          "y": 20
         },
         "to": {
           "x": 72,
-          "y": 4.6
+          "y": 4.2
         }
       },
       {
         "from": {
           "x": 72,
-          "y": 4.6
+          "y": 4.2
         },
         "to": {
-          "x": 70.1,
+          "x": 70.3,
           "y": 0
         }
       },
       {
         "from": {
-          "x": 70.1,
+          "x": 70.3,
           "y": 0
         },
         "to": {
@@ -4417,7 +4347,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                   O                   │\n│                    ·                  │\n│                    ·                  │\n│                     ·                 │\n│               9     ·                 │\n│                      ·                │\n│                       ·               │\n│                        ·     C        │\n│                        ·    ·         │\n│                         ·   ·         │\n│                         ·  ·          │\n│                          ·1           │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                   O                   │\n│                    ·                  │\n│                    ·                  │\n│                     ·                 │\n│                     ·                 │\n│                      ·                │\n│                       ·               │\n│                        ·     C        │\n│                        ·    ·         │\n│                         ·   ·         │\n│                          · ·          │\n│                          ·1           │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-52",
@@ -4428,48 +4358,38 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "medium",
     "tip_zone": "center",
     "cue_ball_start": {
-      "x": 38,
-      "y": 14
+      "x": 67.7,
+      "y": 11.3
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 75,
-        "y": 25,
+        "x": 74,
+        "y": 26,
         "role": "object"
       },
       {
         "ballId": 8,
-        "x": 62,
-        "y": 36,
-        "role": "object"
+        "x": 58,
+        "y": 40,
+        "role": "prop"
       }
     ],
     "intended_path": [
       {
         "from": {
-          "x": 38,
-          "y": 14
+          "x": 67.7,
+          "y": 11.3
         },
         "to": {
-          "x": 75,
-          "y": 25
+          "x": 74,
+          "y": 26
         }
       },
       {
         "from": {
-          "x": 75,
-          "y": 25
-        },
-        "to": {
-          "x": 62,
-          "y": 36
-        }
-      },
-      {
-        "from": {
-          "x": 62,
-          "y": 36
+          "x": 74,
+          "y": 26
         },
         "to": {
           "x": 100,
@@ -4491,8 +4411,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 70.8,
-        "y": 20.8,
+        "x": 69.6,
+        "y": 21.9,
         "label": "cb_rest"
       }
     ],
@@ -4506,7 +4426,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                     ·O│\n│                                · ··   │\n│                            ·· ·       │\n│                        8··            │\n│                         ·             │\n│                          ··           │\n│                           · 1         │\n│                     · ·· ·            │\n│                ·· ··                  │\n│              C                        │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                      O│\n│                                    ·· │\n│                      8            ·   │\n│                                 ··    │\n│                              ··       │\n│                             ·         │\n│                            1          │\n│                            ·          │\n│                          ··           │\n│                          C            │\n│                                       │\n│                                       │\n│                                       │\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   }
 ];
 

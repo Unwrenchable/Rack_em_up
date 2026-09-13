@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   acceptFriend,
@@ -10,6 +10,9 @@ import {
   formatRelative,
   initials,
   openDmThread,
+  requestFriend,
+  searchUsers,
+  type PublicUserProfile,
 } from '../lib/api';
 import { useToast } from '../lib/toast-context';
 import type { ActionPost, FriendCard } from '../lib/types';
@@ -36,12 +39,43 @@ export function SocialPage() {
   const [body, setBody] = useState('');
   const [game, setGame] = useState('9-ball');
   const [stakes, setStakes] = useState('casual');
+  const [findQuery, setFindQuery] = useState('');
+  const [findResults, setFindResults] = useState<PublicUserProfile[] | null>(null);
+  const [findBusy, setFindBusy] = useState(false);
+  const [requestedIds, setRequestedIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchFriends().then(setFriends);
     fetchPendingFriendsIncoming().then(setPending);
     fetchActionBoard().then(setPosts);
   }, []);
+
+  async function onFindPlayer(e?: FormEvent) {
+    e?.preventDefault();
+    const q = findQuery.trim();
+    if (q.length < 2) {
+      push('Type at least 2 characters', 'err');
+      return;
+    }
+    setFindBusy(true);
+    try {
+      setFindResults(await searchUsers(q));
+    } catch {
+      push('Search failed', 'err');
+    } finally {
+      setFindBusy(false);
+    }
+  }
+
+  async function onSendRequest(p: PublicUserProfile) {
+    try {
+      await requestFriend(p.id);
+      setRequestedIds((m) => ({ ...m, [p.id]: true }));
+      push(`Request sent to ${p.displayName}`, 'ok');
+    } catch (err) {
+      push(err instanceof Error ? err.message.slice(0, 120) : 'Could not send request', 'err');
+    }
+  }
 
   async function onAccept(p: PendingFriend) {
     try {
@@ -119,6 +153,49 @@ export function SocialPage() {
 
       {tab === 'friends' && (
         <div className="stack">
+          <form className="card stack" onSubmit={onFindPlayer} style={{ gap: 10 }}>
+            <p className="eyebrow">Find a player</p>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <input
+                className="input"
+                style={{ flex: 1, minWidth: 180 }}
+                value={findQuery}
+                onChange={(e) => setFindQuery(e.target.value)}
+                placeholder="Display name or email"
+                aria-label="Search players by name or email"
+              />
+              <button type="submit" className="btn btn-secondary btn-sm" disabled={findBusy}>
+                {findBusy ? 'Searching…' : 'Search'}
+              </button>
+            </div>
+            {findResults && findResults.length === 0 && (
+              <p className="muted" style={{ fontSize: '0.88rem' }}>
+                No players match “{findQuery.trim()}”.
+              </p>
+            )}
+            {findResults?.map((p) => {
+              const alreadyFriend = friends?.some((f) => f.id === p.id);
+              const sent = requestedIds[p.id];
+              return (
+                <div key={p.id} className="row-between" style={{ gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{p.displayName}</div>
+                    <p className="muted" style={{ fontSize: '0.82rem' }}>
+                      ★ {p.rating}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={alreadyFriend || sent}
+                    onClick={() => onSendRequest(p)}
+                  >
+                    {alreadyFriend ? 'Friends' : sent ? 'Requested' : 'Request'}
+                  </button>
+                </div>
+              );
+            })}
+          </form>
           {pending.length > 0 && (
             <section className="stack" style={{ gap: 8 }}>
               <p className="eyebrow">Incoming requests</p>
@@ -154,7 +231,7 @@ export function SocialPage() {
             </section>
           )}
           {friends?.length === 0 && pending.length === 0 && (
-            <p className="muted">No friends yet — send a request from Find or a profile.</p>
+            <p className="muted">No friends yet — search above by name or email and send a request.</p>
           )}
           {friends?.map((f) => (
             <article key={f.id} className="card">

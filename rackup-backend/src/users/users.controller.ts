@@ -108,6 +108,19 @@ export class UsersController {
     return this.usersService.findPublicByIds(list);
   }
 
+  /**
+   * Find a player by display name (contains) or exact email.
+   * Authenticated; response has no email/password.
+   */
+  @UseGuards(AuthGuard('jwt'))
+  @Get('search')
+  search(
+    @Query('q') q: string | undefined,
+    @Req() req: { user: { id: string } },
+  ) {
+    return this.usersService.searchPublic(q ?? '', { excludeId: req.user.id, limit: 12 });
+  }
+
   @Get(':id/stats')
   async stats(@Param('id', ParseUUIDPipe) id: string) {
     return this.statsService.getPlayerStats(id);

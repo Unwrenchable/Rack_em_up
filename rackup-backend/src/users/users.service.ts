@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { User } from './users.entity';
 import {
   formatRatingDisplay,
@@ -87,6 +87,30 @@ export class UsersService {
       .createQueryBuilder('u')
       .where('u.id IN (:...ids)', { ids: unique })
       .getMany();
+    return rows.map((u) => this.toPublic(u));
+  }
+
+  /**
+   * Minimal safe player search: display name contains `q`, or exact email match.
+   * Never returns email. Caller must be authenticated.
+   */
+  async searchPublic(q: string, opts?: { excludeId?: string; limit?: number }): Promise<PublicUserProfile[]> {
+    const needle = q.trim().slice(0, 64);
+    if (needle.length < 2) return [];
+    const limit = Math.min(20, Math.max(1, opts?.limit ?? 12));
+    const escaped = needle.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    const qb = this.usersRepository.createQueryBuilder('u').where(
+      new Brackets((sub) => {
+        sub.where(`u.displayName ILIKE :name ESCAPE '\\'`, { name: `%${escaped}%` });
+        if (needle.includes('@')) {
+          sub.orWhere('LOWER(u.email) = LOWER(:email)', { email: needle });
+        }
+      }),
+    );
+    if (opts?.excludeId) {
+      qb.andWhere('u.id != :me', { me: opts.excludeId });
+    }
+    const rows = await qb.orderBy('u.display_name', 'ASC').take(limit).getMany();
     return rows.map((u) => this.toPublic(u));
   }
 

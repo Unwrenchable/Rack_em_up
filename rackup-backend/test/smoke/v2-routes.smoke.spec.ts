@@ -303,6 +303,54 @@ describe('SOTD maps catalogue', () => {
     expect(broken.ok).toBe(false);
     expect(broken.issues.some((i) => i.code === 'path_disconnected')).toBe(true);
   });
+
+  it('rejects a ball sitting in the intended corridor', () => {
+    const base = getSotdMapById('sotd-02')!;
+    const blocked = validateSotdShotMap({
+      ...base,
+      object_ball_positions: [
+        ...base.object_ball_positions,
+        {
+          ballId: 8,
+          x: (base.cue_ball_start.x + base.object_ball_positions[0].x) / 2,
+          y: (base.cue_ball_start.y + base.object_ball_positions[0].y) / 2,
+          role: 'blocker',
+        },
+      ],
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.issues.some((i) => i.code === 'blocked_lane')).toBe(true);
+  });
+
+  it('does not throw when object_ball_positions is missing', () => {
+    const base = getSotdMapById('sotd-02')!;
+    const report = validateSotdShotMap({
+      ...base,
+      object_ball_positions: undefined as unknown as typeof base.object_ball_positions,
+    });
+    expect(report.ok).toBe(false);
+    expect(report.issues.some((i) => i.code === 'no_object_balls')).toBe(true);
+  });
+
+  it('every catalogue pocket sits on a real pocket and the path meets cue, OB, pocket', () => {
+    const pockets = [
+      { x: 0, y: 0 },
+      { x: 0, y: 50 },
+      { x: 50, y: 0 },
+      { x: 50, y: 50 },
+      { x: 100, y: 0 },
+      { x: 100, y: 50 },
+    ];
+    for (const m of listSotdMaps()) {
+      const pk = m.pocket_target;
+      const onPocket = pockets.some((p) => Math.hypot(p.x - pk.x, p.y - pk.y) < 0.6);
+      expect({ id: m.id, pk, onPocket }).toEqual({ id: m.id, pk, onPocket: true });
+      expect(m.intended_path[0].from.x).toBeCloseTo(m.cue_ball_start.x, 0);
+      expect(m.intended_path[0].from.y).toBeCloseTo(m.cue_ball_start.y, 0);
+      const end = m.intended_path[m.intended_path.length - 1].to;
+      expect(Math.hypot(end.x - pk.x, end.y - pk.y)).toBeLessThan(1);
+    }
+  });
 });
 
 /** Documented V2 route surface for smoke checklists / future e2e. */
@@ -327,6 +375,7 @@ describe('V2 route inventory', () => {
     'POST /realai/v2/summary-job',
     'GET /users/:id',
     'GET /users/profiles',
+    'GET /users/search',
     'GET /health',
     'GET /health/scorekeeping',
     'GET /id-bridge/:kind/v1/:v1Id',
@@ -399,6 +448,7 @@ describe('V2 route inventory', () => {
   });
 
   it('lists social friends + chat surfaces', () => {
+    expect(routes.some((r) => r.includes('users/search'))).toBe(true);
     expect(routes.some((r) => r === 'GET /friends')).toBe(true);
     expect(routes.some((r) => r.includes('friends/request'))).toBe(true);
     expect(routes.some((r) => r.includes('chat/threads'))).toBe(true);

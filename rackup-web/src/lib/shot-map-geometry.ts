@@ -81,9 +81,10 @@ function pathToPoints(segs: SotdPathSegment[]): SotdPoint[] {
 }
 
 function pickPrimaryObject(map: SotdShotMap): SotdObjectBall {
-  const objects = map.object_ball_positions.filter((b) => b.role !== 'blocker' && b.role !== 'prop');
+  const balls = map.object_ball_positions ?? [];
+  const objects = balls.filter((b) => !b.role || b.role === 'object');
   if (objects.length) return objects[0];
-  if (map.object_ball_positions.length) return map.object_ball_positions[0];
+  if (balls.length) return balls[0];
   return { ballId: 1, x: 50, y: 25, role: 'object' };
 }
 
@@ -130,16 +131,16 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     y: primary.y + towardCue.y * 1.2,
   };
 
-  // CB → OB (always at least start → contact)
+  // CB → OB: keep rails, carom helpers, and curve/jump vias (not only cushion hits)
   let railFirst = false;
   const approachPts: SotdPoint[] = [{ ...start }];
   if (fullPts.length) {
     for (let i = 0; i <= contactIdx; i++) {
       const p = fullPts[i];
-      if (i < contactIdx && nearRail(p) && dist(p, primary) > 8) {
-        railFirst = true;
-        approachPts.push(p);
-      }
+      if (i >= contactIdx) continue;
+      if (dist(p, primary) <= 4 || dist(p, start) <= 2) continue;
+      if (nearRail(p) && dist(p, primary) > 8) railFirst = true;
+      approachPts.push(p);
     }
   }
   approachPts.push(contactPoint);

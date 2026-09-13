@@ -69,7 +69,7 @@ export class TrainingService {
     );
 
     if (ai.offlineFallback) {
-      return { drills: rulesDrills, provider: 'rules-fallback' };
+      return { drills: rulesDrills, provider: 'offline-rules-fallback' };
     }
 
     try {
@@ -87,7 +87,8 @@ export class TrainingService {
       }));
       return { drills, provider: ai.model };
     } catch {
-      return { drills: rulesDrills, provider: 'rules-fallback-parse' };
+      // RealAI answered, but the drill JSON was unreadable — not a total outage.
+      return { drills: rulesDrills, provider: 'realai-parse-fallback' };
     }
   }
 

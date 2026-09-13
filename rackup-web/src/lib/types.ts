@@ -270,7 +270,7 @@ export type SotdPoint = { x: number; y: number };
 
 export type SotdObjectBall = SotdPoint & {
   ballId: number;
-  role?: 'object' | 'blocker' | 'prop';
+  role?: 'object' | 'blocker' | 'prop' | 'helper';
 };
 
 export type SotdPathSegment = {

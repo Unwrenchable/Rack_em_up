@@ -309,6 +309,26 @@ export type PublicUserProfile = {
   role: string;
 };
 
+export async function searchUsers(q: string): Promise<PublicUserProfile[]> {
+  const query = q.trim();
+  if (query.length < 2) return [];
+  if (isDemoMode()) {
+    const demo: PublicUserProfile[] = [
+      { id: 'demo-user-2', displayName: 'Riley Chen', avatarUrl: null, reputation: 12, rating: 540, role: 'USER' },
+      { id: 'demo-user-3', displayName: 'Sam Ortiz', avatarUrl: null, reputation: 4, rating: 490, role: 'USER' },
+    ];
+    const n = query.toLowerCase();
+    return demo.filter(
+      (p) => p.displayName.toLowerCase().includes(n) || `${p.id}@demo.local`.includes(n),
+    );
+  }
+  try {
+    return await request<PublicUserProfile[]>(`/users/search?q=${encodeURIComponent(query)}`);
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchUserProfile(id: string): Promise<PublicUserProfile | null> {
   if (isDemoMode()) {
     return {
@@ -606,6 +626,9 @@ export async function fetchPendingFriendsIncoming() {
 }
 
 export async function requestFriend(addresseeId: string) {
+  if (isDemoMode()) {
+    return { id: `demo-fr-${addresseeId}`, status: 'PENDING', addresseeId };
+  }
   return request('/friends/request', {
     method: 'POST',
     body: JSON.stringify({ addresseeId }),
@@ -852,11 +875,11 @@ export async function fetchSotdMap(shotId: string): Promise<SotdShotMap | null> 
       category: DEMO_SHOT_OF_DAY.shot.category,
       speed_category: DEMO_SHOT_OF_DAY.shot.speed,
       tip_zone: DEMO_SHOT_OF_DAY.shot.tipZone,
-      cue_ball_start: { x: 30, y: 25 },
-      object_ball_positions: [{ ballId: 1, x: 55, y: 25 }],
+      cue_ball_start: { x: 61.2, y: 11.2 },
+      object_ball_positions: [{ ballId: 1, x: 75, y: 25 }],
       intended_path: [
-        { from: { x: 30, y: 25 }, to: { x: 55, y: 25 } },
-        { from: { x: 55, y: 25 }, to: { x: 100, y: 25 } },
+        { from: { x: 61.2, y: 11.2 }, to: { x: 75, y: 25 } },
+        { from: { x: 75, y: 25 }, to: { x: 100, y: 50 } },
       ],
       english: {
         tip_zone: DEMO_SHOT_OF_DAY.shot.tipZone,
@@ -866,10 +889,10 @@ export async function fetchSotdMap(shotId: string): Promise<SotdShotMap | null> 
         label: 'none',
       },
       landing_zones: [
-        { x: 8, y: 2, label: 'pocket' },
-        { x: 4.4, y: 2, label: 'cb_rest' },
+        { x: 100, y: 50, label: 'pocket' },
+        { x: 70, y: 20, label: 'cb_rest' },
       ],
-      pocket_target: { x: 100, y: 25 },
+      pocket_target: { x: 100, y: 50 },
       coordinate_system: {
         x: 'head to foot',
         y: 'near rail to far rail',

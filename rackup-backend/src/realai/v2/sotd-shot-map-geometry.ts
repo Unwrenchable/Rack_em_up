@@ -277,8 +277,27 @@ export function reflectionAngleErrorDeg(
 }
 
 export function pickPrimaryObject(map: SotdGeomMap): SotdGeomBall | null {
-  const objects = map.object_ball_positions.filter((b) => b.role !== 'blocker' && b.role !== 'prop');
-  return objects[0] ?? map.object_ball_positions[0] ?? null;
+  const balls = map.object_ball_positions ?? [];
+  const objects = balls.filter((b) => !b.role || b.role === 'object');
+  return objects[0] ?? balls[0] ?? null;
+}
+
+export function perp(v: SotdGeomPoint): SotdGeomPoint {
+  return { x: -v.y, y: v.x };
+}
+
+/** Shortest distance from point `p` to segment a→b. */
+export function pointToSegmentDistance(p: SotdGeomPoint, a: SotdGeomPoint, b: SotdGeomPoint): number {
+  const ab = sub(b, a);
+  const len2 = ab.x * ab.x + ab.y * ab.y;
+  if (len2 < 1e-8) return dist(p, a);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / len2));
+  return dist(p, { x: a.x + ab.x * t, y: a.y + ab.y * t });
+}
+
+/** Balls that sit on a path vertex (combo/carom contacts). */
+export function isPathContact(ball: SotdGeomPoint, pts: SotdGeomPoint[], pad = 3): boolean {
+  return pts.some((p) => dist(p, ball) <= pad);
 }
 
 export type SotdGeomIssue = { code: string; message: string };
@@ -294,6 +313,8 @@ const PATH_CUE_NEAR = 3.5;
 const PATH_OB_NEAR = 6.5;
 const PATH_POCKET_NEAR = 8;
 const REFLECT_MAX_DEG = 32;
+/** Half-width of the travel corridor a parked ball may not occupy. */
+export const LANE_CLEARANCE = 2.4;
 
 function issue(code: string, message: string): SotdGeomIssue {
   return { code, message };
@@ -445,6 +466,36 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
     if (!before.length) {
       issues.push(
         issue('kick_needs_rail', 'kick shots need a cushion bounce before the object ball'),
+      );
+    }
+  }
+
+  if (cat === 'combo') {
+    const objects = (map.object_ball_positions ?? []).filter(
+      (b) => !b.role || b.role === 'object' || b.role === 'helper',
+    );
+    const visited = objects.filter((b) => pts.some((p) => dist(p, b) <= PATH_OB_NEAR));
+    if (visited.length < 2) {
+      issues.push(
+        issue('combo_needs_two_balls', 'combo shots need the path to visit at least two object balls'),
+      );
+    }
+  }
+
+  const segsForLane = segs;
+  for (const ball of map.object_ball_positions ?? []) {
+    if (isPathContact(ball, pts)) continue;
+    let closest = Infinity;
+    for (const s of segsForLane) {
+      const d = pointToSegmentDistance(ball, s.from, s.to);
+      if (d < closest) closest = d;
+    }
+    if (closest < LANE_CLEARANCE) {
+      issues.push(
+        issue(
+          'blocked_lane',
+          `ball #${ball.ballId} sits in the intended path corridor (${closest.toFixed(1)} units off the line)`,
+        ),
       );
     }
   }
