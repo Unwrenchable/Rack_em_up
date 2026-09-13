@@ -45,6 +45,7 @@ import {
   sanitizePublicAnalyze,
 } from '../../src/training/analyze-response';
 import { invokeRackupCoach } from '../../src/ai/realai-coach.client';
+import { TrainingService } from '../../src/training/training.service';
 import {
   REALAI_ALIAS_COACH_PATH,
   REALAI_CANONICAL_COACH_PATH,
@@ -357,6 +358,78 @@ describe('Hive tools-execute invoke fallback', () => {
     expect(res.ok).toBe(true);
     expect(res.result).toMatchObject({ expectation: 'Plugin path won.' });
     expect(urls.some((u) => u.includes('/v1/tools/execute'))).toBe(false);
+  });
+
+  it('Nest analyzeShot publishes rackup-coach text via Hive tools fallback', async () => {
+    process.env.REALAI_BASE_URL = 'http://127.0.0.1:8001';
+    delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
+    const urls: string[] = [];
+    global.fetch = (async (input: string | URL) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes('/v1/plugins/rackup-coach') || url.includes('/v1/rackup/coach')) {
+        return jsonResponse(404, { error: 'not_found' });
+      }
+      if (url.includes('/v1/tools/execute')) {
+        return jsonResponse(200, {
+          tool: 'rackup_invoke',
+          result: {
+            ok: true,
+            plugin: 'rackup-coach',
+            ability: 'video_analysis',
+            result: {
+              expectation: 'Connect stroke quality to a planned CB landing zone.',
+              findings: [
+                {
+                  area: 'general',
+                  finding: 'No critical flags — refine tempo and PSR.',
+                  fix: 'Keep pre-shot routine fixed.',
+                },
+              ],
+              recommended_drills: ['20-ball PSR set'],
+            },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }) as typeof fetch;
+
+    const svc = new TrainingService(
+      { find: async () => [] } as never,
+      {
+        findOne: async () => ({
+          id: 'u1',
+          displayName: 'Travis',
+          rating: 500,
+          rd: 175,
+          volatility: 0.06,
+          ratingBand: 'Advanced',
+        }),
+      } as never,
+      {
+        putBytes: async () => ({
+          url: 'file://analyses/u1/x.json',
+          key: 'analyses/u1/x.json',
+          backend: 'local',
+        }),
+      } as never,
+    );
+
+    const out = await svc.analyzeShot('u1', {
+      videoUrl: 'https://youtube.com/shorts/b3ZlStHTwKc',
+      notes: 'Long straight missed thin',
+      game: '9-ball',
+      focus: 'stroke',
+    });
+
+    expect(out.provider).toBe('realai');
+    expect(out.offlineFallback).toBe(false);
+    expect(out.status).toBe('realai');
+    expect(out.model).toBe('rackup-coach');
+    expect(out.analysis).toMatch(/CB landing zone/);
+    expect(out.analysis).not.toMatch(/default_llm/);
+    expect(out.ability).toBe('video_analysis');
+    expect(urls.some((u) => u.includes('/v1/tools/execute'))).toBe(true);
   });
 });
 
