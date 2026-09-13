@@ -101,6 +101,7 @@ export function CoachPage() {
             </Link>
           </div>
           <ShotCard
+            key={sotd.shot.id}
             shot={sotd.shot}
             meta={{
               date: sotd.date,

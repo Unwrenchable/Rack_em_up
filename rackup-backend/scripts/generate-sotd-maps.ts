@@ -3,8 +3,8 @@
  * Run: npx ts-node -T scripts/generate-sotd-maps.ts
  *
  * Layouts keep the intended corridor clear: extras sit off the cue→OB→pocket
- * (or bank/kick) lane unless they are real combo/carom contacts or a
- * jump/curve obstacle the path is drawn around.
+ * (or bank/kick) lane unless they are real combo/carom contacts. Jump hops
+ * go over a blocker on a dashed airborne segment — never a solid zigzag.
  */
 import * as fs from 'fs';
 import * as path from 'path';
@@ -22,6 +22,7 @@ import {
   clampOnTable,
   dist,
   findRailChain,
+  isOnTable,
   isPathContact,
   norm,
   pathFromPoints,
@@ -33,6 +34,7 @@ import {
   sub,
   validateSotdShotMap,
   formatGeomReport,
+  type SotdPathKind,
 } from '../src/realai/v2/sotd-shot-map-geometry';
 
 const COORDINATE_SYSTEM = {
@@ -44,7 +46,7 @@ const COORDINATE_SYSTEM = {
 type BallRole = 'object' | 'blocker' | 'prop' | 'helper';
 type BallSpec = { ballId: number; x: number; y: number; role?: BallRole };
 
-type LayoutKind = 'line' | 'cut' | 'bank' | 'kick' | 'carom' | 'curve';
+type LayoutKind = 'line' | 'cut' | 'bank' | 'kick' | 'carom' | 'curve' | 'jump';
 
 type Layout = {
   pocket: PocketId;
@@ -60,6 +62,13 @@ type Layout = {
   via?: Pt[];
   /** Extra path points after the last object (before pocket), e.g. combo then bank. */
   afterObject?: Pt[];
+  /** Jump: override pocket (orch may aim at a rail, not a named corner). */
+  pocketPt?: Pt;
+  jumpTakeoff?: Pt;
+  jumpApex?: Pt;
+  jumpLanding?: Pt;
+  /** When true, leave blocker/cue where the layout put them (orch coords). */
+  lockBalls?: boolean;
 };
 
 const FOOT_SPOT: Pt = { x: 75, y: 25 };
@@ -67,7 +76,10 @@ const FOOT_SPOT: Pt = { x: 75, y: 25 };
 function linedBalls(pocket: Pt, start: Pt, ids: number[], spacing = 12): BallSpec[] {
   const away = norm(sub(start, pocket));
   return ids.map((ballId, i) => {
-    const p = clampOnTable(add(start, scale(away, spacing * i)));
+    const p = add(start, scale(away, spacing * i));
+    if (!isOnTable(p)) {
+      throw new Error(`lined ball #${ballId} off table at ${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+    }
     return { ballId, x: p.x, y: p.y, role: 'object' as const };
   });
 }
@@ -85,6 +97,10 @@ function cutCue(ob: Pt, pocket: Pt, cutDeg: number, gap: number, sign: 1 | -1 = 
 
 function midpoint(a: Pt, b: Pt): Pt {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function lerp(a: Pt, b: Pt, t: number): Pt {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
 /** Arc waypoint so a jump/curve path goes around a blocker on the straight line. */
@@ -151,10 +167,20 @@ const LAYOUTS: Record<string, Layout> = {
     balls: [{ ballId: 1, x: 84, y: 38, role: 'object' }],
   },
   'sotd-08': (() => {
-    const pocket = POCKETS['foot-far'];
-    const last = { x: 84, y: 41 };
-    const balls = linedBalls(pocket, last, [2, 1], 12).reverse();
-    return { kind: 'line' as const, pocket: 'foot-far' as const, balls, cueGap: 14 };
+    // Classic spot-to-corner: A on the foot spot, B on the same line to the corner.
+    const pocket = 'foot-far' as const;
+    const b1 = { x: FOOT_SPOT.x, y: FOOT_SPOT.y };
+    const toward = norm(sub(POCKETS[pocket], b1));
+    const b2 = add(b1, scale(toward, 12));
+    return {
+      kind: 'line' as const,
+      pocket,
+      balls: [
+        { ballId: 1, x: b1.x, y: b1.y, role: 'object' as const },
+        { ballId: 2, x: b2.x, y: b2.y, role: 'object' as const },
+      ],
+      cueGap: 14,
+    };
   })(),
   'sotd-09': {
     kind: 'carom',
@@ -203,13 +229,17 @@ const LAYOUTS: Record<string, Layout> = {
     ],
   },
   'sotd-15': {
-    kind: 'curve',
+    kind: 'jump',
     pocket: 'foot-near',
-    cue: { x: 30, y: 22 },
-    via: [arcVia({ x: 30, y: 22 }, { x: 78, y: 18 }, 9, -1)],
+    pocketPt: { x: 100, y: 25 },
+    cue: { x: 24, y: 25.5 },
+    lockBalls: true,
+    jumpTakeoff: { x: 39, y: 25.4 },
+    jumpApex: { x: 45, y: 30.5 },
+    jumpLanding: { x: 51, y: 25.4 },
     balls: [
-      { ballId: 1, x: 78, y: 18, role: 'object' },
-      { ballId: 7, x: 54, y: 20, role: 'blocker' },
+      { ballId: 1, x: 70, y: 25.2, role: 'object' },
+      { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
     ],
   },
   'sotd-16': {
@@ -349,10 +379,9 @@ const LAYOUTS: Record<string, Layout> = {
     };
   })(),
   'sotd-32': {
-    kind: 'curve',
+    kind: 'jump',
     pocket: 'foot-far',
     cue: { x: 24, y: 16 },
-    via: [arcVia({ x: 24, y: 16 }, { x: 76, y: 34 }, 10, 1)],
     balls: [
       { ballId: 1, x: 76, y: 34, role: 'object' },
       { ballId: 7, x: 50, y: 24, role: 'blocker' },
@@ -408,15 +437,25 @@ const LAYOUTS: Record<string, Layout> = {
     rails: ['far', 'foot', 'near', 'head'],
     balls: [{ ballId: 1, x: 70, y: 40, role: 'object' }],
   },
-  'sotd-40': {
-    kind: 'line',
-    pocket: 'foot-far',
-    balls: [
-      { ballId: 1, x: 48, y: 22, role: 'object' },
-      { ballId: 2, x: 64, y: 12, role: 'object' },
-    ],
-    cueGap: 14,
-  },
+  'sotd-40': (() => {
+    // Combo-bank: A drives B along the line of centers into a legal near-rail bank.
+    const pocket = 'foot-far' as const;
+    const b2 = { x: 62, y: 16 };
+    const chain = railChain(b2, POCKETS[pocket], ['near']);
+    if (!chain) throw new Error('sotd-40: no near-rail bank from B');
+    const railHit = chain[1];
+    const b1 = aimBehind(b2, railHit, 14);
+    return {
+      kind: 'line' as const,
+      pocket,
+      balls: [
+        { ballId: 1, x: b1.x, y: b1.y, role: 'object' as const },
+        { ballId: 2, x: b2.x, y: b2.y, role: 'object' as const },
+      ],
+      cueGap: 14,
+      afterObject: [railHit],
+    };
+  })(),
   'sotd-41': {
     kind: 'cut',
     pocket: 'foot-near',
@@ -430,12 +469,12 @@ const LAYOUTS: Record<string, Layout> = {
   },
   'sotd-42': (() => {
     const pocket = POCKETS['foot-far'];
-    const last = { x: 86, y: 42 };
+    const last = { x: 88, y: 43.2 };
     return {
       kind: 'line' as const,
       pocket: 'foot-far' as const,
-      balls: linedBalls(pocket, last, [3, 2, 1], 11).reverse(),
-      cueGap: 13,
+      balls: linedBalls(pocket, last, [4, 3, 2, 1], 3.2).reverse(),
+      cueGap: 12,
     };
   })(),
   'sotd-43': {
@@ -456,10 +495,9 @@ const LAYOUTS: Record<string, Layout> = {
     balls: [{ ballId: 1, x: 72, y: 36, role: 'object' }],
   },
   'sotd-45': {
-    kind: 'curve',
+    kind: 'jump',
     pocket: 'foot-near',
     cue: { x: 22, y: 28 },
-    via: [arcVia({ x: 22, y: 28 }, { x: 80, y: 16 }, 10, 1)],
     balls: [
       { ballId: 1, x: 80, y: 16, role: 'object' },
       { ballId: 7, x: 50, y: 22, role: 'blocker' },
@@ -498,10 +536,9 @@ const LAYOUTS: Record<string, Layout> = {
     balls: [{ ballId: 1, x: 84, y: 7.5, role: 'object' }],
   },
   'sotd-50': {
-    kind: 'curve',
+    kind: 'jump',
     pocket: 'foot-far',
     cue: { x: 24, y: 14 },
-    via: [arcVia({ x: 24, y: 14 }, { x: 74, y: 34 }, 11, 1)],
     balls: [
       { ballId: 1, x: 74, y: 34, role: 'object' },
       { ballId: 7, x: 48, y: 22, role: 'blocker' },
@@ -543,9 +580,22 @@ function resolveRails(from: Pt, to: Pt, layout: Layout): Pt[] {
   throw new Error(`no ${n}-rail path ${from.x},${from.y} → ${to.x},${to.y}`);
 }
 
-function nudgeOffLane(balls: BallSpec[], pts: Pt[], minDist = LANE_CLEARANCE + 0.8): BallSpec[] {
+function nudgeOffLane(
+  balls: BallSpec[],
+  pts: Pt[],
+  airborneSegs: number[] = [],
+  minDist = LANE_CLEARANCE + 0.8,
+): BallSpec[] {
+  const air = new Set(airborneSegs);
   return balls.map((b) => {
     if (isPathContact(b, pts, 3)) return b;
+    if (b.role === 'blocker') {
+      const underAir = pts.some((_, i) => {
+        if (!air.has(i) || i >= pts.length - 1) return false;
+        return pointToSegmentDistance(b, pts[i], pts[i + 1]) < minDist + 1.2;
+      });
+      if (underAir) return b;
+    }
     let { x, y } = b;
     for (let iter = 0; iter < 10; iter++) {
       let worst: { d: number; nx: number; ny: number } | null = null;
@@ -580,8 +630,20 @@ function placeBlockerOnLine(cue: Pt, ob: Pt, preferred: Pt): Pt {
   return clampOnTable(onLine);
 }
 
-function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pts: Pt[] } {
-  const pocket = POCKETS[layout.pocket];
+function yOnLine(a: Pt, b: Pt, x: number): number {
+  if (Math.abs(b.x - a.x) < 1e-6) return a.y;
+  const t = (x - a.x) / (b.x - a.x);
+  return a.y + t * (b.y - a.y);
+}
+
+function buildPath(layout: Layout): {
+  cue: Pt;
+  pocket: Pt;
+  balls: BallSpec[];
+  pts: Pt[];
+  kinds: Array<SotdPathKind | undefined>;
+} {
+  const pocket = layout.pocketPt ? { ...layout.pocketPt } : POCKETS[layout.pocket];
   const balls = layout.balls.map((b) => ({ ...b }));
   const primary = primaryOf(balls);
   const ob = { x: primary.x, y: primary.y };
@@ -591,20 +653,46 @@ function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pt
     const bankPts = resolveRails(ob, pocket, layout);
     const firstHit = bankPts[1] ?? pocket;
     const cue = clampOnTable(layout.cue ?? aimBehind(ob, firstHit, gap));
-    return { cue, pocket, balls, pts: [cue, ...bankPts] };
+    return { cue, pocket, balls, pts: [cue, ...bankPts], kinds: [] };
   }
 
   if (layout.kind === 'kick') {
     const cue = clampOnTable(layout.cue ?? { x: 18, y: 12 });
     const kickPts = resolveRails(cue, ob, layout);
-    return { cue, pocket, balls, pts: [...kickPts, pocket] };
+    return { cue, pocket, balls, pts: [...kickPts, pocket], kinds: [] };
   }
 
   if (layout.kind === 'carom') {
     const helper = balls.find((b) => b.role === 'helper') ?? balls.find((b) => b.ballId !== primary.ballId);
     const helperPt = helper ? { x: helper.x, y: helper.y } : aimBehind(ob, pocket, 12);
     const cue = clampOnTable(layout.cue ?? aimBehind(helperPt, ob, gap));
-    return { cue, pocket, balls, pts: [cue, helperPt, ob, pocket] };
+    return { cue, pocket, balls, pts: [cue, helperPt, ob, pocket], kinds: [] };
+  }
+
+  if (layout.kind === 'jump') {
+    const cue = layout.lockBalls && layout.cue
+      ? { ...layout.cue }
+      : clampOnTable(layout.cue ?? aimBehind(ob, pocket, gap));
+    const blocker = balls.find((b) => b.role === 'blocker');
+    const bx = blocker?.x ?? (cue.x + ob.x) / 2;
+    const takeoffX = bx - 6;
+    const landingX = bx + 6;
+    const takeoff = layout.jumpTakeoff ?? {
+      x: takeoffX,
+      y: yOnLine(cue, ob, takeoffX),
+    };
+    const apex = layout.jumpApex ?? { x: bx, y: cue.y + 5 };
+    const landing = layout.jumpLanding ?? {
+      x: landingX,
+      y: yOnLine(cue, ob, landingX),
+    };
+    return {
+      cue,
+      pocket,
+      balls,
+      pts: [cue, takeoff, apex, landing, ob, pocket],
+      kinds: ['ground', 'airborne', 'airborne', 'ground', 'object'],
+    };
   }
 
   if (layout.kind === 'curve') {
@@ -616,14 +704,14 @@ function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pt
       blocker.x = snapped.x;
       blocker.y = snapped.y;
     }
-    return { cue, pocket, balls, pts: [cue, ...via, ob, pocket] };
+    return { cue, pocket, balls, pts: [cue, ...via, ob, pocket], kinds: [] };
   }
 
   if (layout.kind === 'cut') {
     const deg = layout.cutDeg ?? 32;
     const sign = layout.cutSign ?? 1;
     const cue = clampOnTable(layout.cue ?? cutCue(ob, pocket, deg, gap, sign));
-    return { cue, pocket, balls, pts: [cue, ob, pocket] };
+    return { cue, pocket, balls, pts: [cue, ob, pocket], kinds: [] };
   }
 
   const objects = balls.filter((b) => !b.role || b.role === 'object');
@@ -632,7 +720,7 @@ function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pt
   const toward = objectPts[1] ?? pocket;
   const cue = clampOnTable(layout.cue ?? aimBehind(aim, toward, gap));
   const after = layout.afterObject ?? [];
-  return { cue, pocket, balls, pts: [cue, ...objectPts, ...after, pocket] };
+  return { cue, pocket, balls, pts: [cue, ...objectPts, ...after, pocket], kinds: [] };
 }
 
 function estimateCbRest(tip: string, cue: Pt, ob: Pt, pocket: Pt): Pt {
@@ -686,23 +774,15 @@ function renderAscii(cue: Pt, balls: BallSpec[], pts: Pt[], pocket: Pt): string 
   return `${rail}\n${inner}\n${rail}\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path`;
 }
 
-function specialAfter(id: string, layout: Layout, built: ReturnType<typeof buildPath>): Pt[] | null {
-  if (id !== 'sotd-40') return null;
-  const b2 = built.balls.find((b) => b.ballId === 2);
-  if (!b2) return null;
-  const chain = railChain({ x: b2.x, y: b2.y }, built.pocket, ['near']);
-  if (!chain) return null;
-  return chain.slice(1, -1);
-}
-
 function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
-  let built = buildPath(layout);
-  const extra = specialAfter(prev.id, layout, built);
-  if (extra) {
-    built = buildPath({ ...layout, afterObject: extra });
-  }
-  const nudgedBalls = nudgeOffLane(built.balls, built.pts);
-  const { cue, pocket, pts } = built;
+  const built = buildPath(layout);
+  const airIdx = built.kinds
+    .map((k, i) => (k === 'airborne' ? i : -1))
+    .filter((i) => i >= 0);
+  const nudgedBalls = layout.lockBalls
+    ? built.balls
+    : nudgeOffLane(built.balls, built.pts, airIdx);
+  const { cue, pocket, pts, kinds } = built;
   const roundedBalls = nudgedBalls.map((b) => ({
     ballId: b.ballId,
     x: roundPt(b).x,
@@ -720,7 +800,7 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     tip_zone: prev.tip_zone,
     cue_ball_start: roundPt(cue),
     object_ball_positions: roundedBalls,
-    intended_path: pathFromPoints(pts),
+    intended_path: pathFromPoints(pts, kinds.length ? kinds : undefined),
     english: prev.english,
     landing_zones: [
       { ...roundPt(pocket), label: 'pocket' },
@@ -749,9 +829,14 @@ export type SotdObjectBall = SotdPoint & {
   role?: 'object' | 'blocker' | 'prop' | 'helper';
 };
 
+export type SotdPathStyle = 'solid' | 'dashed';
+export type SotdPathKind = 'ground' | 'airborne' | 'object' | 'cue_after';
+
 export type SotdPathSegment = {
   from: SotdPoint;
   to: SotdPoint;
+  style?: SotdPathStyle;
+  kind?: SotdPathKind;
 };
 
 export type SotdEnglish = {

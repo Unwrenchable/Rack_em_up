@@ -131,9 +131,14 @@ export function ShotsCatalogPage() {
         </button>
       </div>
 
-      <Modal open={!!selected} title={selected?.name ?? 'Shot'} onClose={() => setSelected(null)}>
+      <Modal
+        key={selected?.id ?? 'catalog-closed'}
+        open={!!selected}
+        title={selected?.name ?? 'Shot'}
+        onClose={() => setSelected(null)}
+      >
         <div className="stack" style={{ gap: 12, maxHeight: '70vh', overflow: 'auto' }}>
-          {selected && <ShotCard shot={selected} />}
+          {selected && <ShotCard key={selected.id} shot={selected} />}
         </div>
       </Modal>
     </div>

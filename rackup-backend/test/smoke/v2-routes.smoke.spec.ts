@@ -332,6 +332,159 @@ describe('SOTD maps catalogue', () => {
     expect(report.issues.some((i) => i.code === 'no_object_balls')).toBe(true);
   });
 
+  it('rejects a combo whose path bends through a ball instead of driving it', () => {
+    const bent = validateSotdShotMap({
+      id: 'combo-bent',
+      name: 'Bent combo',
+      category: 'combo',
+      cue_ball_start: { x: 36, y: 30 },
+      object_ball_positions: [
+        { ballId: 1, x: 48, y: 22, role: 'object' },
+        { ballId: 2, x: 64, y: 12, role: 'object' },
+      ],
+      intended_path: [
+        { from: { x: 36, y: 30 }, to: { x: 48, y: 22 } },
+        { from: { x: 48, y: 22 }, to: { x: 64, y: 12 } },
+        { from: { x: 64, y: 12 }, to: { x: 71, y: 0 } },
+        { from: { x: 71, y: 0 }, to: { x: 100, y: 50 } },
+      ],
+      pocket_target: { x: 100, y: 50 },
+    });
+    expect(bent.ok).toBe(false);
+    expect(bent.issues.some((i) => i.code === 'combo_bad_transfer')).toBe(true);
+  });
+
+  it('rejects a combo path that skips past an intervening object ball', () => {
+    const skipped = validateSotdShotMap({
+      id: 'combo-skip',
+      name: 'Skip combo',
+      category: 'combo',
+      cue_ball_start: { x: 50, y: 20 },
+      object_ball_positions: [
+        { ballId: 1, x: 62, y: 26, role: 'object' },
+        { ballId: 2, x: 74, y: 32, role: 'object' },
+        { ballId: 8, x: 68, y: 29, role: 'object' },
+      ],
+      intended_path: [
+        { from: { x: 50, y: 20 }, to: { x: 62, y: 26 } },
+        { from: { x: 62, y: 26 }, to: { x: 74, y: 32 } },
+        { from: { x: 74, y: 32 }, to: { x: 100, y: 50 } },
+      ],
+      pocket_target: { x: 100, y: 50 },
+    });
+    expect(skipped.ok).toBe(false);
+    expect(skipped.issues.some((i) => i.code === 'combo_blocked' || i.code === 'blocked_lane')).toBe(
+      true,
+    );
+  });
+
+  it('rejects a jump path that zigzags around a blocker like a massé', () => {
+    const zigzag = validateSotdShotMap({
+      id: 'jump-zigzag',
+      name: 'Zigzag jump',
+      category: 'jump',
+      cue_ball_start: { x: 30, y: 22 },
+      object_ball_positions: [
+        { ballId: 1, x: 78, y: 18, role: 'object' },
+        { ballId: 7, x: 54, y: 20, role: 'blocker' },
+      ],
+      intended_path: [
+        { from: { x: 30, y: 22 }, to: { x: 53.3, y: 11 } },
+        { from: { x: 53.3, y: 11 }, to: { x: 78, y: 18 } },
+        { from: { x: 78, y: 18 }, to: { x: 100, y: 0 } },
+      ],
+      pocket_target: { x: 100, y: 0 },
+    });
+    expect(zigzag.ok).toBe(false);
+    expect(
+      zigzag.issues.some((i) => i.code === 'jump_zigzag' || i.code === 'jump_needs_airborne'),
+    ).toBe(true);
+  });
+
+  it('every jump map has a dashed airborne hop, not a cloth zigzag', () => {
+    const jumps = listSotdMaps().filter((m) => m.category === 'jump');
+    expect(jumps.length).toBeGreaterThanOrEqual(4);
+    for (const m of jumps) {
+      const report = validateSotdShotMap(m);
+      expect({ id: m.id, ok: report.ok, issues: report.issues }).toEqual({
+        id: m.id,
+        ok: true,
+        issues: [],
+      });
+      const air = m.intended_path.some((s) => s.kind === 'airborne' || s.style === 'dashed');
+      expect({ id: m.id, airborne: air }).toEqual({ id: m.id, airborne: true });
+    }
+  });
+
+  it('sotd-15 Jump Over the Troublemaker uses the orch dashed airborne arc', () => {
+    const m = getSotdMapById('sotd-15')!;
+    expect(m.cue_ball_start).toEqual({ x: 24, y: 25.5 });
+    expect(m.pocket_target).toEqual({ x: 100, y: 25 });
+    expect(m.object_ball_positions).toEqual([
+      { ballId: 1, x: 70, y: 25.2, role: 'object' },
+      { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
+    ]);
+    expect(m.intended_path).toEqual([
+      { from: { x: 24, y: 25.5 }, to: { x: 39, y: 25.4 }, style: 'solid', kind: 'ground' },
+      { from: { x: 39, y: 25.4 }, to: { x: 45, y: 30.5 }, style: 'dashed', kind: 'airborne' },
+      { from: { x: 45, y: 30.5 }, to: { x: 51, y: 25.4 }, style: 'dashed', kind: 'airborne' },
+      { from: { x: 51, y: 25.4 }, to: { x: 70, y: 25.2 }, style: 'solid', kind: 'ground' },
+      { from: { x: 70, y: 25.2 }, to: { x: 100, y: 25 }, style: 'solid', kind: 'object' },
+    ]);
+    expect(validateSotdShotMap(m).ok).toBe(true);
+  });
+
+  it('sotd-32/45/50 use the same takeoff–apex–landing dashed hop', () => {
+    for (const id of ['sotd-32', 'sotd-45', 'sotd-50'] as const) {
+      const m = getSotdMapById(id)!;
+      const blocker = m.object_ball_positions.find((b) => b.role === 'blocker')!;
+      const cue = m.cue_ball_start;
+      const air = m.intended_path.filter((s) => s.kind === 'airborne' || s.style === 'dashed');
+      expect({ id, n: air.length }).toEqual({ id, n: 2 });
+      expect(air[0].from.x).toBeCloseTo(blocker.x - 6, 0);
+      expect(air[0].to).toEqual({ x: blocker.x, y: cue.y + 5 });
+      expect(air[1].to.x).toBeCloseTo(blocker.x + 6, 0);
+      expect(air.every((s) => s.style === 'dashed' && s.kind === 'airborne')).toBe(true);
+    }
+  });
+
+  it('accepts a dashed airborne jump arc and does not treat the apex as a massé zigzag', () => {
+    const hop = validateSotdShotMap({
+      id: 'jump-arc',
+      name: 'Airborne arc',
+      category: 'jump',
+      cue_ball_start: { x: 24, y: 25.5 },
+      object_ball_positions: [
+        { ballId: 1, x: 70, y: 25.2, role: 'object' },
+        { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
+      ],
+      intended_path: [
+        { from: { x: 24, y: 25.5 }, to: { x: 39, y: 25.4 }, style: 'solid', kind: 'ground' },
+        { from: { x: 39, y: 25.4 }, to: { x: 45, y: 30.5 }, style: 'dashed', kind: 'airborne' },
+        { from: { x: 45, y: 30.5 }, to: { x: 51, y: 25.4 }, style: 'dashed', kind: 'airborne' },
+        { from: { x: 51, y: 25.4 }, to: { x: 70, y: 25.2 }, style: 'solid', kind: 'ground' },
+        { from: { x: 70, y: 25.2 }, to: { x: 100, y: 25 }, style: 'solid', kind: 'object' },
+      ],
+      pocket_target: { x: 100, y: 25 },
+    });
+    expect(hop.ok).toBe(true);
+    expect(hop.issues.some((i) => i.code === 'jump_zigzag')).toBe(false);
+  });
+
+  it('every combo map visits 2+ balls on a colinear transfer line', () => {
+    const combos = listSotdMaps().filter((m) => m.category === 'combo');
+    expect(combos.length).toBeGreaterThanOrEqual(5);
+    for (const m of combos) {
+      const report = validateSotdShotMap(m);
+      expect({ id: m.id, ok: report.ok, issues: report.issues }).toEqual({
+        id: m.id,
+        ok: true,
+        issues: [],
+      });
+      expect(report.issues.some((i) => i.code === 'combo_bad_transfer')).toBe(false);
+    }
+  });
+
   it('every catalogue pocket sits on a real pocket and the path meets cue, OB, pocket', () => {
     const pockets = [
       { x: 0, y: 0 },
@@ -343,7 +496,11 @@ describe('SOTD maps catalogue', () => {
     ];
     for (const m of listSotdMaps()) {
       const pk = m.pocket_target;
-      const onPocket = pockets.some((p) => Math.hypot(p.x - pk.x, p.y - pk.y) < 0.6);
+      const onCorner = pockets.some((p) => Math.hypot(p.x - pk.x, p.y - pk.y) < 0.6);
+      const jumpRailEdge =
+        m.category === 'jump' &&
+        (pk.x <= 1.2 || pk.x >= 98.8 || pk.y <= 1.2 || pk.y >= 48.8);
+      const onPocket = onCorner || jumpRailEdge;
       expect({ id: m.id, pk, onPocket }).toEqual({ id: m.id, pk, onPocket: true });
       expect(m.intended_path[0].from.x).toBeCloseTo(m.cue_ball_start.x, 0);
       expect(m.intended_path[0].from.y).toBeCloseTo(m.cue_ball_start.y, 0);

@@ -22,7 +22,8 @@ type Props = {
  * Diamonds from pocket-center spans L/S; trapezoid pocket mouths; three paths always.
  */
 export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers = true }: Props) {
-  const uid = useId().replace(/:/g, '');
+  const reactId = useId().replace(/:/g, '');
+  const uid = `${map.id}-${reactId}`;
   const geo = useMemo(() => deriveShotGeometry(map), [map]);
   const table = useMemo(() => buildTableGeometry(tableSize), [tableSize]);
 
@@ -47,7 +48,7 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
   };
 
   const ballR = table.ballRadius;
-  const obColor = poolBallStyle(geo.primaryObject.ballId).fill;
+  const obColor = poolBallStyle(geo.pocketObject.ballId).fill;
   const targetPk = nearestPocket(table, map.pocket_target);
 
   const clothClip = `cloth-${uid}`;
@@ -67,7 +68,11 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
   const diamondR = Math.max(0.45, (table.physical.diamondSpacingLong / table.physical.length) * CL * 0.09);
 
   return (
-    <div className={className} style={{ width: '100%' }}>
+    <div
+      className={className}
+      data-shot-map={map.id}
+      style={{ width: '100%', isolation: 'isolate', overflow: 'hidden' }}
+    >
       <div
         style={{
           // Center a smaller 7ft table so the size change is obvious and proportional
@@ -78,6 +83,7 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
         }}
       >
       <svg
+        key={map.id}
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         width="100%"
         role="img"
@@ -235,7 +241,21 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             />
           )}
 
-          {/* 1) OB → pocket (colored, shows cut) */}
+          {/* Combo hops: each object drives the next (arrow stops at the next ball) */}
+          {geo.comboLegs.map((leg) => (
+            <PathWithArrow
+              key={`combo-${map.id}-${leg.ballId}-${leg.pts[0].x}-${leg.pts[0].y}`}
+              pts={leg.pts}
+              d={pathD(leg.pts)}
+              color={poolBallStyle(leg.ballId).fill}
+              width={0.9}
+              sx={sx}
+              sy={sy}
+              solid
+            />
+          ))}
+
+          {/* Pocketing ball → pocket (colored, shows cut / bank) */}
           <PathWithArrow
             pts={geo.objectPath}
             d={pathD(geo.objectPath)}
@@ -246,7 +266,7 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             solid
           />
 
-          {/* 2) CB → OB */}
+          {/* CB → takeoff (ground only — never a solid chord through a jump hop) */}
           <PathWithArrow
             pts={geo.cueApproach}
             d={pathD(geo.cueApproach)}
@@ -256,6 +276,28 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             sy={sy}
             solid
           />
+          {geo.cueApproachAfter.length >= 2 && (
+            <PathWithArrow
+              pts={geo.cueApproachAfter}
+              d={pathD(geo.cueApproachAfter)}
+              color="#f5f0e6"
+              width={1.05}
+              sx={sx}
+              sy={sy}
+              solid
+            />
+          )}
+          {geo.cueAirborne.length >= 2 && (
+            <PathWithArrow
+              pts={geo.cueAirborne}
+              d={pathD(geo.cueAirborne)}
+              color="rgba(245,240,230,0.92)"
+              width={0.95}
+              sx={sx}
+              sy={sy}
+              solid={false}
+            />
+          )}
 
           {/* 3) CB post-contact — always drawn */}
           <PathWithArrow
@@ -387,8 +429,8 @@ function PathWithArrow({
         strokeWidth={width}
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeDasharray={solid ? undefined : '1.35 0.95'}
-        opacity={0.95}
+        strokeDasharray={solid ? undefined : '2.1 1.35'}
+        opacity={solid ? 0.95 : 0.88}
       />
       <ArrowHead from={pts[pts.length - 2]} to={pts[pts.length - 1]} color={color} sx={sx} sy={sy} />
     </>

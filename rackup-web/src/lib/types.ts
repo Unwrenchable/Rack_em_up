@@ -276,9 +276,14 @@ export type SotdObjectBall = SotdPoint & {
   role?: 'object' | 'blocker' | 'prop' | 'helper';
 };
 
+export type SotdPathStyle = 'solid' | 'dashed';
+export type SotdPathKind = 'ground' | 'airborne' | 'object' | 'cue_after';
+
 export type SotdPathSegment = {
   from: SotdPoint;
   to: SotdPoint;
+  style?: SotdPathStyle;
+  kind?: SotdPathKind;
 };
 
 export type SotdShotMap = {
