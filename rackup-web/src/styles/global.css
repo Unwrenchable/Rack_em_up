@@ -740,7 +740,7 @@ img {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 2000; /* above Leaflet map panes (~400–1000) */
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -774,7 +774,7 @@ img {
   top: 14px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 100;
+  z-index: 2100;
   width: min(calc(100% - 28px), 400px);
   display: flex;
   flex-direction: column;
