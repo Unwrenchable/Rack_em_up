@@ -4,6 +4,9 @@
  * Contract: REALAI_RACKUP_WIRING_CONTRACT.md (v1.0.0)
  * Canonical: POST {REALAI_BASE_URL}/v1/plugins/rackup-coach
  * Alias:     POST {REALAI_BASE_URL}/v1/rackup/coach
+ * Local Hive fallback: POST {REALAI_BASE_URL}/v1/tools/execute
+ *   { name: "rackup_invoke", arguments: <same envelope> } when the plugin route 404s.
+ * Render stays plugin-first (no tools fallback).
  *
  * RackUp owns persistence/UI; RealAI owns skill math, moderation, coaching, SOTD, Pyramid rules.
  */
@@ -11,8 +14,13 @@
 import { randomUUID } from 'crypto';
 import { isUnusableCoachEnvelope } from './realai-text-guard';
 import {
+  buildHiveToolsExecuteBody,
   buildRackupCoachEnvelope,
   isForbiddenRealAiUiHost,
+  isHiveToolsFallbackEnabled,
+  isMissingPluginRoute,
+  normalizeHiveToolsExecuteResponse,
+  REALAI_TOOLS_EXECUTE_PATH,
   realAiCoachPaths,
   resolveRealAiBaseUrl,
 } from './realai-endpoint';
@@ -288,16 +296,24 @@ async function invokeOnce(
   });
 
   const paths = realAiCoachPaths();
-  for (let i = 0; i < paths.length; i++) {
-    const path = paths[i];
-    const url = `${baseUrl()}${path}`;
+  const base = baseUrl();
+  let lastMissing: RealAiCoachError | undefined;
+
+  for (const path of paths) {
+    const url = `${base}${path}`;
     const res = await fetch(url, {
       method: 'POST',
       headers,
       signal: AbortSignal.timeout(timeoutMs()),
       body: JSON.stringify(envelope),
     });
-    if (res.status === 404 && i < paths.length - 1) {
+    if (isMissingPluginRoute(res.status)) {
+      const text = await res.text().catch(() => '');
+      lastMissing = new RealAiCoachError(
+        `RealAI coach HTTP ${res.status}: ${text.slice(0, 240)}`,
+        res.status,
+        text,
+      );
       continue;
     }
     if (!res.ok) {
@@ -330,7 +346,64 @@ async function invokeOnce(
       error: json.error ?? null,
     };
   }
-  throw new RealAiCoachError('RealAI coach path not found');
+
+  if (lastMissing && isHiveToolsFallbackEnabled(base)) {
+    return invokeViaHiveToolsExecute(headers, envelope, String(body.ability));
+  }
+
+  throw (
+    lastMissing ?? new RealAiCoachError('RealAI coach path not found')
+  );
+}
+
+async function invokeViaHiveToolsExecute(
+  headers: Record<string, string>,
+  envelope: ReturnType<typeof buildRackupCoachEnvelope>,
+  ability: string,
+): Promise<RackUpCoachResponse> {
+  const url = `${baseUrl()}${REALAI_TOOLS_EXECUTE_PATH}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    signal: AbortSignal.timeout(timeoutMs()),
+    body: JSON.stringify(buildHiveToolsExecuteBody(envelope)),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new RealAiCoachError(
+      `RealAI hive tools/execute HTTP ${res.status}: ${text.slice(0, 240)}`,
+      res.status,
+      text,
+    );
+  }
+
+  const json = await res.json().catch(() => null);
+  let normalized;
+  try {
+    normalized = normalizeHiveToolsExecuteResponse(json, ability);
+  } catch (e) {
+    throw new RealAiCoachError(
+      e instanceof Error ? e.message : 'Hive tools/execute returned unusable body',
+      res.status,
+      json,
+    );
+  }
+  if (isUnusableCoachEnvelope(normalized)) {
+    throw new RealAiCoachError(
+      'RealAI hive tools/execute returned a local-model placeholder; Hive GPU / default_llm is not coach text',
+      res.status,
+      normalized,
+    );
+  }
+  return {
+    ok: Boolean(normalized.ok),
+    plugin: normalized.plugin ?? 'rackup-coach',
+    ability: normalized.ability ?? ability,
+    result: (normalized.result as Record<string, unknown>) ?? null,
+    organ_trace: normalized.organ_trace as RackUpCoachResponse['organ_trace'],
+    notes: normalized.notes,
+    error: normalized.error ?? null,
+  };
 }
 
 /** Best-effort invoke; returns null on transport failure. */
