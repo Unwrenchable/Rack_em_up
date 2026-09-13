@@ -58,6 +58,9 @@ import { RocModule } from './roc/roc.module';
 
     UsersModule,
     MatchmakingModule,
+    // V2 before v1 so static `/tournaments/v2` wins even if a future
+    // `:id` route is left unconstrained (see TOURNAMENT_V1_UUID_PARAM).
+    TournamentsV2Module,
     TournamentsModule,
     MoneyMatchesModule,
     LeaguesModule,
@@ -74,7 +77,6 @@ import { RocModule } from './roc/roc.module';
     ReportsModule,
     ShotsModule,
     HallsV2Module,
-    TournamentsV2Module,
     LeaguesV2Module,
     RealaiV2Module,
     MatchmakingV2Module,
