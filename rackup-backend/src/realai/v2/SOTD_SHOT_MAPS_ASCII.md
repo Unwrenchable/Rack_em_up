@@ -4,6 +4,7 @@ Coordinate system: x 0–100 head→foot, y 0–50 bottom→top.
 
 Live geometry (and a fresh `ascii_table`) lives on each map in `sotd-shot-maps.ts`.
 This file is a sketch of shot identity; do not treat the drawings as the catalogue source of truth.
+Catalogue maps are regenerated with clear intended lanes (no clutter on the cue→OB→pocket / bank / kick corridor).
 
 ## sotd-01 — Rail-First Bank Cross
 

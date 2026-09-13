@@ -16,7 +16,7 @@ export class SotdObjectBallDto extends SotdPointDto {
 
   @IsOptional()
   @IsString()
-  role?: 'object' | 'blocker' | 'prop';
+  role?: 'object' | 'blocker' | 'prop' | 'helper';
 }
 
 export class SotdPathSegmentDto {

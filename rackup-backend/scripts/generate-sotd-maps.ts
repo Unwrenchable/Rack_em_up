@@ -1,6 +1,10 @@
 /**
  * One-shot regenerator for realistic SOTD catalogue diagrams.
  * Run: npx ts-node -T scripts/generate-sotd-maps.ts
+ *
+ * Layouts keep the intended corridor clear: extras sit off the cue→OB→pocket
+ * (or bank/kick) lane unless they are real combo/carom contacts or a
+ * jump/curve obstacle the path is drawn around.
  */
 import * as fs from 'fs';
 import * as path from 'path';
@@ -11,14 +15,18 @@ import {
   type PocketId,
   type RailId,
   type SotdGeomPoint as Pt,
+  LANE_CLEARANCE,
   POCKETS,
   add,
   aimBehind,
   clampOnTable,
   dist,
   findRailChain,
+  isPathContact,
   norm,
   pathFromPoints,
+  perp,
+  pointToSegmentDistance,
   railChain,
   roundPt,
   scale,
@@ -33,15 +41,19 @@ const COORDINATE_SYSTEM = {
   units: 'normalized table percent (9-foot aspect 2:1)',
 };
 
-type BallSpec = { ballId: number; x: number; y: number; role?: 'object' | 'blocker' | 'prop' };
+type BallRole = 'object' | 'blocker' | 'prop' | 'helper';
+type BallSpec = { ballId: number; x: number; y: number; role?: BallRole };
 
-type LayoutKind = 'line' | 'bank' | 'kick' | 'carom' | 'curve';
+type LayoutKind = 'line' | 'cut' | 'bank' | 'kick' | 'carom' | 'curve';
 
 type Layout = {
   pocket: PocketId;
   kind: LayoutKind;
   cue?: Pt;
   cueGap?: number;
+  /** Cut angle (deg) between cue→OB and OB→pocket. Used by kind:'cut'. */
+  cutDeg?: number;
+  cutSign?: 1 | -1;
   balls: BallSpec[];
   rails?: RailId[];
   railCount?: number;
@@ -50,21 +62,36 @@ type Layout = {
   afterObject?: Pt[];
 };
 
-function lineToward(from: Pt, to: Pt, distance: number): Pt {
-  return add(from, scale(norm(sub(to, from)), distance));
-}
+const FOOT_SPOT: Pt = { x: 75, y: 25 };
 
-function linedBalls(
-  pocket: Pt,
-  start: Pt,
-  ids: number[],
-  spacing = 12,
-): BallSpec[] {
+function linedBalls(pocket: Pt, start: Pt, ids: number[], spacing = 12): BallSpec[] {
   const away = norm(sub(start, pocket));
   return ids.map((ballId, i) => {
     const p = clampOnTable(add(start, scale(away, spacing * i)));
     return { ballId, x: p.x, y: p.y, role: 'object' as const };
   });
+}
+
+/** Cue sitting off the OB→pocket line by `cutDeg` (a real cut, not a crooked straight). */
+function cutCue(ob: Pt, pocket: Pt, cutDeg: number, gap: number, sign: 1 | -1 = 1): Pt {
+  const toPk = norm(sub(pocket, ob));
+  const rad = (cutDeg * Math.PI) / 180;
+  const incoming = {
+    x: toPk.x * Math.cos(rad) - sign * toPk.y * Math.sin(rad),
+    y: toPk.y * Math.cos(rad) + sign * toPk.x * Math.sin(rad),
+  };
+  return clampOnTable(sub(ob, scale(incoming, gap)));
+}
+
+function midpoint(a: Pt, b: Pt): Pt {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+/** Arc waypoint so a jump/curve path goes around a blocker on the straight line. */
+function arcVia(from: Pt, to: Pt, bulge: number, sign: 1 | -1 = 1): Pt {
+  const mid = midpoint(from, to);
+  const n = norm(perp(sub(to, from)));
+  return clampOnTable(add(mid, scale(n, bulge * sign)));
 }
 
 const LAYOUTS: Record<string, Layout> = {
@@ -73,75 +100,78 @@ const LAYOUTS: Record<string, Layout> = {
     pocket: 'side-far',
     rails: ['near'],
     balls: [
-      { ballId: 1, x: 62.5, y: 4.2, role: 'object' },
-      { ballId: 9, x: 78, y: 38, role: 'object' },
+      { ballId: 1, x: 62.5, y: 3.4, role: 'object' },
+      { ballId: 9, x: 86, y: 40, role: 'prop' },
     ],
     cueGap: 18,
   },
   'sotd-02': {
     kind: 'line',
     pocket: 'foot-far',
-    balls: [{ ballId: 1, x: 75, y: 28, role: 'object' }],
+    balls: [{ ballId: 1, x: FOOT_SPOT.x, y: FOOT_SPOT.y, role: 'object' }],
     cueGap: 14,
   },
   'sotd-03': {
     kind: 'line',
     pocket: 'foot-near',
-    balls: [{ ballId: 1, x: 75, y: 22, role: 'object' }],
-    cueGap: 12,
+    balls: [{ ballId: 1, x: FOOT_SPOT.x, y: FOOT_SPOT.y, role: 'object' }],
+    cueGap: 13,
   },
   'sotd-04': {
     kind: 'line',
     pocket: 'foot-far',
     balls: [
-      { ballId: 1, x: 66, y: 28, role: 'object' },
-      { ballId: 2, x: 76, y: 35, role: 'prop' },
-      { ballId: 3, x: 84, y: 41, role: 'prop' },
+      { ballId: 1, x: 72, y: 22, role: 'object' },
+      { ballId: 2, x: 78, y: 14, role: 'prop' },
+      { ballId: 3, x: 84, y: 14, role: 'prop' },
     ],
-    cueGap: 16,
+    cueGap: 20,
   },
   'sotd-05': {
-    kind: 'line',
-    pocket: 'foot-far',
-    cue: { x: 30, y: 16 },
-    balls: [
-      { ballId: 1, x: 64, y: 30, role: 'object' },
-      { ballId: 8, x: 46, y: 20, role: 'blocker' },
-    ],
+    kind: 'cut',
+    pocket: 'foot-near',
+    cutDeg: 34,
+    cutSign: 1,
+    cueGap: 22,
+    balls: [{ ballId: 1, x: 80, y: 16, role: 'object' }],
   },
   'sotd-06': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'foot-near',
-    cue: { x: 38, y: 34 },
-    balls: [{ ballId: 1, x: 70, y: 20, role: 'object' }],
+    cutDeg: 28,
+    cutSign: -1,
+    cueGap: 18,
+    balls: [{ ballId: 1, x: 72, y: 20, role: 'object' }],
   },
   'sotd-07': {
     kind: 'kick',
     pocket: 'foot-far',
-    cue: { x: 14, y: 10 },
-    railCount: 2,
-    balls: [{ ballId: 1, x: 86, y: 38, role: 'object' }],
+    cue: { x: 16, y: 10 },
+    rails: ['near', 'foot'],
+    balls: [{ ballId: 1, x: 84, y: 38, role: 'object' }],
   },
   'sotd-08': (() => {
     const pocket = POCKETS['foot-far'];
-    const last = { x: 78, y: 38 };
-    const balls = linedBalls(pocket, last, [2, 1], 13).reverse();
+    const last = { x: 84, y: 41 };
+    const balls = linedBalls(pocket, last, [2, 1], 12).reverse();
     return { kind: 'line' as const, pocket: 'foot-far' as const, balls, cueGap: 14 };
   })(),
   'sotd-09': {
     kind: 'carom',
     pocket: 'foot-near',
     balls: [
-      { ballId: 9, x: 74, y: 16, role: 'object' },
-      { ballId: 1, x: 54, y: 28, role: 'object' },
+      { ballId: 9, x: 58, y: 30, role: 'helper' },
+      { ballId: 1, x: 76, y: 16, role: 'object' },
     ],
     cueGap: 16,
   },
   'sotd-10': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'foot-near',
-    cue: { x: 46, y: 24 },
-    balls: [{ ballId: 1, x: 84, y: 5.5, role: 'object' }],
+    cutDeg: 62,
+    cutSign: -1,
+    cueGap: 20,
+    balls: [{ ballId: 1, x: 86, y: 4.8, role: 'object' }],
   },
   'sotd-11': {
     kind: 'line',
@@ -158,46 +188,41 @@ const LAYOUTS: Record<string, Layout> = {
   'sotd-13': {
     kind: 'bank',
     pocket: 'foot-far',
-    railCount: 2,
-    balls: [
-      { ballId: 9, x: 36, y: 12, role: 'object' },
-      { ballId: 1, x: 58, y: 30, role: 'object' },
-    ],
+    rails: ['near', 'head'],
+    balls: [{ ballId: 9, x: 38, y: 14, role: 'object' }],
     cueGap: 16,
   },
   'sotd-14': {
     kind: 'curve',
     pocket: 'foot-far',
-    cue: { x: 26, y: 18 },
-    via: [
-      { x: 38, y: 10 },
-      { x: 54, y: 16 },
-    ],
+    cue: { x: 28, y: 16 },
+    via: [arcVia({ x: 28, y: 16 }, { x: 74, y: 36 }, 10, 1)],
     balls: [
-      { ballId: 1, x: 72, y: 34, role: 'object' },
+      { ballId: 1, x: 74, y: 36, role: 'object' },
       { ballId: 8, x: 50, y: 26, role: 'blocker' },
     ],
   },
   'sotd-15': {
-    kind: 'line',
+    kind: 'curve',
     pocket: 'foot-near',
-    cue: { x: 26, y: 24 },
+    cue: { x: 30, y: 22 },
+    via: [arcVia({ x: 30, y: 22 }, { x: 78, y: 18 }, 9, -1)],
     balls: [
-      { ballId: 1, x: 78, y: 20, role: 'object' },
-      { ballId: 7, x: 50, y: 22, role: 'blocker' },
+      { ballId: 1, x: 78, y: 18, role: 'object' },
+      { ballId: 7, x: 54, y: 20, role: 'blocker' },
     ],
   },
   'sotd-16': {
     kind: 'curve',
     pocket: 'foot-far',
-    cue: { x: 34, y: 14 },
+    cue: { x: 22, y: 12 },
     via: [
-      { x: 24, y: 28 },
-      { x: 40, y: 42 },
+      { x: 20, y: 28 },
+      { x: 36, y: 42 },
     ],
     balls: [
       { ballId: 1, x: 64, y: 36, role: 'object' },
-      { ballId: 5, x: 48, y: 28, role: 'blocker' },
+      { ballId: 5, x: 40, y: 24, role: 'blocker' },
     ],
   },
   'sotd-17': {
@@ -207,40 +232,34 @@ const LAYOUTS: Record<string, Layout> = {
     rails: ['near'],
     balls: [{ ballId: 1, x: 80, y: 36, role: 'object' }],
   },
-  'sotd-18': {
-    kind: 'line',
-    pocket: 'foot-far',
-    balls: (() => {
-      const pocket = POCKETS['foot-far'];
-      const last = { x: 80, y: 39 };
-      return linedBalls(pocket, last, [2, 1], 3.2).reverse();
-    })(),
-    cueGap: 14,
-  },
+  'sotd-18': (() => {
+    const pocket = POCKETS['foot-far'];
+    const last = { x: 86, y: 42 };
+    return {
+      kind: 'line' as const,
+      pocket: 'foot-far' as const,
+      balls: linedBalls(pocket, last, [2, 1], 3.1).reverse(),
+      cueGap: 14,
+    };
+  })(),
   'sotd-19': {
     kind: 'bank',
     pocket: 'head-far',
     rails: ['near'],
-    balls: [
-      { ballId: 1, x: 70, y: 6.5, role: 'object' },
-      { ballId: 9, x: 42, y: 34, role: 'object' },
-    ],
+    balls: [{ ballId: 1, x: 70, y: 5.2, role: 'object' }],
     cueGap: 16,
   },
   'sotd-20': {
     kind: 'line',
     pocket: 'foot-far',
-    balls: [{ ballId: 1, x: 70, y: 32, role: 'object' }],
-    cueGap: 40,
+    balls: [{ ballId: 1, x: 78, y: 32, role: 'object' }],
+    cueGap: 36,
   },
   'sotd-21': {
     kind: 'bank',
     pocket: 'head-near',
     rails: ['far'],
-    balls: [
-      { ballId: 1, x: 22, y: 18, role: 'object' },
-      { ballId: 9, x: 48, y: 32, role: 'object' },
-    ],
+    balls: [{ ballId: 1, x: 24, y: 18, role: 'object' }],
     cueGap: 14,
   },
   'sotd-22': {
@@ -248,15 +267,15 @@ const LAYOUTS: Record<string, Layout> = {
     pocket: 'side-near',
     cue: { x: 20, y: 14 },
     rails: ['far'],
-    balls: [{ ballId: 1, x: 52.5, y: 4.4, role: 'object' }],
+    balls: [{ ballId: 1, x: 54, y: 4.6, role: 'object' }],
   },
   'sotd-23': {
     kind: 'line',
     pocket: 'foot-far',
     balls: [
-      { ballId: 1, x: 72, y: 26, role: 'object' },
-      { ballId: 2, x: 76, y: 22, role: 'prop' },
-      { ballId: 3, x: 76, y: 30, role: 'prop' },
+      { ballId: 1, x: 70, y: 24, role: 'object' },
+      { ballId: 2, x: 80, y: 16, role: 'prop' },
+      { ballId: 3, x: 80, y: 10, role: 'prop' },
     ],
     cueGap: 18,
   },
@@ -266,33 +285,29 @@ const LAYOUTS: Record<string, Layout> = {
     cue: { x: 16, y: 24 },
     rails: ['near'],
     balls: [
-      { ballId: 1, x: 72, y: 20, role: 'object' },
-      { ballId: 8, x: 60, y: 34, role: 'object' },
+      { ballId: 1, x: 74, y: 18, role: 'object' },
+      { ballId: 8, x: 48, y: 40, role: 'prop' },
     ],
   },
   'sotd-25': {
-    kind: 'carom',
+    kind: 'line',
     pocket: 'foot-near',
-    balls: [
-      { ballId: 9, x: 70, y: 15, role: 'object' },
-      { ballId: 1, x: 52, y: 26, role: 'object' },
-    ],
-    cueGap: 15,
+    cue: { x: 64.2, y: 3.6 },
+    balls: [{ ballId: 1, x: 70, y: 3.4, role: 'object' }],
   },
   'sotd-26': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'side-near',
-    cue: { x: 34, y: 32 },
-    balls: [{ ballId: 1, x: 58, y: 16, role: 'object' }],
+    cutDeg: 36,
+    cutSign: 1,
+    cueGap: 18,
+    balls: [{ ballId: 1, x: 58, y: 14, role: 'object' }],
   },
   'sotd-27': {
     kind: 'bank',
     pocket: 'foot-far',
     rails: ['near'],
-    balls: [
-      { ballId: 1, x: 35, y: 8, role: 'object' },
-      { ballId: 9, x: 62, y: 36, role: 'object' },
-    ],
+    balls: [{ ballId: 1, x: 48, y: 14, role: 'object' }],
     cueGap: 16,
   },
   'sotd-28': {
@@ -301,70 +316,73 @@ const LAYOUTS: Record<string, Layout> = {
     cue: { x: 16, y: 10 },
     rails: ['near'],
     balls: [
-      { ballId: 1, x: 78, y: 36, role: 'object' },
-      { ballId: 8, x: 58, y: 22, role: 'prop' },
+      { ballId: 1, x: 80, y: 36, role: 'object' },
+      { ballId: 8, x: 42, y: 40, role: 'prop' },
     ],
   },
   'sotd-29': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'foot-near',
-    cue: { x: 46, y: 22 },
-    balls: [{ ballId: 1, x: 72, y: 7.5, role: 'object' }],
+    cutDeg: 40,
+    cutSign: -1,
+    cueGap: 16,
+    balls: [{ ballId: 1, x: 74, y: 7.2, role: 'object' }],
   },
   'sotd-30': {
     kind: 'curve',
     pocket: 'foot-far',
-    cue: { x: 28, y: 16 },
-    via: [
-      { x: 40, y: 9 },
-      { x: 56, y: 14 },
-    ],
+    cue: { x: 28, y: 14 },
+    via: [arcVia({ x: 28, y: 14 }, { x: 72, y: 36 }, 11, 1)],
     balls: [
-      { ballId: 1, x: 70, y: 34, role: 'object' },
+      { ballId: 1, x: 72, y: 36, role: 'object' },
       { ballId: 8, x: 50, y: 24, role: 'blocker' },
     ],
   },
   'sotd-31': (() => {
     const pocket = POCKETS['foot-far'];
-    const last = { x: 82, y: 40 };
-    const balls = linedBalls(pocket, last, [3, 2, 1], 12).reverse();
-    return { kind: 'line' as const, pocket: 'foot-far' as const, balls, cueGap: 13 };
+    const last = { x: 86, y: 42 };
+    return {
+      kind: 'line' as const,
+      pocket: 'foot-far' as const,
+      balls: linedBalls(pocket, last, [3, 2, 1], 11).reverse(),
+      cueGap: 13,
+    };
   })(),
   'sotd-32': {
-    kind: 'line',
+    kind: 'curve',
     pocket: 'foot-far',
-    cue: { x: 24, y: 18 },
+    cue: { x: 24, y: 16 },
+    via: [arcVia({ x: 24, y: 16 }, { x: 76, y: 34 }, 10, 1)],
     balls: [
       { ballId: 1, x: 76, y: 34, role: 'object' },
-      { ballId: 7, x: 50, y: 26, role: 'blocker' },
+      { ballId: 7, x: 50, y: 24, role: 'blocker' },
     ],
   },
   'sotd-33': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'side-near',
-    cue: { x: 30, y: 20 },
-    balls: [{ ballId: 1, x: 56, y: 4.6, role: 'object' }],
+    cutDeg: 22,
+    cutSign: 1,
+    cueGap: 16,
+    balls: [{ ballId: 1, x: 58, y: 4.8, role: 'object' }],
   },
   'sotd-34': {
     kind: 'bank',
     pocket: 'side-far',
     rails: ['near'],
-    balls: [
-      { ballId: 1, x: 68, y: 4.4, role: 'object' },
-      { ballId: 9, x: 82, y: 34, role: 'object' },
-    ],
+    balls: [{ ballId: 1, x: 68, y: 4.0, role: 'object' }],
     cueGap: 17,
   },
   'sotd-35': {
     kind: 'line',
     pocket: 'foot-far',
-    balls: [{ ballId: 1, x: 74, y: 34, role: 'object' }],
-    cueGap: 42,
+    balls: [{ ballId: 1, x: 78, y: 36, role: 'object' }],
+    cueGap: 40,
   },
   'sotd-36': {
     kind: 'kick',
     pocket: 'foot-far',
-    cue: { x: 14, y: 14 },
+    cue: { x: 16, y: 12 },
     rails: ['far'],
     balls: [{ ballId: 1, x: 82, y: 36, role: 'object' }],
   },
@@ -373,83 +391,85 @@ const LAYOUTS: Record<string, Layout> = {
     pocket: 'side-near',
     cue: { x: 22, y: 14 },
     rails: ['far'],
-    balls: [
-      { ballId: 1, x: 58, y: 16, role: 'object' },
-      { ballId: 8, x: 40, y: 28, role: 'blocker' },
-    ],
+    balls: [{ ballId: 1, x: 56, y: 16, role: 'object' }],
   },
   'sotd-38': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'foot-far',
-    cue: { x: 40, y: 16 },
-    balls: [{ ballId: 8, x: 72, y: 30, role: 'object' }],
+    cutDeg: 32,
+    cutSign: -1,
+    cueGap: 18,
+    balls: [{ ballId: 8, x: 70, y: 28, role: 'object' }],
   },
   'sotd-39': {
     kind: 'kick',
     pocket: 'foot-far',
-    cue: { x: 18, y: 12 },
-    railCount: 4,
-    balls: [{ ballId: 1, x: 70, y: 34, role: 'object' }],
+    cue: { x: 16, y: 12 },
+    rails: ['far', 'foot', 'near', 'head'],
+    balls: [{ ballId: 1, x: 70, y: 40, role: 'object' }],
   },
   'sotd-40': {
     kind: 'line',
     pocket: 'foot-far',
     balls: [
       { ballId: 1, x: 48, y: 22, role: 'object' },
-      { ballId: 2, x: 62, y: 12, role: 'object' },
+      { ballId: 2, x: 64, y: 12, role: 'object' },
     ],
     cueGap: 14,
-    // B banks after the combo — filled in at build time if needed
   },
   'sotd-41': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'foot-near',
-    cue: { x: 30, y: 25 },
+    cutDeg: 26,
+    cutSign: 1,
+    cueGap: 18,
     balls: [
-      { ballId: 1, x: 64, y: 18, role: 'object' },
-      { ballId: 8, x: 64, y: 32, role: 'object' },
+      { ballId: 1, x: 66, y: 18, role: 'object' },
+      { ballId: 8, x: 66, y: 38, role: 'prop' },
     ],
   },
   'sotd-42': (() => {
     const pocket = POCKETS['foot-far'];
-    const last = { x: 84, y: 41 };
-    const balls = linedBalls(pocket, last, [3, 2, 1], 11).reverse();
-    return { kind: 'line' as const, pocket: 'foot-far' as const, balls, cueGap: 13 };
+    const last = { x: 86, y: 42 };
+    return {
+      kind: 'line' as const,
+      pocket: 'foot-far' as const,
+      balls: linedBalls(pocket, last, [3, 2, 1], 11).reverse(),
+      cueGap: 13,
+    };
   })(),
   'sotd-43': {
     kind: 'line',
     pocket: 'foot-far',
-    cue: { x: 36, y: 22 },
+    cue: { x: 24, y: 26 },
     balls: [
-      { ballId: 1, x: 70, y: 26, role: 'object' },
-      { ballId: 8, x: 64, y: 31.5, role: 'blocker' },
-      { ballId: 7, x: 64, y: 20.5, role: 'blocker' },
+      { ballId: 1, x: 78, y: 26, role: 'object' },
+      { ballId: 8, x: 50, y: 20.5, role: 'blocker' },
+      { ballId: 7, x: 50, y: 31.5, role: 'blocker' },
     ],
   },
   'sotd-44': {
     kind: 'kick',
     pocket: 'foot-far',
-    cue: { x: 20, y: 10 },
-    railCount: 3,
-    balls: [{ ballId: 1, x: 68, y: 36, role: 'object' }],
+    cue: { x: 20, y: 12 },
+    rails: ['near', 'foot', 'far'],
+    balls: [{ ballId: 1, x: 72, y: 36, role: 'object' }],
   },
   'sotd-45': {
-    kind: 'line',
+    kind: 'curve',
     pocket: 'foot-near',
     cue: { x: 22, y: 28 },
+    via: [arcVia({ x: 22, y: 28 }, { x: 80, y: 16 }, 10, 1)],
     balls: [
-      { ballId: 1, x: 80, y: 18, role: 'object' },
-      { ballId: 7, x: 50, y: 24, role: 'blocker' },
+      { ballId: 1, x: 80, y: 16, role: 'object' },
+      { ballId: 7, x: 50, y: 22, role: 'blocker' },
     ],
   },
   'sotd-46': {
     kind: 'bank',
     pocket: 'foot-near',
-    railCount: 2,
-    balls: [
-      { ballId: 1, x: 32, y: 8, role: 'object' },
-      { ballId: 9, x: 55, y: 30, role: 'object' },
-    ],
+    rails: ['near', 'far'],
+    balls: [{ ballId: 1, x: 34, y: 10, role: 'object' }],
     cueGap: 15,
   },
   'sotd-47': {
@@ -457,70 +477,107 @@ const LAYOUTS: Record<string, Layout> = {
     pocket: 'foot-far',
     balls: [
       { ballId: 1, x: 60, y: 24, role: 'object' },
-      { ballId: 8, x: 64.8, y: 24, role: 'prop' },
+      { ballId: 8, x: 60, y: 32, role: 'prop' },
     ],
     cueGap: 18,
   },
   'sotd-48': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'foot-near',
-    cue: { x: 38, y: 38 },
+    cutDeg: 42,
+    cutSign: -1,
+    cueGap: 18,
     balls: [{ ballId: 1, x: 68, y: 26, role: 'object' }],
   },
   'sotd-49': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'foot-near',
-    cue: { x: 42, y: 34 },
-    balls: [{ ballId: 1, x: 82, y: 8, role: 'object' }],
+    cutDeg: 68,
+    cutSign: -1,
+    cueGap: 22,
+    balls: [{ ballId: 1, x: 84, y: 7.5, role: 'object' }],
   },
   'sotd-50': {
     kind: 'curve',
     pocket: 'foot-far',
-    cue: { x: 24, y: 16 },
-    via: [{ x: 40, y: 9 }],
+    cue: { x: 24, y: 14 },
+    via: [arcVia({ x: 24, y: 14 }, { x: 74, y: 34 }, 11, 1)],
     balls: [
       { ballId: 1, x: 74, y: 34, role: 'object' },
-      { ballId: 7, x: 48, y: 24, role: 'blocker' },
+      { ballId: 7, x: 48, y: 22, role: 'blocker' },
     ],
   },
   'sotd-51': {
     kind: 'bank',
     pocket: 'side-far',
     rails: ['near'],
-    balls: [
-      { ballId: 1, x: 72, y: 4.6, role: 'object' },
-      { ballId: 9, x: 40, y: 32, role: 'object' },
-    ],
+    balls: [{ ballId: 1, x: 72, y: 4.2, role: 'object' }],
     cueGap: 17,
   },
   'sotd-52': {
-    kind: 'line',
+    kind: 'cut',
     pocket: 'foot-far',
-    cue: { x: 38, y: 14 },
+    cutDeg: 24,
+    cutSign: 1,
+    cueGap: 16,
     balls: [
-      { ballId: 1, x: 75, y: 25, role: 'object' },
-      { ballId: 8, x: 62, y: 36, role: 'object' },
+      { ballId: 1, x: 74, y: 26, role: 'object' },
+      { ballId: 8, x: 58, y: 40, role: 'prop' },
     ],
   },
 };
 
 function primaryOf(balls: BallSpec[]): BallSpec {
-  return balls.find((b) => b.role !== 'blocker' && b.role !== 'prop') ?? balls[0];
+  return balls.find((b) => !b.role || b.role === 'object') ?? balls[0];
 }
 
 function resolveRails(from: Pt, to: Pt, layout: Layout): Pt[] {
   if (layout.rails?.length) {
     const pts = railChain(from, to, layout.rails);
     if (pts) return pts;
+    throw new Error(`named rails ${layout.rails.join('→')} miss ${from.x},${from.y} → ${to.x},${to.y}`);
   }
-  const n = layout.railCount ?? layout.rails?.length ?? 1;
+  const n = layout.railCount ?? 1;
   const found = findRailChain(from, to, n);
   if (found) return found.pts;
-  if (n > 1) {
-    const fewer = findRailChain(from, to, 1);
-    if (fewer) return fewer.pts;
-  }
-  throw new Error(`no rail path ${from.x},${from.y} → ${to.x},${to.y}`);
+  throw new Error(`no ${n}-rail path ${from.x},${from.y} → ${to.x},${to.y}`);
+}
+
+function nudgeOffLane(balls: BallSpec[], pts: Pt[], minDist = LANE_CLEARANCE + 0.8): BallSpec[] {
+  return balls.map((b) => {
+    if (isPathContact(b, pts, 3)) return b;
+    let { x, y } = b;
+    for (let iter = 0; iter < 10; iter++) {
+      let worst: { d: number; nx: number; ny: number } | null = null;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i];
+        const c = pts[i + 1];
+        const d = pointToSegmentDistance({ x, y }, a, c);
+        if (d >= minDist) continue;
+        const n = norm(perp(sub(c, a)));
+        const mid = midpoint(a, c);
+        const side = (x - mid.x) * n.x + (y - mid.y) * n.y;
+        const sign = side < 0 ? -1 : 1;
+        if (!worst || d < worst.d) worst = { d, nx: n.x * sign, ny: n.y * sign };
+      }
+      if (!worst) break;
+      const pushed = clampOnTable(
+        { x: x + worst.nx * (minDist - worst.d + 0.7), y: y + worst.ny * (minDist - worst.d + 0.7) },
+        3,
+      );
+      x = pushed.x;
+      y = pushed.y;
+    }
+    return { ...b, x, y };
+  });
+}
+
+function placeBlockerOnLine(cue: Pt, ob: Pt, preferred: Pt): Pt {
+  const t = 0.48;
+  const onLine = { x: cue.x + (ob.x - cue.x) * t, y: cue.y + (ob.y - cue.y) * t };
+  // Prefer the caller's x/y if they already sit on the line; otherwise snap to the line.
+  if (pointToSegmentDistance(preferred, cue, ob) < 1.6) return clampOnTable(preferred);
+  return clampOnTable(onLine);
 }
 
 function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pts: Pt[] } {
@@ -544,7 +601,7 @@ function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pt
   }
 
   if (layout.kind === 'carom') {
-    const helper = balls.find((b) => b.ballId !== primary.ballId && b.role !== 'blocker') ?? balls[1];
+    const helper = balls.find((b) => b.role === 'helper') ?? balls.find((b) => b.ballId !== primary.ballId);
     const helperPt = helper ? { x: helper.x, y: helper.y } : aimBehind(ob, pocket, 12);
     const cue = clampOnTable(layout.cue ?? aimBehind(helperPt, ob, gap));
     return { cue, pocket, balls, pts: [cue, helperPt, ob, pocket] };
@@ -553,11 +610,23 @@ function buildPath(layout: Layout): { cue: Pt; pocket: Pt; balls: BallSpec[]; pt
   if (layout.kind === 'curve') {
     const cue = clampOnTable(layout.cue ?? aimBehind(ob, pocket, gap));
     const via = (layout.via ?? []).map((p) => clampOnTable(p));
+    const blocker = balls.find((b) => b.role === 'blocker');
+    if (blocker && via.length) {
+      const snapped = placeBlockerOnLine(cue, ob, blocker);
+      blocker.x = snapped.x;
+      blocker.y = snapped.y;
+    }
     return { cue, pocket, balls, pts: [cue, ...via, ob, pocket] };
   }
 
-  // line / combo: cue → each object (in listed order, skip blocker/prop) → pocket
-  const objects = balls.filter((b) => b.role !== 'blocker' && b.role !== 'prop');
+  if (layout.kind === 'cut') {
+    const deg = layout.cutDeg ?? 32;
+    const sign = layout.cutSign ?? 1;
+    const cue = clampOnTable(layout.cue ?? cutCue(ob, pocket, deg, gap, sign));
+    return { cue, pocket, balls, pts: [cue, ob, pocket] };
+  }
+
+  const objects = balls.filter((b) => !b.role || b.role === 'object');
   const objectPts = objects.map((b) => ({ x: b.x, y: b.y }));
   const aim = objectPts[0] ?? ob;
   const toward = objectPts[1] ?? pocket;
@@ -608,13 +677,13 @@ function renderAscii(cue: Pt, balls: BallSpec[], pts: Pt[], pocket: Pt): string 
   }
   set(pocket, 'O');
   for (const b of balls) {
-    const ch = b.role === 'blocker' ? 'X' : String(b.ballId % 10);
+    const ch = b.role === 'blocker' ? 'X' : b.role === 'helper' ? 'H' : String(b.ballId % 10);
     set(b, ch);
   }
   set(cue, 'C');
   const inner = grid.map((row) => `│${row.join('')}│`).join('\n');
   const rail = `O${'─'.repeat(cols)}O`;
-  return `${rail}\n${inner}\n${rail}\nLegend: C=cue  1-9=object  X=blocker  O=pocket  ·=path`;
+  return `${rail}\n${inner}\n${rail}\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path`;
 }
 
 function specialAfter(id: string, layout: Layout, built: ReturnType<typeof buildPath>): Pt[] | null {
@@ -632,8 +701,9 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
   if (extra) {
     built = buildPath({ ...layout, afterObject: extra });
   }
-  const { cue, pocket, balls, pts } = built;
-  const roundedBalls = balls.map((b) => ({
+  const nudgedBalls = nudgeOffLane(built.balls, built.pts);
+  const { cue, pocket, pts } = built;
+  const roundedBalls = nudgedBalls.map((b) => ({
     ballId: b.ballId,
     x: roundPt(b).x,
     y: roundPt(b).y,
@@ -676,7 +746,7 @@ export type SotdPoint = { x: number; y: number };
 
 export type SotdObjectBall = SotdPoint & {
   ballId: number;
-  role?: 'object' | 'blocker' | 'prop';
+  role?: 'object' | 'blocker' | 'prop' | 'helper';
 };
 
 export type SotdPathSegment = {
@@ -764,18 +834,21 @@ function main() {
   if (failures.length) {
     console.error(`Validation failed for ${failures.length} map(s):\n${failures.join('\n')}`);
     process.exitCode = 1;
-  } else {
-    console.log(`All ${next.length} maps pass geometry validation.`);
+    console.error('Canonical sotd-shot-maps.ts was not overwritten.');
+    return;
   }
 
-  const out =
-    fileHeader() + JSON.stringify(next, null, 2) + fileFooter();
-  const dest = path.join(__dirname, '../src/realai/v2/sotd-shot-maps.ts');
-  // Only write if we have a full set — even with failures we write so we can inspect.
-  if (next.length === SOTD_SHOT_MAPS.length) {
-    fs.writeFileSync(dest, out);
-    console.log(`Wrote ${dest}`);
+  if (next.length !== SOTD_SHOT_MAPS.length) {
+    console.error(`Expected ${SOTD_SHOT_MAPS.length} maps, built ${next.length}. Not writing.`);
+    process.exitCode = 1;
+    return;
   }
+
+  const out = fileHeader() + JSON.stringify(next, null, 2) + fileFooter();
+  const dest = path.join(__dirname, '../src/realai/v2/sotd-shot-maps.ts');
+  fs.writeFileSync(dest, out);
+  console.log(`All ${next.length} maps pass geometry validation.`);
+  console.log(`Wrote ${dest}`);
 }
 
 main();

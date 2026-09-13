@@ -43,6 +43,7 @@ export function CoachPage() {
   }, []);
 
   const today = drills[0];
+  const drillVia = describeDrillProvider(provider, realai);
 
   async function runAnalyze() {
     setBusy(true);
@@ -76,7 +77,7 @@ export function CoachPage() {
         </h1>
         <p className="muted" style={{ marginTop: 6 }}>
           Rating {user?.rating ?? '—'} · drills via{' '}
-          <strong style={{ color: 'var(--gold)' }}>{provider}</strong>
+          <strong style={{ color: 'var(--gold)' }}>{drillVia}</strong>
         </p>
       </header>
 
@@ -235,4 +236,29 @@ export function CoachPage() {
       </Modal>
     </div>
   );
+}
+
+/** Human label for the drill source — don't imply a total outage when RealAI is up. */
+export function describeDrillProvider(
+  provider: string,
+  health: { reachable: boolean } | null,
+): string {
+  const p = (provider || '').toLowerCase();
+  if (p === 'demo' || p === '…' || p === 'checking' || p === 'error') return provider;
+  if (health?.reachable === true) {
+    if (p.includes('parse') || p.includes('realai-parse-fallback') || p === 'rules-fallback-parse') {
+      return 'RealAI online · coach drill text failed (showing rules drills)';
+    }
+    if (p.includes('offline') || p.includes('rules-fallback') || p === 'rules-fallback') {
+      return 'RealAI online · coach chat failed (showing rules drills)';
+    }
+    return provider;
+  }
+  if (health?.reachable === false) {
+    if (p.includes('parse')) {
+      return 'offline · coach text failed, using rules drills';
+    }
+    return 'offline · rules fallback';
+  }
+  return provider;
 }
