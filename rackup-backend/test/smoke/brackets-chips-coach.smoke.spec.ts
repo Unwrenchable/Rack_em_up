@@ -277,7 +277,7 @@ describe('Hive tools-execute invoke fallback', () => {
     process.env.REALAI_BASE_URL = 'http://127.0.0.1:8001';
     delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
     const urls: string[] = [];
-    global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    global.fetch = (async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
       urls.push(url);
       if (url.includes('/v1/plugins/rackup-coach') || url.includes('/v1/rackup/coach')) {
@@ -325,7 +325,7 @@ describe('Hive tools-execute invoke fallback', () => {
     process.env.REALAI_BASE_URL = 'https://realai-api.onrender.com';
     delete process.env.REALAI_HIVE_TOOLS_FALLBACK;
     const urls: string[] = [];
-    global.fetch = (async (input: RequestInfo | URL) => {
+    global.fetch = (async (input: string | URL) => {
       const url = String(input);
       urls.push(url);
       return jsonResponse(404, { error: 'not_found' });
@@ -339,7 +339,7 @@ describe('Hive tools-execute invoke fallback', () => {
   it('uses the plugin path when present and skips tools/execute', async () => {
     process.env.REALAI_BASE_URL = 'http://127.0.0.1:8001';
     const urls: string[] = [];
-    global.fetch = (async (input: RequestInfo | URL) => {
+    global.fetch = (async (input: string | URL) => {
       const url = String(input);
       urls.push(url);
       if (url.includes('/v1/plugins/rackup-coach')) {
