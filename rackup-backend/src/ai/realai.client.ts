@@ -13,6 +13,12 @@
  */
 
 import { isUnusableRealAiText } from './realai-text-guard';
+import {
+  isForbiddenRealAiUiHost,
+  realAiCoachPaths,
+  renderCloudKeyHint,
+  resolveRealAiBaseUrl,
+} from './realai-endpoint';
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
@@ -30,15 +36,16 @@ export type RealAiStatus = {
   model: string;
   coachPath: string;
   chatRequiresLocalGpu: boolean;
+  hint?: string;
   error?: string;
 };
 
 function baseUrl(): string {
-  return (process.env.REALAI_BASE_URL ?? 'http://127.0.0.1:8001').replace(/\/$/, '');
+  return resolveRealAiBaseUrl();
 }
 
 function coachPath(): string {
-  return process.env.REALAI_COACH_PATH ?? '/v1/plugins/rackup-coach';
+  return realAiCoachPaths()[0];
 }
 
 function modelName(): string {
@@ -52,37 +59,33 @@ function apiKey(): string | undefined {
 export async function getRealAiStatus(): Promise<RealAiStatus> {
   const url = baseUrl();
   const model = modelName();
+  const base = {
+    configured: true,
+    baseUrl: url,
+    model,
+    coachPath: coachPath(),
+    chatRequiresLocalGpu: true,
+    hint: renderCloudKeyHint(url),
+  };
+  if (isForbiddenRealAiUiHost(url)) {
+    return {
+      ...base,
+      reachable: false,
+      error: 'REALAI_BASE_URL points at realaiui.vercel.app (UI, not API)',
+    };
+  }
   try {
     const res = await fetch(`${url}/health`, {
       signal: AbortSignal.timeout(2500),
     });
     if (!res.ok) {
-      return {
-        configured: true,
-        reachable: false,
-        baseUrl: url,
-        model,
-        coachPath: coachPath(),
-        chatRequiresLocalGpu: true,
-        error: `health ${res.status}`,
-      };
+      return { ...base, reachable: false, error: `health ${res.status}` };
     }
-    return {
-      configured: true,
-      reachable: true,
-      baseUrl: url,
-      model,
-      coachPath: coachPath(),
-      chatRequiresLocalGpu: true,
-    };
+    return { ...base, reachable: true };
   } catch (e) {
     return {
-      configured: true,
+      ...base,
       reachable: false,
-      baseUrl: url,
-      model,
-      coachPath: coachPath(),
-      chatRequiresLocalGpu: true,
       error: e instanceof Error ? e.message : 'unreachable',
     };
   }

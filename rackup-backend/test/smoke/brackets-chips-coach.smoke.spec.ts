@@ -44,6 +44,15 @@ import {
   LIVE_DEFAULT_LLM_PLACEHOLDER,
   sanitizePublicAnalyze,
 } from '../../src/training/analyze-response';
+import {
+  REALAI_ALIAS_COACH_PATH,
+  REALAI_CANONICAL_COACH_PATH,
+  buildRackupCoachEnvelope,
+  isForbiddenRealAiUiHost,
+  realAiCoachPaths,
+  renderCloudKeyHint,
+  resolveRealAiBaseUrl,
+} from '../../src/ai/realai-endpoint';
 
 describe('RealAI default_llm / plugin text guard', () => {
   it('never publishes the live YouTube-analyze default_llm sentence', () => {
@@ -136,6 +145,35 @@ describe('RealAI default_llm / plugin text guard', () => {
     expect(text).toMatch(/Stop shot ladder/);
     expect(text).toMatch(/follow \/ draw/);
     expect(text).not.toMatch(/default_llm/);
+  });
+});
+
+describe('RealAI rackup-coach wiring contract', () => {
+  it('builds the canonical envelope and never forces local GGUF', () => {
+    const env = buildRackupCoachEnvelope({
+      ability: 'video_analysis',
+      player: { player_id: 'u1', rating: 500, rating_system: 'rackup' },
+      payload: { observations: 'cue-ball-control' },
+    });
+    expect(env.organs_enabled).toBe(true);
+    expect(env.ability).toBe('video_analysis');
+    expect(env.payload.prefer_local).toBe(false);
+    expect(env.payload.allow_cloud_llm).toBe(true);
+    expect(JSON.stringify(env)).not.toMatch(/_use_local/);
+    expect(JSON.stringify(env)).not.toMatch(/default_llm/);
+  });
+
+  it('uses Hive :8001 by default and rejects the Vercel UI host', () => {
+    expect(resolveRealAiBaseUrl('http://127.0.0.1:8001')).toBe(
+      'http://127.0.0.1:8001',
+    );
+    expect(isForbiddenRealAiUiHost('https://realaiui.vercel.app')).toBe(true);
+    expect(isForbiddenRealAiUiHost('https://realai-api.onrender.com')).toBe(false);
+    expect(realAiCoachPaths()[0]).toBe(REALAI_CANONICAL_COACH_PATH);
+    expect(realAiCoachPaths()).toContain(REALAI_ALIAS_COACH_PATH);
+    expect(renderCloudKeyHint('https://realai-api.onrender.com')).toMatch(
+      /OPENAI_API_KEY/,
+    );
   });
 });
 

@@ -86,12 +86,47 @@ export class TrainingService {
         return { drills, provider: 'realai' };
       }
       this.logger.warn(
-        'rackup-coach returned a result but no drills were extractable; trying chat harvest',
+        'rackup-coach coach ability returned no drills; trying pyramid if relevant',
       );
     } catch (e) {
       this.logger.warn(
         `rackup-coach drills failed: ${e instanceof Error ? e.message : e}`,
       );
+    }
+
+    const discipline = String(games[0] ?? '').toLowerCase();
+    if (discipline.includes('pyramid')) {
+      try {
+        const pyramid = await realaiCoach({
+          ability: 'pyramid',
+          goal: "Today's 3 focused practice drills",
+          player: {
+            player_id: userId,
+            display_name: user?.displayName,
+            rating,
+            rd: user?.rd,
+            volatility: user?.volatility,
+            rating_system: 'rackup',
+            skill_level: user?.ratingBand ?? undefined,
+            discipline: 'pyramid',
+            locale: 'en',
+          },
+          payload: {
+            mode: 'practice_plan',
+            minutes: 60,
+            count: 3,
+            recent_results: summary || 'none',
+          },
+        });
+        const drills = drillsFromCoachResult(pyramid);
+        if (drills?.length) {
+          return { drills, provider: 'realai' };
+        }
+      } catch (e) {
+        this.logger.warn(
+          `rackup-coach pyramid drills failed: ${e instanceof Error ? e.message : e}`,
+        );
+      }
     }
 
     // Chat/completions needs a local default_llm (Hive). Render API-only
