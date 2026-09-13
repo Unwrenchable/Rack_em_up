@@ -19,20 +19,17 @@ export type ComboLeg = {
   pts: SotdPoint[];
 };
 
-export type PathLeg = {
-  pts: SotdPoint[];
-  airborne: boolean;
-};
-
 export type DerivedShotGeometry = {
   primaryObject: SotdObjectBall;
   /** Ball that actually travels to the pocket (last combo ball, else primary). */
   pocketObject: SotdObjectBall;
   contactPoint: SotdPoint;
-  /** Always: CB → OB (and rail-first segments when present). */
+  /** Ground-only cue run (CB → takeoff). Never chords through a jump hop. */
   cueApproach: SotdPoint[];
-  /** Cue approach split so jump hops can be dashed independently. */
-  cueApproachLegs: PathLeg[];
+  /** Dashed airborne hop (takeoff → apex → landing). Empty when the path stays on cloth. */
+  cueAirborne: SotdPoint[];
+  /** Cloth run after the hop (landing → object). Empty when there is no airborne split. */
+  cueApproachAfter: SotdPoint[];
   /**
    * Combo hops only: each object ball drives the next (arrow stops at the next ball).
    * Empty for single-object shots.
@@ -88,15 +85,32 @@ function nearRail(p: SotdPoint, pad = 3): boolean {
   return p.x <= pad || p.x >= TABLE.xMax - pad || p.y <= pad || p.y >= TABLE.yMax - pad;
 }
 
-type FlaggedPt = SotdPoint & { airborneFromPrev?: boolean };
+export function segmentIsAirborne(seg: SotdPathSegment): boolean {
+  return seg.kind === 'airborne' || seg.style === 'dashed';
+}
 
-function pathToPoints(segs: SotdPathSegment[]): FlaggedPt[] {
+function segmentIsObject(seg: SotdPathSegment): boolean {
+  return seg.kind === 'object';
+}
+
+function pathToPoints(segs: SotdPathSegment[]): SotdPoint[] {
   if (!segs.length) return [];
-  const pts: FlaggedPt[] = [{ ...segs[0].from }];
+  const pts: SotdPoint[] = [{ ...segs[0].from }];
   for (const s of segs) {
     const last = pts[pts.length - 1];
-    if (dist(last, s.from) > 0.4) pts.push({ ...s.from, airborneFromPrev: !!s.airborne });
-    pts.push({ ...s.to, airborneFromPrev: !!s.airborne });
+    if (dist(last, s.from) > 0.4) pts.push({ ...s.from });
+    pts.push({ ...s.to });
+  }
+  return pts;
+}
+
+function polylineFromSegs(segs: SotdPathSegment[]): SotdPoint[] {
+  if (!segs.length) return [];
+  const pts: SotdPoint[] = [{ ...segs[0].from }];
+  for (const s of segs) {
+    const last = pts[pts.length - 1];
+    if (dist(last, s.from) > 0.4) pts.push({ ...s.from });
+    pts.push({ ...s.to });
   }
   return pts;
 }
@@ -109,35 +123,54 @@ function pointToSegmentDistance(p: SotdPoint, a: SotdPoint, b: SotdPoint): numbe
   return dist(p, { x: a.x + ab.x * t, y: a.y + ab.y * t });
 }
 
-function inferJumpAirborne(pts: FlaggedPt[], map: SotdShotMap): void {
-  if ((map.category || '').toLowerCase() !== 'jump') return;
-  if (pts.some((p) => p.airborneFromPrev)) return;
+/** Older jump maps without style/kind: treat a cloth segment over a blocker as airborne. */
+function annotateJumpAirborne(segs: SotdPathSegment[], map: SotdShotMap): SotdPathSegment[] {
+  if ((map.category || '').toLowerCase() !== 'jump') return segs;
+  if (segs.some(segmentIsAirborne)) return segs;
   const blockers = (map.object_ball_positions ?? []).filter((b) => b.role === 'blocker');
-  if (!blockers.length) return;
-  for (let i = 1; i < pts.length; i++) {
-    if (blockers.some((b) => pointToSegmentDistance(b, pts[i - 1], pts[i]) < 3.6)) {
-      pts[i].airborneFromPrev = true;
+  if (!blockers.length) return segs;
+  return segs.map((s) => {
+    if (blockers.some((b) => pointToSegmentDistance(b, s.from, s.to) < 3.6)) {
+      return { ...s, style: 'dashed', kind: 'airborne' };
     }
-  }
+    return s;
+  });
 }
 
-function splitAirborneLegs(pts: FlaggedPt[]): PathLeg[] {
-  if (pts.length < 2) return [];
-  const legs: PathLeg[] = [];
-  let cur: PathLeg = { pts: [{ x: pts[0].x, y: pts[0].y }], airborne: false };
-  for (let i = 1; i < pts.length; i++) {
-    const air = !!pts[i].airborneFromPrev;
-    if (cur.pts.length >= 2 && air !== cur.airborne) {
-      legs.push(cur);
-      const last = cur.pts[cur.pts.length - 1];
-      cur = { pts: [{ ...last }], airborne: air };
-    } else if (cur.pts.length === 1) {
-      cur.airborne = air;
-    }
-    cur.pts.push({ x: pts[i].x, y: pts[i].y });
+function firstGroundRun(segs: SotdPathSegment[]): SotdPoint[] {
+  const run: SotdPathSegment[] = [];
+  for (const s of segs) {
+    if (segmentIsAirborne(s) || segmentIsObject(s) || s.kind === 'cue_after') break;
+    run.push(s);
   }
-  if (cur.pts.length >= 2) legs.push(cur);
-  return legs;
+  return polylineFromSegs(run);
+}
+
+function airbornePolyline(segs: SotdPathSegment[]): SotdPoint[] {
+  const air: SotdPathSegment[] = [];
+  let seen = false;
+  for (const s of segs) {
+    if (segmentIsAirborne(s)) {
+      air.push(s);
+      seen = true;
+    } else if (seen) {
+      break;
+    }
+  }
+  return polylineFromSegs(air);
+}
+
+function groundAfterAirborne(segs: SotdPathSegment[]): SotdPoint[] {
+  const firstAir = segs.findIndex(segmentIsAirborne);
+  if (firstAir < 0) return [];
+  let i = firstAir;
+  while (i < segs.length && segmentIsAirborne(segs[i])) i++;
+  const rest: SotdPathSegment[] = [];
+  for (; i < segs.length; i++) {
+    if (segmentIsObject(segs[i]) || segs[i].kind === 'cue_after' || segmentIsAirborne(segs[i])) break;
+    rest.push(segs[i]);
+  }
+  return polylineFromSegs(rest);
 }
 
 function pickPrimaryObject(map: SotdShotMap): SotdObjectBall {
@@ -193,9 +226,8 @@ function cutAngleDeg(cueToOb: SotdPoint, obToPocket: SotdPoint): number {
  */
 export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   const primary = pickPrimaryObject(map);
-  const segs = map.intended_path ?? [];
+  const segs = annotateJumpAirborne(map.intended_path ?? [], map);
   const fullPts = pathToPoints(segs);
-  inferJumpAirborne(fullPts, map);
   const start = map.cue_ball_start;
   const pocket = map.pocket_target;
 
@@ -217,37 +249,37 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     y: primary.y + towardCue.y * 1.2,
   };
 
-  // CB → OB: keep rails, carom helpers, and curve/jump vias (not only cushion hits)
+  // CB → OB: keep rails, carom helpers, and curve vias (not only cushion hits).
+  // Jump hops stay out of cueApproach so we never draw a solid chord through the blocker.
   let railFirst = false;
-  const approachPts: SotdPoint[] = [{ ...start }];
-  if (fullPts.length) {
-    for (let i = 0; i <= contactIdx; i++) {
-      const p = fullPts[i];
-      if (i >= contactIdx) continue;
-      if (dist(p, primary) <= 4 || dist(p, start) <= 2) continue;
-      if (nearRail(p) && dist(p, primary) > 8) railFirst = true;
-      approachPts.push(p);
+  let cueApproach: SotdPoint[];
+  let cueAirborne: SotdPoint[] = [];
+  let cueApproachAfter: SotdPoint[] = [];
+  const hasAir = segs.some(segmentIsAirborne);
+  if (hasAir) {
+    cueApproach = dedupePoints(firstGroundRun(segs));
+    cueAirborne = airbornePolyline(segs);
+    cueApproachAfter = dedupePoints(groundAfterAirborne(segs));
+    if (cueApproach.length < 2) {
+      cueApproach = dedupePoints([{ ...start }, cueAirborne[0] ?? contactPoint]);
+    }
+  } else {
+    const approachPts: SotdPoint[] = [{ ...start }];
+    if (fullPts.length) {
+      for (let i = 0; i <= contactIdx; i++) {
+        const p = fullPts[i];
+        if (i >= contactIdx) continue;
+        if (dist(p, primary) <= 4 || dist(p, start) <= 2) continue;
+        if (nearRail(p) && dist(p, primary) > 8) railFirst = true;
+        approachPts.push(p);
+      }
+    }
+    approachPts.push(contactPoint);
+    cueApproach = dedupePoints(approachPts);
+    if (cueApproach.length < 2) {
+      cueApproach.push(contactPoint);
     }
   }
-  approachPts.push(contactPoint);
-  const cueApproach = dedupePoints(approachPts);
-  if (cueApproach.length < 2) {
-    cueApproach.push(contactPoint);
-  }
-
-  const approachFlagged: FlaggedPt[] = [];
-  for (let i = 0; i <= contactIdx && i < fullPts.length; i++) {
-    approachFlagged.push(fullPts[i]);
-  }
-  if (
-    !approachFlagged.length ||
-    dist(approachFlagged[approachFlagged.length - 1], contactPoint) > 0.8
-  ) {
-    approachFlagged.push({ ...contactPoint });
-  }
-  const cueApproachLegs = splitAirborneLegs(
-    approachFlagged.length >= 2 ? approachFlagged : cueApproach,
-  );
 
   // Combo hops: each object drives the next. Pocket path starts at the last combo ball
   // so we never draw one ball skipping through / past another.
@@ -355,7 +387,8 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     pocketObject,
     contactPoint,
     cueApproach,
-    cueApproachLegs,
+    cueAirborne,
+    cueApproachAfter,
     comboLegs,
     objectPath,
     cueAfter,

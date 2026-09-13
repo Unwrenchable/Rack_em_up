@@ -34,6 +34,7 @@ import {
   sub,
   validateSotdShotMap,
   formatGeomReport,
+  type SotdPathKind,
 } from '../src/realai/v2/sotd-shot-map-geometry';
 
 const COORDINATE_SYSTEM = {
@@ -61,6 +62,13 @@ type Layout = {
   via?: Pt[];
   /** Extra path points after the last object (before pocket), e.g. combo then bank. */
   afterObject?: Pt[];
+  /** Jump: override pocket (orch may aim at a rail, not a named corner). */
+  pocketPt?: Pt;
+  jumpTakeoff?: Pt;
+  jumpApex?: Pt;
+  jumpLanding?: Pt;
+  /** When true, leave blocker/cue where the layout put them (orch coords). */
+  lockBalls?: boolean;
 };
 
 const FOOT_SPOT: Pt = { x: 75, y: 25 };
@@ -223,10 +231,15 @@ const LAYOUTS: Record<string, Layout> = {
   'sotd-15': {
     kind: 'jump',
     pocket: 'foot-near',
-    cue: { x: 30, y: 22 },
+    pocketPt: { x: 100, y: 25 },
+    cue: { x: 24, y: 25.5 },
+    lockBalls: true,
+    jumpTakeoff: { x: 39, y: 25.4 },
+    jumpApex: { x: 45, y: 30.5 },
+    jumpLanding: { x: 51, y: 25.4 },
     balls: [
-      { ballId: 1, x: 78, y: 18, role: 'object' },
-      { ballId: 7, x: 54, y: 20, role: 'blocker' },
+      { ballId: 1, x: 70, y: 25.2, role: 'object' },
+      { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
     ],
   },
   'sotd-16': {
@@ -617,14 +630,20 @@ function placeBlockerOnLine(cue: Pt, ob: Pt, preferred: Pt): Pt {
   return clampOnTable(onLine);
 }
 
+function yOnLine(a: Pt, b: Pt, x: number): number {
+  if (Math.abs(b.x - a.x) < 1e-6) return a.y;
+  const t = (x - a.x) / (b.x - a.x);
+  return a.y + t * (b.y - a.y);
+}
+
 function buildPath(layout: Layout): {
   cue: Pt;
   pocket: Pt;
   balls: BallSpec[];
   pts: Pt[];
-  airborneSegs: number[];
+  kinds: Array<SotdPathKind | undefined>;
 } {
-  const pocket = POCKETS[layout.pocket];
+  const pocket = layout.pocketPt ? { ...layout.pocketPt } : POCKETS[layout.pocket];
   const balls = layout.balls.map((b) => ({ ...b }));
   const primary = primaryOf(balls);
   const ob = { x: primary.x, y: primary.y };
@@ -634,39 +653,45 @@ function buildPath(layout: Layout): {
     const bankPts = resolveRails(ob, pocket, layout);
     const firstHit = bankPts[1] ?? pocket;
     const cue = clampOnTable(layout.cue ?? aimBehind(ob, firstHit, gap));
-    return { cue, pocket, balls, pts: [cue, ...bankPts], airborneSegs: [] };
+    return { cue, pocket, balls, pts: [cue, ...bankPts], kinds: [] };
   }
 
   if (layout.kind === 'kick') {
     const cue = clampOnTable(layout.cue ?? { x: 18, y: 12 });
     const kickPts = resolveRails(cue, ob, layout);
-    return { cue, pocket, balls, pts: [...kickPts, pocket], airborneSegs: [] };
+    return { cue, pocket, balls, pts: [...kickPts, pocket], kinds: [] };
   }
 
   if (layout.kind === 'carom') {
     const helper = balls.find((b) => b.role === 'helper') ?? balls.find((b) => b.ballId !== primary.ballId);
     const helperPt = helper ? { x: helper.x, y: helper.y } : aimBehind(ob, pocket, 12);
     const cue = clampOnTable(layout.cue ?? aimBehind(helperPt, ob, gap));
-    return { cue, pocket, balls, pts: [cue, helperPt, ob, pocket], airborneSegs: [] };
+    return { cue, pocket, balls, pts: [cue, helperPt, ob, pocket], kinds: [] };
   }
 
   if (layout.kind === 'jump') {
-    const cue = clampOnTable(layout.cue ?? aimBehind(ob, pocket, gap));
+    const cue = layout.lockBalls && layout.cue
+      ? { ...layout.cue }
+      : clampOnTable(layout.cue ?? aimBehind(ob, pocket, gap));
     const blocker = balls.find((b) => b.role === 'blocker');
-    if (blocker) {
-      const snapped = placeBlockerOnLine(cue, ob, blocker);
-      blocker.x = snapped.x;
-      blocker.y = snapped.y;
-    }
-    // Takeoff before the obstacle, land after it — the hop is a straight dashed airborne.
-    const takeoff = lerp(cue, ob, 0.2);
-    const landing = lerp(cue, ob, 0.74);
+    const bx = blocker?.x ?? (cue.x + ob.x) / 2;
+    const takeoffX = bx - 6;
+    const landingX = bx + 6;
+    const takeoff = layout.jumpTakeoff ?? {
+      x: takeoffX,
+      y: yOnLine(cue, ob, takeoffX),
+    };
+    const apex = layout.jumpApex ?? { x: bx, y: cue.y + 5 };
+    const landing = layout.jumpLanding ?? {
+      x: landingX,
+      y: yOnLine(cue, ob, landingX),
+    };
     return {
       cue,
       pocket,
       balls,
-      pts: [cue, takeoff, landing, ob, pocket],
-      airborneSegs: [1],
+      pts: [cue, takeoff, apex, landing, ob, pocket],
+      kinds: ['ground', 'airborne', 'airborne', 'ground', 'object'],
     };
   }
 
@@ -679,14 +704,14 @@ function buildPath(layout: Layout): {
       blocker.x = snapped.x;
       blocker.y = snapped.y;
     }
-    return { cue, pocket, balls, pts: [cue, ...via, ob, pocket], airborneSegs: [] };
+    return { cue, pocket, balls, pts: [cue, ...via, ob, pocket], kinds: [] };
   }
 
   if (layout.kind === 'cut') {
     const deg = layout.cutDeg ?? 32;
     const sign = layout.cutSign ?? 1;
     const cue = clampOnTable(layout.cue ?? cutCue(ob, pocket, deg, gap, sign));
-    return { cue, pocket, balls, pts: [cue, ob, pocket], airborneSegs: [] };
+    return { cue, pocket, balls, pts: [cue, ob, pocket], kinds: [] };
   }
 
   const objects = balls.filter((b) => !b.role || b.role === 'object');
@@ -695,7 +720,7 @@ function buildPath(layout: Layout): {
   const toward = objectPts[1] ?? pocket;
   const cue = clampOnTable(layout.cue ?? aimBehind(aim, toward, gap));
   const after = layout.afterObject ?? [];
-  return { cue, pocket, balls, pts: [cue, ...objectPts, ...after, pocket], airborneSegs: [] };
+  return { cue, pocket, balls, pts: [cue, ...objectPts, ...after, pocket], kinds: [] };
 }
 
 function estimateCbRest(tip: string, cue: Pt, ob: Pt, pocket: Pt): Pt {
@@ -751,8 +776,13 @@ function renderAscii(cue: Pt, balls: BallSpec[], pts: Pt[], pocket: Pt): string 
 
 function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
   const built = buildPath(layout);
-  const nudgedBalls = nudgeOffLane(built.balls, built.pts, built.airborneSegs);
-  const { cue, pocket, pts, airborneSegs } = built;
+  const airIdx = built.kinds
+    .map((k, i) => (k === 'airborne' ? i : -1))
+    .filter((i) => i >= 0);
+  const nudgedBalls = layout.lockBalls
+    ? built.balls
+    : nudgeOffLane(built.balls, built.pts, airIdx);
+  const { cue, pocket, pts, kinds } = built;
   const roundedBalls = nudgedBalls.map((b) => ({
     ballId: b.ballId,
     x: roundPt(b).x,
@@ -770,7 +800,7 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     tip_zone: prev.tip_zone,
     cue_ball_start: roundPt(cue),
     object_ball_positions: roundedBalls,
-    intended_path: pathFromPoints(pts, airborneSegs),
+    intended_path: pathFromPoints(pts, kinds.length ? kinds : undefined),
     english: prev.english,
     landing_zones: [
       { ...roundPt(pocket), label: 'pocket' },
@@ -799,11 +829,14 @@ export type SotdObjectBall = SotdPoint & {
   role?: 'object' | 'blocker' | 'prop' | 'helper';
 };
 
+export type SotdPathStyle = 'solid' | 'dashed';
+export type SotdPathKind = 'ground' | 'airborne' | 'object' | 'cue_after';
+
 export type SotdPathSegment = {
   from: SotdPoint;
   to: SotdPoint;
-  /** Jump hop — renderer draws dashed (airborne), never a solid zigzag. */
-  airborne?: boolean;
+  style?: SotdPathStyle;
+  kind?: SotdPathKind;
 };
 
 export type SotdEnglish = {

@@ -6,11 +6,14 @@
 
 export type SotdGeomPoint = { x: number; y: number };
 
+export type SotdPathStyle = 'solid' | 'dashed';
+export type SotdPathKind = 'ground' | 'airborne' | 'object' | 'cue_after';
+
 export type SotdGeomSegment = {
   from: SotdGeomPoint;
   to: SotdGeomPoint;
-  /** Cue ball is in the air (jump). Renderer draws this dashed — not a cloth curve. */
-  airborne?: boolean;
+  style?: SotdPathStyle;
+  kind?: SotdPathKind;
 };
 
 export type SotdGeomBall = SotdGeomPoint & {
@@ -241,28 +244,31 @@ export function aimBehind(ob: SotdGeomPoint, toward: SotdGeomPoint, gap: number)
 
 export function pathFromPoints(
   pts: SotdGeomPoint[],
-  airborneSegIdx?: Iterable<number>,
+  kinds?: Array<SotdPathKind | undefined>,
 ): SotdGeomSegment[] {
-  const air = new Set(airborneSegIdx ?? []);
   const segs: SotdGeomSegment[] = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const seg: SotdGeomSegment = { from: roundPt(pts[i]), to: roundPt(pts[i + 1]) };
-    if (air.has(i)) seg.airborne = true;
+    const kind = kinds?.[i];
+    if (kind) {
+      seg.kind = kind;
+      seg.style = kind === 'airborne' ? 'dashed' : 'solid';
+    }
     segs.push(seg);
   }
   return segs;
 }
 
-/** Jump: a blocker sitting under a segment means that segment is the airborne hop. */
-export function segmentIsAirborne(
-  seg: SotdGeomSegment,
-  map: Pick<SotdGeomMap, 'category' | 'object_ball_positions'>,
-): boolean {
-  if (seg.airborne) return true;
-  if ((map.category || '').toLowerCase() !== 'jump') return false;
-  return (map.object_ball_positions ?? []).some(
-    (b) =>
-      b.role === 'blocker' && pointToSegmentDistance(b, seg.from, seg.to) < LANE_CLEARANCE + 1.4,
+export function segmentIsAirborne(seg: SotdGeomSegment): boolean {
+  return seg.kind === 'airborne' || seg.style === 'dashed';
+}
+
+export function isClothEdgeTarget(p: SotdGeomPoint, pad = 1.2): boolean {
+  return (
+    p.x <= pad ||
+    p.x >= TABLE_LENGTH - pad ||
+    p.y <= pad ||
+    p.y >= TABLE_WIDTH - pad
   );
 }
 
@@ -375,7 +381,7 @@ const PATH_POCKET_NEAR = 8;
 const REFLECT_MAX_DEG = 32;
 /** Max bend at a combo contact — the driven ball must leave along the line of centers. */
 export const COMBO_ALIGN_MAX_DEG = 14;
-/** Jump airborne hops must stay nearly straight — a sharp cloth zigzag reads as massé. */
+/** Solid ground kinks on a jump (not the dashed airborne apex) read as massé. */
 export const JUMP_ZIGZAG_MAX_DEG = 28;
 /** Half-width of the travel corridor a parked ball may not occupy. */
 export const LANE_CLEARANCE = 2.4;
@@ -422,7 +428,7 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
   const pk = pocket ? nearestPocket(pocket) : null;
   if (!pocket) {
     issues.push(issue('pocket_missing', 'pocket_target is required'));
-  } else if (!pk || pk.dist > POCKET_NEAR) {
+  } else if (!pk || (pk.dist > POCKET_NEAR && !(cat === 'jump' && isClothEdgeTarget(pocket)))) {
     issues.push(
       issue(
         'pocket_not_near',
@@ -584,16 +590,20 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
   }
 
   if (cat === 'jump') {
-    const hasAir = segs.some((s) => segmentIsAirborne(s, map));
+    const hasAir = segs.some((s) => segmentIsAirborne(s));
     if (!hasAir) {
       issues.push(
         issue(
           'jump_needs_airborne',
-          'jump shots need an airborne hop (dashed) over the obstacle — not a cloth-bound curve',
+          'jump shots need a dashed airborne hop over the obstacle — not a solid cloth zigzag',
         ),
       );
     }
     for (let i = 1; i < pts.length - 1; i++) {
+      const arriving = segs[i - 1];
+      const leaving = segs[i];
+      if (arriving && segmentIsAirborne(arriving)) continue;
+      if (leaving && segmentIsAirborne(leaving)) continue;
       if (classifyRail(pts[i], 2.2)) continue;
       if (nearestPocket(pts[i]).dist < 5) continue;
       if ((map.object_ball_positions ?? []).some((b) => dist(b, pts[i]) <= 3.2)) continue;
@@ -607,7 +617,7 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
         issues.push(
           issue(
             'jump_zigzag',
-            `jump path bends ${ang.toFixed(0)}° at (${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)}) — airborne hops must be a straight dashed line, not a massé zigzag`,
+            `solid jump path bends ${ang.toFixed(0)}° at (${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)}) — ground stays straight; the hop over the blocker must be dashed airborne`,
           ),
         );
       }
@@ -619,7 +629,7 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
     if (isPathContact(ball, pts)) continue;
     let closest = Infinity;
     for (const s of segsForLane) {
-      if (segmentIsAirborne(s, map) && ball.role === 'blocker') continue;
+      if (segmentIsAirborne(s) && ball.role === 'blocker') continue;
       const d = pointToSegmentDistance(ball, s.from, s.to);
       if (d < closest) closest = d;
     }

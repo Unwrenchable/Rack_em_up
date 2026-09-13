@@ -276,11 +276,14 @@ export type SotdObjectBall = SotdPoint & {
   role?: 'object' | 'blocker' | 'prop' | 'helper';
 };
 
+export type SotdPathStyle = 'solid' | 'dashed';
+export type SotdPathKind = 'ground' | 'airborne' | 'object' | 'cue_after';
+
 export type SotdPathSegment = {
   from: SotdPoint;
   to: SotdPoint;
-  /** Jump hop — renderer draws dashed (airborne), never a solid zigzag. */
-  airborne?: boolean;
+  style?: SotdPathStyle;
+  kind?: SotdPathKind;
 };
 
 export type SotdShotMap = {

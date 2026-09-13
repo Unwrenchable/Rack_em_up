@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /** Normalized table point: x 0–100 (head→foot), y 0–50 (bottom→top). */
@@ -28,10 +28,13 @@ export class SotdPathSegmentDto {
   @Type(() => SotdPointDto)
   to!: SotdPointDto;
 
-  /** Jump hop — renderer draws dashed (airborne). */
   @IsOptional()
-  @IsBoolean()
-  airborne?: boolean;
+  @IsIn(['solid', 'dashed'])
+  style?: 'solid' | 'dashed';
+
+  @IsOptional()
+  @IsIn(['ground', 'airborne', 'object', 'cue_after'])
+  kind?: 'ground' | 'airborne' | 'object' | 'cue_after';
 }
 
 export class SotdEnglishDto {

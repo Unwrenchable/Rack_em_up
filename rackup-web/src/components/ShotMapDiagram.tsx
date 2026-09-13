@@ -266,21 +266,37 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             solid
           />
 
-          {/* CB → OB (airborne hops are dashed so a jump never reads as massé) */}
-          {(geo.cueApproachLegs.length ? geo.cueApproachLegs : [{ pts: geo.cueApproach, airborne: false }]).map(
-            (leg, i) => (
-              <PathWithArrow
-                key={`cue-${map.id}-${i}-${leg.airborne ? 'air' : 'cloth'}`}
-                pts={leg.pts}
-                d={pathD(leg.pts)}
-                color={leg.airborne ? 'rgba(245,240,230,0.92)' : '#f5f0e6'}
-                width={leg.airborne ? 0.95 : 1.05}
-                sx={sx}
-                sy={sy}
-                solid={!leg.airborne}
-                airborne={leg.airborne}
-              />
-            ),
+          {/* CB → takeoff (ground only — never a solid chord through a jump hop) */}
+          <PathWithArrow
+            pts={geo.cueApproach}
+            d={pathD(geo.cueApproach)}
+            color="#f5f0e6"
+            width={1.05}
+            sx={sx}
+            sy={sy}
+            solid
+          />
+          {geo.cueApproachAfter.length >= 2 && (
+            <PathWithArrow
+              pts={geo.cueApproachAfter}
+              d={pathD(geo.cueApproachAfter)}
+              color="#f5f0e6"
+              width={1.05}
+              sx={sx}
+              sy={sy}
+              solid
+            />
+          )}
+          {geo.cueAirborne.length >= 2 && (
+            <PathWithArrow
+              pts={geo.cueAirborne}
+              d={pathD(geo.cueAirborne)}
+              color="rgba(245,240,230,0.92)"
+              width={0.95}
+              sx={sx}
+              sy={sy}
+              solid={false}
+            />
           )}
 
           {/* 3) CB post-contact — always drawn */}
@@ -394,7 +410,6 @@ function PathWithArrow({
   sx,
   sy,
   solid,
-  airborne = false,
 }: {
   pts: Pt[];
   d: string;
@@ -403,7 +418,6 @@ function PathWithArrow({
   sx: (x: number) => number;
   sy: (y: number) => number;
   solid: boolean;
-  airborne?: boolean;
 }) {
   if (pts.length < 2 || !d) return null;
   return (
@@ -415,8 +429,8 @@ function PathWithArrow({
         strokeWidth={width}
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeDasharray={airborne ? '2.1 1.35' : solid ? undefined : '1.35 0.95'}
-        opacity={airborne ? 0.88 : 0.95}
+        strokeDasharray={solid ? undefined : '2.1 1.35'}
+        opacity={solid ? 0.95 : 0.88}
       />
       <ArrowHead from={pts[pts.length - 2]} to={pts[pts.length - 1]} color={color} sx={sx} sy={sy} />
     </>

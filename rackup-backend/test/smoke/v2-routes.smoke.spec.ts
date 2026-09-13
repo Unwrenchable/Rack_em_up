@@ -401,7 +401,7 @@ describe('SOTD maps catalogue', () => {
     ).toBe(true);
   });
 
-  it('every jump map has a straight airborne hop, not a cloth zigzag', () => {
+  it('every jump map has a dashed airborne hop, not a cloth zigzag', () => {
     const jumps = listSotdMaps().filter((m) => m.category === 'jump');
     expect(jumps.length).toBeGreaterThanOrEqual(4);
     for (const m of jumps) {
@@ -411,9 +411,64 @@ describe('SOTD maps catalogue', () => {
         ok: true,
         issues: [],
       });
-      const air = m.intended_path.some((s) => s.airborne);
+      const air = m.intended_path.some((s) => s.kind === 'airborne' || s.style === 'dashed');
       expect({ id: m.id, airborne: air }).toEqual({ id: m.id, airborne: true });
     }
+  });
+
+  it('sotd-15 Jump Over the Troublemaker uses the orch dashed airborne arc', () => {
+    const m = getSotdMapById('sotd-15')!;
+    expect(m.cue_ball_start).toEqual({ x: 24, y: 25.5 });
+    expect(m.pocket_target).toEqual({ x: 100, y: 25 });
+    expect(m.object_ball_positions).toEqual([
+      { ballId: 1, x: 70, y: 25.2, role: 'object' },
+      { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
+    ]);
+    expect(m.intended_path).toEqual([
+      { from: { x: 24, y: 25.5 }, to: { x: 39, y: 25.4 }, style: 'solid', kind: 'ground' },
+      { from: { x: 39, y: 25.4 }, to: { x: 45, y: 30.5 }, style: 'dashed', kind: 'airborne' },
+      { from: { x: 45, y: 30.5 }, to: { x: 51, y: 25.4 }, style: 'dashed', kind: 'airborne' },
+      { from: { x: 51, y: 25.4 }, to: { x: 70, y: 25.2 }, style: 'solid', kind: 'ground' },
+      { from: { x: 70, y: 25.2 }, to: { x: 100, y: 25 }, style: 'solid', kind: 'object' },
+    ]);
+    expect(validateSotdShotMap(m).ok).toBe(true);
+  });
+
+  it('sotd-32/45/50 use the same takeoff–apex–landing dashed hop', () => {
+    for (const id of ['sotd-32', 'sotd-45', 'sotd-50'] as const) {
+      const m = getSotdMapById(id)!;
+      const blocker = m.object_ball_positions.find((b) => b.role === 'blocker')!;
+      const cue = m.cue_ball_start;
+      const air = m.intended_path.filter((s) => s.kind === 'airborne' || s.style === 'dashed');
+      expect({ id, n: air.length }).toEqual({ id, n: 2 });
+      expect(air[0].from.x).toBeCloseTo(blocker.x - 6, 0);
+      expect(air[0].to).toEqual({ x: blocker.x, y: cue.y + 5 });
+      expect(air[1].to.x).toBeCloseTo(blocker.x + 6, 0);
+      expect(air.every((s) => s.style === 'dashed' && s.kind === 'airborne')).toBe(true);
+    }
+  });
+
+  it('accepts a dashed airborne jump arc and does not treat the apex as a massé zigzag', () => {
+    const hop = validateSotdShotMap({
+      id: 'jump-arc',
+      name: 'Airborne arc',
+      category: 'jump',
+      cue_ball_start: { x: 24, y: 25.5 },
+      object_ball_positions: [
+        { ballId: 1, x: 70, y: 25.2, role: 'object' },
+        { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
+      ],
+      intended_path: [
+        { from: { x: 24, y: 25.5 }, to: { x: 39, y: 25.4 }, style: 'solid', kind: 'ground' },
+        { from: { x: 39, y: 25.4 }, to: { x: 45, y: 30.5 }, style: 'dashed', kind: 'airborne' },
+        { from: { x: 45, y: 30.5 }, to: { x: 51, y: 25.4 }, style: 'dashed', kind: 'airborne' },
+        { from: { x: 51, y: 25.4 }, to: { x: 70, y: 25.2 }, style: 'solid', kind: 'ground' },
+        { from: { x: 70, y: 25.2 }, to: { x: 100, y: 25 }, style: 'solid', kind: 'object' },
+      ],
+      pocket_target: { x: 100, y: 25 },
+    });
+    expect(hop.ok).toBe(true);
+    expect(hop.issues.some((i) => i.code === 'jump_zigzag')).toBe(false);
   });
 
   it('every combo map visits 2+ balls on a colinear transfer line', () => {
@@ -441,7 +496,11 @@ describe('SOTD maps catalogue', () => {
     ];
     for (const m of listSotdMaps()) {
       const pk = m.pocket_target;
-      const onPocket = pockets.some((p) => Math.hypot(p.x - pk.x, p.y - pk.y) < 0.6);
+      const onCorner = pockets.some((p) => Math.hypot(p.x - pk.x, p.y - pk.y) < 0.6);
+      const jumpRailEdge =
+        m.category === 'jump' &&
+        (pk.x <= 1.2 || pk.x >= 98.8 || pk.y <= 1.2 || pk.y >= 48.8);
+      const onPocket = onCorner || jumpRailEdge;
       expect({ id: m.id, pk, onPocket }).toEqual({ id: m.id, pk, onPocket: true });
       expect(m.intended_path[0].from.x).toBeCloseTo(m.cue_ball_start.x, 0);
       expect(m.intended_path[0].from.y).toBeCloseTo(m.cue_ball_start.y, 0);
