@@ -14,6 +14,7 @@ import {
   LOOKING_BOARD_LIMIT,
   LOOKING_TTL_MS,
   LookingBoardRow,
+  keepDiscoverableRows,
   mergeLookingByUser,
   rankLookingCandidate,
 } from './looking-board.util';
@@ -58,9 +59,9 @@ export class MatchmakingService {
       existing.maxRating = dto.max_rating;
       existing.expiresAt = expiresAt;
       const saved = await this.matchmakingRepo.save(existing);
-      await this.dedupeLookingRows(uid, saved.id);
-      this.matchmakingGateway.emitRequestCreated(uid, saved);
-      return saved;
+      const winner = (await this.keepNewestLookingRow(uid)) ?? saved;
+      this.matchmakingGateway.emitRequestCreated(uid, winner);
+      return winner;
     }
 
     const entity = this.matchmakingRepo.create({
@@ -74,21 +75,30 @@ export class MatchmakingService {
       expiresAt,
     });
 
-    const saved = await this.matchmakingRepo.save(entity);
-    await this.dedupeLookingRows(uid, saved.id);
-    this.matchmakingGateway.emitRequestCreated(uid, saved);
-    return saved;
+    await this.matchmakingRepo.save(entity);
+    const winner = (await this.keepNewestLookingRow(uid)) ?? entity;
+    this.matchmakingGateway.emitRequestCreated(uid, winner);
+    return winner;
   }
 
-  /** Concurrent POSTs can insert two rows; keep the winner and drop extras. */
-  private async dedupeLookingRows(userId: string, keepId: string) {
+  /**
+   * Concurrent POSTs can both insert. Always keep the newest row by created_at
+   * so two cleanups cannot delete each other and leave the user invisible.
+   */
+  private async keepNewestLookingRow(userId: string): Promise<MatchmakingRequest | null> {
+    const newest = await this.matchmakingRepo.findOne({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+    if (!newest) return null;
     await this.matchmakingRepo
       .createQueryBuilder()
       .delete()
       .from(MatchmakingRequest)
       .where('user_id = :userId', { userId })
-      .andWhere('id != :keepId', { keepId })
+      .andWhere('id != :keepId', { keepId: newest.id })
       .execute();
+    return newest;
   }
 
   async cancelRequest(id: string, userId: string) {
@@ -120,9 +130,8 @@ export class MatchmakingService {
     const v1 = await this.searchV1(dto);
     const v2 = await this.searchV2Pending(dto);
     const hide = await this.recentlyMatchedUserIds();
-    return mergeLookingByUser([...v1, ...v2])
+    return keepDiscoverableRows(mergeLookingByUser([...v1, ...v2]), hide)
       .filter((row) => row.user_id !== opts?.excludeUserId)
-      .filter((row) => !hide.has(row.user_id))
       .slice(0, LOOKING_BOARD_LIMIT);
   }
 
@@ -142,21 +151,18 @@ export class MatchmakingService {
     );
   }
 
-  async leaveQueue(userId: string, input?: { requestId?: string }) {
+  async leaveQueue(userId: string) {
     const uid = String(userId);
     const v1 = await this.matchmakingRepo.delete({ userId: uid });
     this.matchmakingGateway.emitRequestCancelled(uid, { id: 'all' });
 
-    const v2Qb = this.v2RequestsRepo
+    const v2 = await this.v2RequestsRepo
       .createQueryBuilder()
       .update(MatchmakingRequestV2)
       .set({ status: 'CANCELLED' })
       .where('user_id = :uid', { uid })
-      .andWhere('status = :st', { st: 'PENDING' });
-    if (input?.requestId) {
-      v2Qb.andWhere('id = :rid', { rid: input.requestId });
-    }
-    const v2 = await v2Qb.execute();
+      .andWhere('status = :st', { st: 'PENDING' })
+      .execute();
 
     return {
       cancelled: true,
@@ -169,8 +175,7 @@ export class MatchmakingService {
     const qb = this.matchmakingRepo
       .createQueryBuilder('lfm')
       .leftJoinAndSelect('lfm.user', 'user')
-      .where('lfm.expires_at > NOW()')
-      .take(200);
+      .where('lfm.expires_at > NOW()');
 
     if (dto.game) qb.andWhere('lfm.game = :game', { game: dto.game });
     if (dto.stakes) qb.andWhere('lfm.stakes = :stakes', { stakes: dto.stakes });
@@ -215,8 +220,7 @@ export class MatchmakingService {
     const qb = this.v2RequestsRepo
       .createQueryBuilder('v2')
       .where('v2.expires_at > NOW()')
-      .andWhere('v2.status = :status', { status: 'PENDING' })
-      .take(200);
+      .andWhere('v2.status = :status', { status: 'PENDING' });
 
     if (dto.game) qb.andWhere('v2.game = :game', { game: dto.game });
     if (dto.stakes) qb.andWhere('v2.stakes = :stakes', { stakes: dto.stakes });
@@ -362,19 +366,23 @@ export class MatchmakingService {
       raceTo,
     });
 
-    await this.chat.send(
-      userId,
-      thread.id,
-      'MATCH_INVITE',
-      `Challenge: ${game} race to ${raceTo} (${stakes})`,
-      {
-        matchId: match.id,
-        game,
-        stakes,
-        raceTo,
-        opponentId: dto.opponentId,
-      },
-    );
+    try {
+      await this.chat.send(
+        userId,
+        thread.id,
+        'MATCH_INVITE',
+        `Challenge: ${game} race to ${raceTo} (${stakes})`,
+        {
+          matchId: match.id,
+          game,
+          stakes,
+          raceTo,
+          opponentId: dto.opponentId,
+        },
+      );
+    } catch {
+      /* thread exists; do not fail the challenge after the match is created */
+    }
     const threadId = thread.id;
 
     this.matchmakingGateway.emitMatchFound(String(userId), {

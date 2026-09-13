@@ -65,11 +65,8 @@ export class MatchmakingController {
   /** Leave Find queue: drop V1 looking rows and cancel V2 PENDING requests. */
   @UseGuards(AuthGuard('jwt'))
   @Post('leave')
-  async leave(
-    @Req() req: any,
-    @Body() body: { requestId?: string },
-  ) {
-    return this.matchmakingService.leaveQueue(req.user.id, body);
+  async leave(@Req() req: any) {
+    return this.matchmakingService.leaveQueue(req.user.id);
   }
 
   // 🔥 Auto-match: find best opponent and create a PoolMatch

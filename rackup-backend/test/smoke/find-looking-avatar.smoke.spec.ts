@@ -9,6 +9,7 @@ import { ObjectStorageService } from '../../src/common/object-storage.service';
 import {
   haversineMeters,
   isLookingRequestActive,
+  keepDiscoverableRows,
   LOOKING_BOARD_LIMIT,
   LOOKING_TTL_MS,
   mergeLookingByUser,
@@ -186,6 +187,15 @@ describe('Looking board limits', () => {
       boardRow({ id: `r${i}`, user_id: `u${i}`, rank_score: i }),
     );
     expect(mergeLookingByUser(rows).slice(0, LOOKING_BOARD_LIMIT)).toHaveLength(50);
+  });
+
+  it('hides leftover V1 cards after a V2 match but keeps a new PENDING card', () => {
+    const matched = new Set(['u1']);
+    const leftoverV1 = boardRow({ id: 'v1-old', user_id: 'u1', source: 'v1' });
+    const newLive = boardRow({ id: 'v2-new', user_id: 'u1', source: 'v2' });
+    const other = boardRow({ id: 'v2-b', user_id: 'u2', source: 'v2' });
+    const kept = keepDiscoverableRows([leftoverV1, newLive, other], matched);
+    expect(kept.map((r) => r.id).sort()).toEqual(['v2-b', 'v2-new']);
   });
 });
 
