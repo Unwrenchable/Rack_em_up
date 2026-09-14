@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   BACKSTOP_SPORTS_PUB,
   addressConflictsWithPin,
@@ -62,5 +64,21 @@ describe('Backstop / hall geocode', () => {
         { lat: BACKSTOP_SPORTS_PUB.lat, lon: BACKSTOP_SPORTS_PUB.lon },
       ),
     ).toBe(true);
+  });
+});
+
+describe('Render RealAI env pins', () => {
+  it('wires Nest to the documented realai-api host and secret names', () => {
+    const yaml = fs.readFileSync(
+      path.join(__dirname, '../../../render.yaml'),
+      'utf8',
+    );
+    expect(yaml).toContain('REALAI_BASE_URL');
+    expect(yaml).toContain('https://realai-api.onrender.com');
+    expect(yaml).toContain('REALAI_COACH_PATH');
+    expect(yaml).toContain('/v1/plugins/rackup-coach');
+    expect(yaml).toContain('REALAI_API_KEY');
+    expect(yaml).toContain('RACKUP_TENANT');
+    expect(yaml).not.toMatch(/realaiui\.vercel\.app/);
   });
 });
