@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { GetTheApp } from '../components/GetTheApp';
 import { useAuth } from '../lib/auth-context';
 import { useToast } from '../lib/toast-context';
+import { showDevModeChrome } from '../lib/dev-flags';
 
 export function SettingsPage() {
   const { demo, logout, user } = useAuth();
@@ -25,8 +26,12 @@ export function SettingsPage() {
       <div className="card stack" style={{ gap: 0, padding: 0, overflow: 'hidden' }}>
         {[
           { label: 'Email', value: user?.email ?? '—' },
-          { label: 'Mode', value: demo ? 'Demo data' : 'Live API' },
-          { label: 'API', value: import.meta.env.VITE_API_URL ?? '/api/v1 (proxy)' },
+          ...(showDevModeChrome()
+            ? [
+                { label: 'Mode', value: demo ? 'Demo data' : 'Live API' },
+                { label: 'API', value: import.meta.env.VITE_API_URL ?? '/api/v1 (proxy)' },
+              ]
+            : []),
         ].map((row, i) => (
           <div
             key={row.label}

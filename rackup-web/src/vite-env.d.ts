@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_WS_URL?: string;
   /** Public site origin for share cards / canonical URLs. */
   readonly VITE_PUBLIC_ORIGIN?: string;
+  /** Show Mode / Live API chrome on Profile + Settings (local only). */
+  readonly VITE_SHOW_DEV_MODE?: string;
 }
 
 interface ImportMeta {

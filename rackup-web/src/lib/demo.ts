@@ -252,6 +252,7 @@ export const DEMO_LEAGUES: League[] = [
 export const DEMO_FRIENDS: FriendCard[] = [
   {
     id: 'p1',
+    friendshipId: 'demo-fr-p1',
     displayName: 'VegasVee',
     rating: 640,
     status: 'at_hall',
@@ -260,6 +261,7 @@ export const DEMO_FRIENDS: FriendCard[] = [
   },
   {
     id: 'p2',
+    friendshipId: 'demo-fr-p2',
     displayName: 'BankShot_B',
     rating: 575,
     status: 'online',
@@ -267,6 +269,7 @@ export const DEMO_FRIENDS: FriendCard[] = [
   },
   {
     id: 'p3',
+    friendshipId: 'demo-fr-p3',
     displayName: 'SoftBreak',
     rating: 510,
     status: 'offline',
@@ -274,6 +277,7 @@ export const DEMO_FRIENDS: FriendCard[] = [
   },
   {
     id: 'p4',
+    friendshipId: 'demo-fr-p4',
     displayName: 'RailRunner',
     rating: 700,
     status: 'online',

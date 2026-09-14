@@ -585,7 +585,10 @@ describe('V2 route inventory', () => {
     'POST /friends/:id/cancel',
     'POST /friends/block',
     'DELETE /friends/block/:userId',
+    'DELETE /friends/:id',
+    'DELETE /friends/with/:userId',
     'GET /friends/:userId/mutual',
+    'POST /halls/v2/geocode',
     'GET /chat/threads',
     'POST /chat/threads/dm',
     'POST /chat/threads/group',
@@ -644,6 +647,8 @@ describe('V2 route inventory', () => {
     expect(routes).toContain('GET /friends/list');
     expect(routes).toContain('GET /friends/pending');
     expect(routes).toContain('POST /matchmaking/challenge');
+    expect(routes).toContain('DELETE /friends/:id');
+    expect(routes).toContain('POST /halls/v2/geocode');
   });
 });
 

@@ -10,6 +10,12 @@ import { MoneyMatch } from '../money-matches/money-matches.entity';
 import { PoolMatch } from '../matches/pool-match.entity';
 import { getRedisClient } from '../config/redis.config';
 import { SocialRealtimeService } from '../websocket/social-realtime.service';
+import { latestCheckinPerUser } from './occupancy';
+import {
+  lookupKnownHall,
+  resolveHallLocation,
+  shouldReplaceCoords,
+} from './hall-geocode';
 
 const CHECKIN_TTL_MS = 4 * 60 * 60 * 1000;
 const LIVE_CACHE_KEY = 'halls:live:v1';
@@ -60,16 +66,17 @@ export class HallsService {
   }
 
   async findAll(opts?: { verifiedOnly?: boolean }): Promise<Hall[]> {
-    if (opts?.verifiedOnly) {
-      return this.hallsRepo.find({ where: { isVerified: true }, order: { name: 'ASC' } });
-    }
-    return this.hallsRepo.find({ order: { name: 'ASC' } });
+    const halls = opts?.verifiedOnly
+      ? await this.hallsRepo.find({ where: { isVerified: true }, order: { name: 'ASC' } })
+      : await this.hallsRepo.find({ order: { name: 'ASC' } });
+    return this.applyKnownPins(halls);
   }
 
   async findOne(id: string): Promise<Hall> {
     const hall = await this.hallsRepo.findOne({ where: { id } });
     if (!hall) throw new NotFoundException('Hall not found');
-    return hall;
+    const [fixed] = await this.applyKnownPins([hall]);
+    return fixed;
   }
 
   async checkIn(userId: string, dto: CheckInDto): Promise<{ hall: Hall; checkin: HallCheckin }> {
@@ -97,27 +104,62 @@ export class HallsService {
       }
     }
 
+    const checkin = await this.setExclusiveCheckIn(userId, hall.id, dto.game ?? null);
+    return { hall, checkin };
+  }
+
+  /** One active V1 check-in per user — moving halls replaces the previous row. */
+  async setExclusiveCheckIn(
+    userId: string,
+    hallId: string,
+    game?: string | null,
+  ): Promise<HallCheckin> {
     const expiresAt = new Date(Date.now() + CHECKIN_TTL_MS);
-
-    await this.checkinsRepo.delete({ hallId: hall.id, userId });
-
+    await this.checkinsRepo.delete({ userId });
     const checkin = await this.checkinsRepo.save(
       this.checkinsRepo.create({
-        hallId: hall.id,
+        hallId,
         userId,
-        game: dto.game ?? null,
+        game: game ?? null,
         expiresAt,
       }),
     );
+    await this.invalidateLiveCache();
+    this.broadcastHalls({ reason: 'checkin', hallId, userId });
+    return checkin;
+  }
 
+  async clearUserCheckins(userId: string): Promise<void> {
+    await this.checkinsRepo.delete({ userId });
+    await this.invalidateLiveCache();
+    this.broadcastHalls({ reason: 'checkout', userId });
+  }
+
+  private async invalidateLiveCache(): Promise<void> {
     try {
       const redis = await getRedisClient();
       await redis.del(LIVE_CACHE_KEY);
     } catch {
       // cache invalidation is best-effort
     }
+  }
 
-    return { hall, checkin };
+  private async applyKnownPins(halls: Hall[]): Promise<Hall[]> {
+    const out: Hall[] = [];
+    for (const hall of halls) {
+      const pin = lookupKnownHall(hall.name, hall.address);
+      if (pin && shouldReplaceCoords({ lat: hall.lat, lon: hall.lon }, pin)) {
+        hall.lat = pin.lat;
+        hall.lon = pin.lon;
+        if (pin.address && (!hall.address || /525\s*avenue\s*b/i.test(hall.address))) {
+          hall.address = pin.address;
+        }
+        hall.placeKey = this.placeKey(hall.lat, hall.lon);
+        await this.hallsRepo.save(hall);
+      }
+      out.push(hall);
+    }
+    return out;
   }
 
   async claimHall(hallId: string, ownerUserId: string, dto: ClaimHallDto): Promise<Hall> {
@@ -126,6 +168,19 @@ export class HallsService {
     hall.isVerified = true;
     if (dto.address !== undefined) hall.address = dto.address;
     if (dto.tableCount !== undefined) hall.tableCount = dto.tableCount;
+    if (dto.address) {
+      const resolved = await resolveHallLocation({
+        name: hall.name,
+        address: dto.address,
+        lat: hall.lat,
+        lon: hall.lon,
+      });
+      if (resolved && shouldReplaceCoords({ lat: hall.lat, lon: hall.lon }, resolved)) {
+        hall.lat = resolved.lat;
+        hall.lon = resolved.lon;
+        hall.placeKey = this.placeKey(hall.lat, hall.lon);
+      }
+    }
     const saved = await this.hallsRepo.save(hall);
     this.broadcastHalls({
       hallId: saved.id,
@@ -167,9 +222,10 @@ export class HallsService {
     }
 
     const now = new Date();
-    const checkins = await this.checkinsRepo.find({
+    const rawCheckins = await this.checkinsRepo.find({
       where: { expiresAt: MoreThan(now) },
     });
+    const checkins = latestCheckinPerUser(rawCheckins);
 
     if (checkins.length === 0) {
       return [];

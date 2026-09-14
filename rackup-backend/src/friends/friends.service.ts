@@ -168,6 +168,33 @@ export class FriendsService {
     return saved;
   }
 
+  async unfriend(id: string, userId: string): Promise<{ ok: true }> {
+    const row = await this.requireRow(id);
+    if (row.requesterId !== userId && row.addresseeId !== userId) {
+      throw new ForbiddenException('Not a participant in this friendship');
+    }
+    if (row.status !== 'ACCEPTED') {
+      throw new BadRequestException('Not friends');
+    }
+    row.status = 'CANCELLED';
+    row.respondedAt = new Date();
+    await this.repo.save(row);
+    const other = row.requesterId === userId ? row.addresseeId : row.requesterId;
+    this.emitFriendEvent(other, 'friend:removed', {
+      friendshipId: row.id,
+      byUserId: userId,
+    });
+    return { ok: true };
+  }
+
+  async unfriendByUserId(userId: string, otherUserId: string): Promise<{ ok: true }> {
+    const row = await this.findPair(userId, otherUserId);
+    if (!row || row.status !== 'ACCEPTED') {
+      throw new NotFoundException('Friendship not found');
+    }
+    return this.unfriend(row.id, userId);
+  }
+
   async unblock(blockerId: string, targetId: string): Promise<{ ok: true }> {
     const row = await this.findPair(blockerId, targetId);
     if (!row || row.status !== 'BLOCKED') {

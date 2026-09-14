@@ -14,8 +14,10 @@ import {
   mmV2Status,
   openDmThread,
   requestFriend,
+  unfriend,
 } from '../lib/api';
 import { chatThreadPath } from '../lib/chat-labels';
+import { confirmUnfriend } from '../lib/friends';
 import { useAuth } from '../lib/auth-context';
 import { useHallsLive } from '../lib/use-halls-live';
 import { useToast } from '../lib/toast-context';
@@ -223,6 +225,17 @@ export function FindPage() {
     }
   }
 
+  async function onUnfriend(f: FriendCard) {
+    if (!confirmUnfriend(f.displayName)) return;
+    try {
+      await unfriend({ friendshipId: f.friendshipId, userId: f.id });
+      setFriends((list) => list.filter((x) => x.id !== f.id));
+      push(`Removed ${f.displayName}`, 'ok');
+    } catch (e) {
+      push(e instanceof Error ? e.message.slice(0, 120) : 'Could not unfriend', 'err');
+    }
+  }
+
   async function onAddFriend(playerUserId: string, name: string) {
     try {
       await requestFriend(playerUserId);
@@ -406,6 +419,9 @@ export function FindPage() {
                   </button>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => onMessage(f.id, f.displayName)}>
                     Message
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => onUnfriend(f)}>
+                    Unfriend
                   </button>
                 </div>
               </article>

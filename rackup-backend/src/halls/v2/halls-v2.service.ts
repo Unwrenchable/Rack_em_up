@@ -27,6 +27,8 @@ import { HallPhotoStorageService } from './hall-photo-storage.service';
 import { FriendsService } from '../../friends/friends.service';
 import { SocialRealtimeService } from '../../websocket/social-realtime.service';
 import { SocialSettingsService } from '../../social/social-settings.service';
+import { HallsService } from '../halls.service';
+import { resolveHallLocation, shouldReplaceCoords } from '../hall-geocode';
 
 @Injectable()
 export class HallsV2Service {
@@ -55,6 +57,7 @@ export class HallsV2Service {
     @Optional() private readonly friends?: FriendsService,
     @Optional() private readonly realtime?: SocialRealtimeService,
     @Optional() private readonly socialSettings?: SocialSettingsService,
+    @Optional() private readonly hallsV1?: HallsService,
   ) {}
 
   private feedKey(hallId: string) {
@@ -69,10 +72,60 @@ export class HallsV2Service {
     return this.seedService.seedVegas(dto);
   }
 
+  async geocode(dto: { name?: string; address?: string; lat?: number; lon?: number }) {
+    const resolved = await resolveHallLocation({
+      name: dto.name,
+      address: dto.address,
+      lat: dto.lat,
+      lon: dto.lon,
+    });
+    if (!resolved) {
+      throw new BadRequestException(
+        'Could not geocode that address — try a full street, city, and state',
+      );
+    }
+    return resolved;
+  }
+
   async createHall(userId: string, dto: CreateHallDto) {
     const name = dto.name.trim();
     if (!name) throw new BadRequestException('Hall name required');
-    const placeKey = `${dto.lat.toFixed(4)}:${dto.lon.toFixed(4)}`;
+    const address = dto.address?.trim() || null;
+    const resolved = await resolveHallLocation({
+      name,
+      address,
+      lat: dto.lat,
+      lon: dto.lon,
+    });
+    if (!resolved) {
+      throw new BadRequestException(
+        'Could not locate this hall — add a full street address or latitude/longitude',
+      );
+    }
+    const lat = resolved.lat;
+    const lon = resolved.lon;
+    const placeKey = `${lat.toFixed(4)}:${lon.toFixed(4)}`;
+
+    const existingByName = await this.hallsRepo
+      .createQueryBuilder('h')
+      .where('LOWER(h.name) = LOWER(:name)', { name })
+      .getOne();
+    if (existingByName) {
+      if (shouldReplaceCoords({ lat: existingByName.lat, lon: existingByName.lon }, resolved)) {
+        existingByName.lat = lat;
+        existingByName.lon = lon;
+        existingByName.placeKey = placeKey;
+        if (address) existingByName.address = address;
+        await this.hallsRepo.save(existingByName);
+        this.realtime?.emitBroadcast('halls:updated', {
+          hallId: existingByName.id,
+          isVerified: existingByName.isVerified,
+          reason: 'geocode-correct',
+        });
+      }
+      return { hall: existingByName, alreadyExisted: true };
+    }
+
     const existing = await this.hallsRepo.findOne({ where: { placeKey } });
     if (existing) {
       return { hall: existing, alreadyExisted: true };
@@ -80,9 +133,9 @@ export class HallsV2Service {
     const hall = await this.hallsRepo.save(
       this.hallsRepo.create({
         name,
-        lat: dto.lat,
-        lon: dto.lon,
-        address: dto.address?.trim() || null,
+        lat,
+        lon,
+        address,
         tableCount: dto.tableCount ?? null,
         placeKey,
         ownerUserId: userId,
@@ -102,21 +155,35 @@ export class HallsV2Service {
 
     const now = new Date();
 
-    const existingOpen = await this.checkinsRepo
+    const openRows = await this.checkinsRepo
       .createQueryBuilder('ci')
       .where('ci.userId = :userId', { userId })
-      .andWhere('ci.hallId = :hallId', { hallId })
       .andWhere('ci.checkedOutAt IS NULL')
       .orderBy('ci.checkedInAt', 'DESC')
-      .getOne();
+      .getMany();
 
+    const existingHere = openRows.find((row) => row.hallId === hallId);
+    const previous = openRows.filter((row) => row.hallId !== hallId);
 
+    if (previous.length) {
+      for (const row of previous) {
+        row.checkedOutAt = now;
+      }
+      await this.checkinsRepo.save(previous);
+      for (const row of previous) {
+        await this.fanOutCheckIn(userId, row.hallId, false);
+        try {
+          const redis = await getRedisClient();
+          await redis.del(`${this.feedKey(row.hallId)}`);
+        } catch {
+          /* best-effort */
+        }
+      }
+    }
 
-
-
-
-    if (existingOpen) {
-      return { hallId, userId, checkedInAt: existingOpen.checkedInAt, alreadyCheckedIn: true };
+    if (existingHere) {
+      await this.hallsV1?.setExclusiveCheckIn(userId, hallId);
+      return { hallId, userId, checkedInAt: existingHere.checkedInAt, alreadyCheckedIn: true };
     }
 
     const entity = this.checkinsRepo.create({
@@ -132,6 +199,7 @@ export class HallsV2Service {
     // Best-effort cache invalidation
     await redis.del(`${this.feedKey(hallId)}`);
 
+    await this.hallsV1?.setExclusiveCheckIn(userId, hallId);
     await this.fanOutCheckIn(userId, hallId, true);
 
     return { hallId, userId, checkedInAt: saved.checkedInAt, alreadyCheckedIn: false };
@@ -157,6 +225,7 @@ export class HallsV2Service {
     const redis = await getRedisClient();
     await redis.del(`${this.feedKey(hallId)}`);
 
+    await this.hallsV1?.clearUserCheckins(userId);
     await this.fanOutCheckIn(userId, hallId, false);
 
     return { hallId, userId, checkedOutAt: open.checkedOutAt };

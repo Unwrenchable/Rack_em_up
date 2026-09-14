@@ -69,3 +69,9 @@ export function mapFriendCards(raw: unknown, meId?: string): FriendCard[] {
   }
   return out;
 }
+
+export function confirmUnfriend(displayName: string): boolean {
+  return window.confirm(
+    `Remove ${displayName} from your friends? They will need a new request to connect again.`,
+  );
+}

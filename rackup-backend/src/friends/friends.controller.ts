@@ -78,6 +78,19 @@ export class FriendsController {
     return this.friendsService.unblock(req.user.id, userId);
   }
 
+  @Delete('with/:userId')
+  unfriendByUser(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Req() req: { user: { id: string } },
+  ) {
+    return this.friendsService.unfriendByUserId(req.user.id, userId);
+  }
+
+  @Delete(':id')
+  unfriend(@Param('id', ParseUUIDPipe) id: string, @Req() req: { user: { id: string } }) {
+    return this.friendsService.unfriend(id, req.user.id);
+  }
+
   @Post(':id/accept')
   accept(@Param('id', ParseUUIDPipe) id: string, @Req() req: { user: { id: string } }) {
     return this.friendsService.accept(id, req.user.id);
