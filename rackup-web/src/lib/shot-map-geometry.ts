@@ -227,11 +227,16 @@ function cutAngleDeg(cueToOb: SotdPoint, obToPocket: SotdPoint): number {
  * Derive the three required paths + coaching helpers from a catalog map.
  */
 export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
-  const primary = pickPrimaryObject(map);
   const segs = annotateJumpAirborne(map.intended_path ?? [], map);
   const fullPts = pathToPoints(segs);
   const start = map.cue_ball_start;
   const pocket = map.pocket_target;
+  const cat = (map.category || '').toLowerCase();
+  const comboBalls = orderComboBalls(map, fullPts);
+  const isCombo = cat === 'combo' && comboBalls.length >= 2;
+  const isCarom = cat === 'carom' && comboBalls.length >= 2;
+  // Carom primary is the first ball the path actually visits (helper 9, not role=object 1).
+  const primary = isCarom && comboBalls.length ? comboBalls[0] : pickPrimaryObject(map);
 
   let contactIdx = 0;
   let best = Infinity;
@@ -292,11 +297,7 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
 
   // Combo hops: each object drives the next. Pocket path starts at the last combo ball
   // so we never draw one ball skipping through / past another.
-  const cat = (map.category || '').toLowerCase();
-  const comboBalls = orderComboBalls(map, fullPts);
-  const isCombo = cat === 'combo' && comboBalls.length >= 2;
-  const isCarom = cat === 'carom' && comboBalls.length >= 2;
-  // Carom: first ball is the contact, last visited ball is the one that goes to the pocket.
+  // Carom: first visited ball is the contact; last visited ball goes to the pocket.
   const pocketObject = isCombo || isCarom ? comboBalls[comboBalls.length - 1] : primary;
   const comboLegs: ComboLeg[] = [];
   if (isCombo) {
@@ -346,6 +347,23 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   }
   if (cueAfter.length < 2) {
     cueAfter.push(add(contactPoint, { x: 2, y: 0 }));
+  }
+
+  const objectSegs = segs.filter(segmentIsObject);
+  const cueAfterSegs = segs.filter((s) => s.kind === 'cue_after');
+  if (objectSegs.length) {
+    const objPts = polylineFromSegs(objectSegs);
+    objectPath = dedupePoints([
+      { x: pocketObject.x, y: pocketObject.y },
+      ...objPts.filter((p) => dist(p, pocketObject) > 2.2),
+      { ...pocket },
+    ]);
+  }
+  if (cueAfterSegs.length) {
+    cueAfter = dedupePoints(polylineFromSegs(cueAfterSegs));
+    if (cueAfter.length < 2) {
+      cueAfter = dedupePoints([contactPoint, ...cueAfter]);
+    }
   }
 
   const aimTarget = isCombo && comboBalls[1] ? comboBalls[1] : pocket;

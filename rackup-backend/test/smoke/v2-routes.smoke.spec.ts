@@ -511,18 +511,30 @@ describe('SOTD maps catalogue', () => {
     }
   });
 
-  it('sotd-09 is a bent carom off the 1 into the 9, not a cheat line through both balls', () => {
+  it('sotd-09 is a true carom off the 9 into the 1 — not a cheat line through both centers', () => {
     const m = getSotdMapById('sotd-09')!;
     const one = m.object_ball_positions.find((b) => b.ballId === 1)!;
     const nine = m.object_ball_positions.find((b) => b.ballId === 9)!;
     expect(one.role).toBe('object');
     expect(nine.role).toBe('helper');
-    expect(m.ghost_ball).toBeUndefined();
+    expect(m.ghost_ball).toBeDefined();
+    expect(m.ghost_ball!.show).toBe(true);
+    expect(Math.hypot(m.ghost_ball!.x - nine.x, m.ghost_ball!.y - nine.y)).toBeCloseTo(4.4, 1);
     expect(m.contact_point).toBeDefined();
+    const cp = m.contact_point!;
+    expect(Math.hypot(cp.x - nine.x, cp.y - nine.y)).toBeLessThan(2.2);
+    expect(Math.hypot(cp.x - one.x, cp.y - one.y)).toBeGreaterThan(8);
+
+    const throughNineCenter = m.intended_path.some(
+      (s) =>
+        Math.hypot(s.to.x - nine.x, s.to.y - nine.y) < 0.5 ||
+        Math.hypot(s.from.x - nine.x, s.from.y - nine.y) < 0.5,
+    );
+    expect(throughNineCenter).toBe(false);
 
     const cue = m.cue_ball_start;
-    const incoming = { x: one.x - cue.x, y: one.y - cue.y };
-    const outgoing = { x: nine.x - one.x, y: nine.y - one.y };
+    const incoming = { x: nine.x - cue.x, y: nine.y - cue.y };
+    const outgoing = { x: one.x - nine.x, y: one.y - nine.y };
     const li = Math.hypot(incoming.x, incoming.y) || 1;
     const lo = Math.hypot(outgoing.x, outgoing.y) || 1;
     const bend =
@@ -534,31 +546,54 @@ describe('SOTD maps catalogue', () => {
     expect(bend).toBeGreaterThan(25);
 
     const pts = m.intended_path.flatMap((s) => [s.from, s.to]);
-    const nearOne = pts.findIndex((p) => Math.hypot(p.x - one.x, p.y - one.y) < 3.4);
     const nearNine = pts.findIndex((p) => Math.hypot(p.x - nine.x, p.y - nine.y) < 3.4);
-    expect(nearOne).toBeGreaterThanOrEqual(0);
-    expect(nearNine).toBeGreaterThan(nearOne);
+    const nearOne = pts.findIndex((p) => Math.hypot(p.x - one.x, p.y - one.y) < 3.4);
+    expect(nearNine).toBeGreaterThanOrEqual(0);
+    expect(nearOne).toBeGreaterThan(nearNine);
+    expect(m.intended_path.some((s) => s.kind === 'cue_after')).toBe(true);
     expect(m.intended_path.some((s) => s.kind === 'object')).toBe(true);
+    const objectSeg = m.intended_path.find((s) => s.kind === 'object')!;
+    expect(Math.hypot(objectSeg.from.x - one.x, objectSeg.from.y - one.y)).toBeLessThan(0.6);
+    expect(Math.hypot(objectSeg.to.x - m.pocket_target.x, objectSeg.to.y - m.pocket_target.y)).toBeLessThan(0.6);
     expect(validateSotdShotMap(m).ok).toBe(true);
   });
 
-  it('sotd-25 is a nearly-frozen rail thin cut, not a through-center cheat', () => {
+  it('sotd-25 shows a rail rebound / second kiss, not a two-segment cheat', () => {
     const m = getSotdMapById('sotd-25')!;
     const ob = m.object_ball_positions[0];
+    expect(m.object_ball_positions).toHaveLength(1);
     const gap = Math.hypot(m.cue_ball_start.x - ob.x, m.cue_ball_start.y - ob.y);
     expect(gap).toBeLessThan(4.2);
-    expect(m.ghost_ball).toBeUndefined();
     expect(m.contact_point).toBeDefined();
+    expect(m.intended_path.length).toBeGreaterThan(2);
     const throughCenter = m.intended_path.some(
       (s) => Math.hypot(s.to.x - ob.x, s.to.y - ob.y) < 0.2 && s.kind !== 'object',
     );
     expect(throughCenter).toBe(false);
+    const railHit = m.intended_path.some(
+      (s) => s.to.y <= 0.2 && s.to.x > ob.x && s.to.x < 98,
+    );
+    expect(railHit).toBe(true);
+    expect(m.intended_path.some((s) => s.kind === 'object')).toBe(true);
+    const end = m.intended_path[m.intended_path.length - 1].to;
+    expect(Math.hypot(end.x - m.pocket_target.x, end.y - m.pocket_target.y)).toBeLessThan(1);
     expect(validateSotdShotMap(m).ok).toBe(true);
   });
 
-  it('catalogue maps do not pin ghost_ball — derive/showGhost is automatic', () => {
+  it('pins ghost_ball only on listed cuts plus the sotd-09 carom contact', () => {
+    const pinned = new Set(['sotd-02', 'sotd-05', 'sotd-09', 'sotd-10', 'sotd-26', 'sotd-29', 'sotd-48']);
     for (const m of listSotdMaps()) {
-      expect({ id: m.id, ghost: m.ghost_ball }).toEqual({ id: m.id, ghost: undefined });
+      if (!pinned.has(m.id)) {
+        expect({ id: m.id, ghost: m.ghost_ball }).toEqual({ id: m.id, ghost: undefined });
+        continue;
+      }
+      expect(m.ghost_ball).toBeDefined();
+      expect(m.ghost_ball!.show).toBe(true);
+      const ob =
+        m.id === 'sotd-09'
+          ? m.object_ball_positions.find((b) => b.ballId === 9)!
+          : m.object_ball_positions.find((b) => !b.role || b.role === 'object')!;
+      expect(Math.hypot(m.ghost_ball!.x - ob.x, m.ghost_ball!.y - ob.y)).toBeCloseTo(4.4, 1);
     }
   });
 });

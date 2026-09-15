@@ -69,7 +69,28 @@ type Layout = {
   /** When true, leave blocker/cue where the layout put them (orch coords). */
   lockBalls?: boolean;
   contact_point?: Pt;
+  ghost_ball?: { x: number; y: number; radius?: number; show?: boolean };
 };
+
+const GHOST_OFFSET = 4.4;
+/** Explicit cut pins — derive still auto-ghosts the rest. */
+const PIN_GHOST_IDS = new Set([
+  'sotd-02',
+  'sotd-05',
+  'sotd-10',
+  'sotd-26',
+  'sotd-29',
+  'sotd-48',
+]);
+
+function ghostBehind(ob: Pt, aim: Pt): { x: number; y: number; show: true } {
+  const toAim = norm(sub(aim, ob));
+  const g = roundPt(
+    { x: ob.x - toAim.x * GHOST_OFFSET, y: ob.y - toAim.y * GHOST_OFFSET },
+    2,
+  );
+  return { x: g.x, y: g.y, show: true };
+}
 
 const FOOT_SPOT: Pt = { x: 75, y: 25 };
 
@@ -198,18 +219,25 @@ const LAYOUTS: Record<string, Layout> = {
       cueGap: 14,
     };
   })(),
-  'sotd-09': {
-    kind: 'carom',
-    pocket: 'foot-near',
-    cue: { x: 38, y: 12 },
-    lockBalls: true,
-    balls: [
-      { ballId: 1, x: 66, y: 26, role: 'object' },
-      { ballId: 9, x: 90, y: 8, role: 'helper' },
-    ],
-    via: [{ x: 65.4, y: 24.9 }],
-    contact_point: { x: 65.4, y: 24.9 },
-  },
+  'sotd-09': (() => {
+    // True carom: CB contacts the 9 (helper), CB redirects toward the 1, 1 to pocket.
+    const cue = { x: 32, y: 36 };
+    const nine: BallSpec = { ballId: 9, x: 58, y: 18, role: 'helper' };
+    const one: BallSpec = { ballId: 1, x: 80, y: 36, role: 'object' };
+    const incoming = norm(sub(nine, cue));
+    const contact = roundPt(sub(nine, scale(incoming, 1.2)), 1);
+    const ghost = roundPt(sub(nine, scale(incoming, GHOST_OFFSET)), 2);
+    return {
+      kind: 'carom' as const,
+      pocket: 'foot-far' as const,
+      cue,
+      lockBalls: true,
+      balls: [one, nine],
+      via: [contact],
+      contact_point: contact,
+      ghost_ball: { x: ghost.x, y: ghost.y, show: true },
+    };
+  })(),
   'sotd-10': {
     kind: 'cut',
     pocket: 'foot-near',
@@ -335,13 +363,18 @@ const LAYOUTS: Record<string, Layout> = {
     ],
   },
   'sotd-25': {
+    // Frozen rail pair: first kiss, short cushion rebound, second kiss, then 1 to corner.
     kind: 'carom',
     pocket: 'foot-near',
     cue: { x: 73.4, y: 5.2 },
     lockBalls: true,
     balls: [{ ballId: 1, x: 76, y: 2.5, role: 'object' }],
-    via: [{ x: 74.81, y: 2.62 }],
-    contact_point: { x: 74.81, y: 2.62 },
+    via: [
+      { x: 74.8, y: 2.6 },
+      { x: 77.8, y: 0 },
+      { x: 80.8, y: 2.6 },
+    ],
+    contact_point: { x: 74.8, y: 2.6 },
   },
   'sotd-26': {
     kind: 'cut',
@@ -681,16 +714,28 @@ function buildPath(layout: Layout): {
   }
 
   if (layout.kind === 'carom') {
-    const helper = balls.find((b) => b.role === 'helper') ?? balls.find((b) => b.ballId !== primary.ballId);
-    const first = { x: primary.x, y: primary.y };
-    const second = helper ? { x: helper.x, y: helper.y } : null;
-    const cue = clampOnTable(layout.cue ?? aimBehind(first, second ?? pocket, gap));
-    const via = (layout.via ?? []).map((p) => clampOnTable(p));
-    const pts = second ? [cue, ...via, second, pocket] : [cue, ...via, pocket];
-    const kinds: Array<SotdPathKind | undefined> = second
-      ? [...via.map(() => 'ground' as const), 'ground', 'object']
-      : [...via.map(() => 'ground' as const), 'object'];
-    while (kinds.length < Math.max(0, pts.length - 1)) kinds.unshift('ground');
+    const helper = balls.find((b) => b.role === 'helper');
+    const object = { x: primary.x, y: primary.y };
+    const via = layout.via ?? [];
+    if (helper) {
+      const first = { x: helper.x, y: helper.y };
+      const cue = clampOnTable(layout.cue ?? aimBehind(first, object, gap));
+      const contactVia = via.length
+        ? via
+        : [add(first, scale(norm(sub(cue, first)), 1.2))];
+      const pts = [cue, ...contactVia, object, pocket];
+      const kinds: Array<SotdPathKind | undefined> = [
+        ...contactVia.map(() => 'ground' as const),
+        'cue_after',
+        'object',
+      ];
+      return { cue, pocket, balls, pts, kinds };
+    }
+    const cue = clampOnTable(layout.cue ?? aimBehind(object, pocket, gap));
+    const pts = [cue, ...via, pocket];
+    const kinds: Array<SotdPathKind | undefined> = via.length
+      ? ['ground', ...via.slice(1).map(() => 'object' as const), 'object']
+      : ['object'];
     return { cue, pocket, balls, pts, kinds };
   }
 
@@ -817,6 +862,11 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     role: b.role ?? 'object',
   }));
   const primary = primaryOf(roundedBalls);
+  const ghost = layout.ghost_ball
+    ? { show: true as const, ...layout.ghost_ball, ...roundPt(layout.ghost_ball, 2) }
+    : PIN_GHOST_IDS.has(prev.id)
+      ? ghostBehind(primary, pocket)
+      : undefined;
   return {
     id: prev.id,
     name: prev.name,
@@ -838,6 +888,7 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     source: 'catalogue',
     ascii_table: renderAscii(cue, roundedBalls, pts, pocket),
     ...(layout.contact_point ? { contact_point: roundPt(layout.contact_point) } : {}),
+    ...(ghost ? { ghost_ball: ghost } : {}),
   };
 }
 
