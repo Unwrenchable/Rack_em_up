@@ -14,6 +14,7 @@
     "test:e2e": "jest --config jest.e2e.config.js --runInBand",
     "seed:demo": "ts-node -r dotenv/config scripts/seed-demo.ts",
     "generate:sotd-maps": "ts-node -T scripts/generate-sotd-maps.ts",
+    "merge:sotd-envelope": "ts-node -T scripts/merge-sotd-envelope.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/config/ormconfig.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/config/ormconfig.ts"
   },
