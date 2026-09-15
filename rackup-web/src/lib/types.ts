@@ -272,7 +272,10 @@ export type ShotOfTheDay = {
 
 export type SotdPoint = { x: number; y: number };
 
-/** RealAI orch Ghost Ball overlay (optional). Cloth coords 0–100 / 0–50. */
+/**
+ * Rare map pin for Ghost Ball. Default is SPA derive (`showGhost`, offset 4.4).
+ * Emit only when live derive would be wrong. Cloth coords 0–100 / 0–50.
+ */
 export type SotdGhostBall = SotdPoint & {
   /** Draw radius in cloth units; omit → SVG table ballR. Never 4.4/2. */
   radius?: number;
@@ -315,8 +318,9 @@ export type SotdShotMap = {
   };
   landing_zones: Array<SotdPoint & { label: string }>;
   pocket_target: SotdPoint;
-  /** RealAI overlay — honor when present; otherwise derive. */
+  /** Rare pin — omit so SPA derives ghost = OB − normalize(aim − OB)×4.4 */
   ghost_ball?: SotdGhostBall;
+  /** Rare pin — omit so SPA uses midpoint(ghost, OB). */
   contact_point?: SotdPoint;
   coordinate_system: { x: string; y: string; units: string };
   source: 'catalogue' | 'realai';
