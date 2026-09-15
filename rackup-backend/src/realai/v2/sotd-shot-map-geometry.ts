@@ -697,24 +697,22 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
         ),
       );
     }
-    if (pts.length < 10) {
-      for (let i = 1; i < pts.length - 1; i++) {
-        if (classifyRail(pts[i], 2.2)) continue;
-        if ((map.object_ball_positions ?? []).some((b) => dist(b, pts[i]) <= 3.2)) continue;
-        const incoming = sub(pts[i], pts[i - 1]);
-        const outgoing = sub(pts[i + 1], pts[i]);
-        const inLen = Math.hypot(incoming.x, incoming.y);
-        const outLen = Math.hypot(outgoing.x, outgoing.y);
-        if (inLen < 8 || outLen < 8) continue;
-        const ang = unitAngleDeg(incoming, outgoing);
-        if (ang > CURVE_ZIGZAG_MAX_DEG) {
-          issues.push(
-            issue(
-              'curve_zigzag',
-              `massé/curve bends ${ang.toFixed(0)}° at (${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)}) — use a smooth curve, not a polyline tent`,
-            ),
-          );
-        }
+    for (let i = 1; i < pts.length - 1; i++) {
+      if (classifyRail(pts[i], 2.2)) continue;
+      if ((map.object_ball_positions ?? []).some((b) => dist(b, pts[i]) <= 3.2)) continue;
+      const incoming = sub(pts[i], pts[i - 1]);
+      const outgoing = sub(pts[i + 1], pts[i]);
+      const inLen = Math.hypot(incoming.x, incoming.y);
+      const outLen = Math.hypot(outgoing.x, outgoing.y);
+      if (inLen < 8 || outLen < 8) continue;
+      const ang = unitAngleDeg(incoming, outgoing);
+      if (ang > CURVE_ZIGZAG_MAX_DEG) {
+        issues.push(
+          issue(
+            'curve_zigzag',
+            `massé/curve bends ${ang.toFixed(0)}° at (${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)}) — use a smooth curve, not a polyline tent`,
+          ),
+        );
       }
     }
   }
