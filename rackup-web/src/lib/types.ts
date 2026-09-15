@@ -327,3 +327,72 @@ export type SotdShotMap = {
   ascii_table: string;
   realaiReachable?: boolean;
 };
+
+/**
+ * Unified Player Card (console/coach). Separate continua — do not mix with
+ * `User.rating` (ROC Glicko-2). Profile/Find/MM UI is wired by ROC on main.
+ */
+export type RackupShadow = {
+  rating: number;
+  robustness: number;
+  provisional: boolean;
+  confidence_low: number;
+  confidence_high: number;
+  official: false;
+  source: 'rackup_glicko_shadow';
+  label: string;
+};
+
+export type RackupLadderStats = {
+  rating: number;
+  rd: number;
+  volatility: number;
+  matches: number;
+  band: string;
+  display: string;
+  ladder: 'roc_glicko2';
+  last_match_delta?: number | null;
+  wins?: number;
+  losses?: number;
+  completed_matches?: number;
+};
+
+export type TapStats = {
+  skill?: number | null;
+  charter_points?: number | null;
+  division?: string | null;
+  notes?: string | null;
+  imported_at?: string | null;
+  raw?: Record<string, unknown> | null;
+};
+
+export type UnifiedPlayerCard = {
+  player: {
+    name: string;
+    apa_sl: number | null;
+    fargo_rating: number | null;
+    fargo_robustness: number | null;
+    bca_elo: number | null;
+    tap_stats: TapStats | null;
+    rackup_stats: RackupLadderStats | null;
+    unified_id: string;
+    rackup_shadow: RackupShadow | null;
+    fargo_id?: string | null;
+    fargo_readable_id?: string | null;
+    apa_member_id?: string | null;
+    bca_id?: string | null;
+    tap_id?: string | null;
+  };
+  display: {
+    fargo: string | null;
+    rackup_shadow: string | null;
+    disclaimer: string;
+  };
+  meta: {
+    user_id: string | null;
+    fargo_fetched_at: string | null;
+    shadow_computed_at: string | null;
+    resolve_method?: string;
+    notes: string[];
+  };
+};

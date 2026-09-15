@@ -17,6 +17,7 @@ import { UsersService } from './users.service';
 import { RatingService } from './rating.service';
 import { toGlickoPublic } from './rating-display';
 import { UploadAvatarDto } from './dto/upload-avatar.dto';
+import { PlayerCardService } from '../ratings/player-card.service';
 
 class SeedRatingDto {
   @IsString()
@@ -28,6 +29,18 @@ class SeedRatingDto {
   @IsOptional()
   @IsString()
   from_scale?: string;
+
+  @IsOptional()
+  @IsString()
+  fargo_id?: string;
+
+  @IsOptional()
+  @IsString()
+  fargo_readable_id?: string;
+
+  @IsOptional()
+  @IsString()
+  apa_member_id?: string;
 }
 
 @Controller('users')
@@ -36,6 +49,7 @@ export class UsersController {
     private readonly statsService: StatsService,
     private readonly usersService: UsersService,
     private readonly ratingService: RatingService,
+    private readonly playerCards: PlayerCardService,
   ) {}
 
   @UseGuards(AuthGuard('jwt'))
@@ -73,14 +87,45 @@ export class UsersController {
   /**
    * One-time Glicko seed from external league rating (APA/BCA/Fargo/TAP/VNEA).
    * RealAI rating_convert — only when matches == 0.
+   * Also records the external value on the Unified Player Card (separate continua).
    */
   @UseGuards(AuthGuard('jwt'))
   @Post('me/rating/seed')
   async seedRating(@Req() req: any, @Body() body: SeedRatingDto) {
-    return this.ratingService.seedFromExternal(req.user.id, {
+    const glicko = await this.ratingService.seedFromExternal(req.user.id, {
       from_system: body.from_system,
       from_value: body.from_value,
       from_scale: body.from_scale,
+    });
+    await this.playerCards.recordExternalSeed(req.user.id, {
+      from_system: body.from_system,
+      from_value: body.from_value,
+      from_scale: body.from_scale,
+    });
+    if (body.fargo_id || body.apa_member_id || body.fargo_readable_id) {
+      await this.playerCards.manualImport({
+        userId: req.user.id,
+        fargo_id: body.fargo_id,
+        fargo_readable_id: body.fargo_readable_id,
+        apa_member_id: body.apa_member_id,
+      });
+    }
+    return glicko;
+  }
+
+  /**
+   * Unified Player Card for console/coach.
+   * `rackup_stats` mirrors ROC Glicko-2 (`users.rating` …). Fargo and RackUpRate
+   * shadow are separate continua and never overwrite the ladder.
+   */
+  @UseGuards(AuthGuard('jwt'))
+  @Get('me/player-card')
+  async myPlayerCard(
+    @Req() req: { user: { id: string } },
+    @Query('refreshFargo') refreshFargo?: string,
+  ) {
+    return this.playerCards.getCardForUser(req.user.id, {
+      refreshFargo: refreshFargo === '1' || refreshFargo === 'true',
     });
   }
 
@@ -132,6 +177,17 @@ export class UsersController {
   @Get(':id/stats')
   async stats(@Param('id', ParseUUIDPipe) id: string) {
     return this.statsService.getPlayerStats(id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get(':id/player-card')
+  async playerCard(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('refreshFargo') refreshFargo?: string,
+  ) {
+    return this.playerCards.getCardForUser(id, {
+      refreshFargo: refreshFargo === '1' || refreshFargo === 'true',
+    });
   }
 
   /** Public profile for friends / looking-player hydration. */

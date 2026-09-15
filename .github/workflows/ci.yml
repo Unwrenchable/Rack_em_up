@@ -29,6 +29,8 @@ jobs:
         run: npm run build
       - name: Smoke tests
         run: npm run test:smoke
+      - name: Unit tests (player card / Fargo / shadow)
+        run: npm test -- --runInBand
 
   frontend:
     name: Frontend typecheck · build

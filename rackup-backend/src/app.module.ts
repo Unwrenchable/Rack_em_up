@@ -36,6 +36,7 @@ import { ObjectStorageModule } from './common/object-storage.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
 import { RocModule } from './roc/roc.module';
+import { RatingsModule } from './ratings/ratings.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { RocModule } from './roc/roc.module';
     RealaiV2Module,
     MatchmakingV2Module,
     RocModule,
+    RatingsModule,
   ],
 
   providers: [
