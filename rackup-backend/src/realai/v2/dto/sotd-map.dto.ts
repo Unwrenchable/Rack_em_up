@@ -1,4 +1,4 @@
-import { IsIn, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /** Normalized table point: x 0–100 (head→foot), y 0–50 (bottom→top). */
@@ -59,6 +59,16 @@ export class SotdLandingZoneDto extends SotdPointDto {
   label!: string;
 }
 
+export class SotdGhostBallDto extends SotdPointDto {
+  @IsOptional()
+  @IsNumber()
+  radius?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  show?: boolean;
+}
+
 /**
  * Full structured Shot-of-the-Day map payload.
  * Served from the static Rack catalogue. RealAI is never used to generate diagrams.
@@ -102,6 +112,16 @@ export class SotdShotMapDto {
   @ValidateNested()
   @Type(() => SotdPointDto)
   pocket_target!: SotdPointDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SotdGhostBallDto)
+  ghost_ball?: SotdGhostBallDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SotdPointDto)
+  contact_point?: SotdPointDto;
 
   coordinate_system!: { x: string; y: string; units: string };
 

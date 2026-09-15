@@ -40,6 +40,8 @@ export type DerivedShotGeometry = {
   /** Always: CB after impact. */
   cueAfter: SotdPoint[];
   ghostBall: SotdPoint | null;
+  /** Cloth-unit radius from RealAI; undefined → draw with SVG ballR. */
+  ghostRadius?: number;
   showGhost: boolean;
   showTangent: boolean;
   tangent: { from: SotdPoint; to: SotdPoint } | null;
@@ -244,10 +246,17 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   }
 
   const towardCue = fullPts[contactIdx] ? norm(sub(start, primary)) : { x: -1, y: 0 };
-  const contactPoint: SotdPoint = {
+  let contactPoint: SotdPoint = {
     x: primary.x + towardCue.x * 1.2,
     y: primary.y + towardCue.y * 1.2,
   };
+  if (
+    map.contact_point &&
+    Number.isFinite(map.contact_point.x) &&
+    Number.isFinite(map.contact_point.y)
+  ) {
+    contactPoint = { x: map.contact_point.x, y: map.contact_point.y };
+  }
 
   // CB → OB: keep rails, carom helpers, and curve vias (not only cushion hits).
   // Jump hops stay out of cueApproach so we never draw a solid chord through the blocker.
@@ -332,13 +341,24 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   const aimTarget = isCombo && comboBalls[1] ? comboBalls[1] : pocket;
   const toAim = norm(sub(aimTarget, primary));
   const diameter = 4.4;
-  const ghostBall: SotdPoint = {
+  // Contact ghost at the object — never the jump hop apex.
+  let ghostBall: SotdPoint = {
     x: primary.x - toAim.x * diameter,
     y: primary.y - toAim.y * diameter,
   };
 
   const cut = cutAngleDeg(sub(primary, start), sub(aimTarget, primary));
-  const showGhost = !isCombo && cut > 12 && cut < 78 && !railFirst;
+  let showGhost = !isCombo && cut > 12 && cut < 78 && !railFirst;
+  let ghostRadius: number | undefined;
+  const gb = map.ghost_ball;
+  if (gb && Number.isFinite(gb.x) && Number.isFinite(gb.y)) {
+    ghostBall = { x: gb.x, y: gb.y };
+    if (typeof gb.radius === 'number' && Number.isFinite(gb.radius) && gb.radius > 0) {
+      ghostRadius = gb.radius;
+    }
+    if (gb.show === false) showGhost = false;
+    else if (gb.show === true) showGhost = true;
+  }
   const tip = (map.tip_zone || map.english?.tip_zone || 'center').toLowerCase();
   const stunish = tip.includes('center') || tip === 'stun';
   const showTangent = showGhost && stunish && cut > 18;
@@ -393,6 +413,7 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     objectPath,
     cueAfter,
     ghostBall: showGhost ? ghostBall : null,
+    ghostRadius,
     showGhost,
     showTangent,
     tangent,

@@ -272,6 +272,14 @@ export type ShotOfTheDay = {
 
 export type SotdPoint = { x: number; y: number };
 
+/** RealAI orch Ghost Ball overlay (optional). Cloth coords 0–100 / 0–50. */
+export type SotdGhostBall = SotdPoint & {
+  /** Draw radius in cloth units; omit → SVG table ballR. Never 4.4/2. */
+  radius?: number;
+  /** Omit → SPA derive (`showGhost`). */
+  show?: boolean;
+};
+
 export type SotdObjectBall = SotdPoint & {
   ballId: number;
   role?: 'object' | 'blocker' | 'prop' | 'helper';
@@ -307,6 +315,9 @@ export type SotdShotMap = {
   };
   landing_zones: Array<SotdPoint & { label: string }>;
   pocket_target: SotdPoint;
+  /** RealAI overlay — honor when present; otherwise derive. */
+  ghost_ball?: SotdGhostBall;
+  contact_point?: SotdPoint;
   coordinate_system: { x: string; y: string; units: string };
   source: 'catalogue' | 'realai';
   ascii_table: string;

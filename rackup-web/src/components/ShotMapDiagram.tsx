@@ -221,11 +221,20 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             <circle
               cx={sx(geo.ghostBall.x)}
               cy={sy(geo.ghostBall.y)}
-              r={ballR}
+              r={geo.ghostRadius ?? ballR}
               fill="none"
               stroke="rgba(255,255,255,0.5)"
               strokeWidth={0.32}
               strokeDasharray="0.75 0.65"
+            />
+          )}
+          {map.contact_point && (
+            <circle
+              cx={sx(map.contact_point.x)}
+              cy={sy(map.contact_point.y)}
+              r={Math.max(0.28, ballR * 0.22)}
+              fill="rgba(255,255,255,0.55)"
+              stroke="none"
             />
           )}
 
