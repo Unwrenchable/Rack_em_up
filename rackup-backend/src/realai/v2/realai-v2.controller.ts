@@ -14,6 +14,7 @@ import { CoachDto } from './dto/coach.dto';
 import { MatchSummaryDto } from './dto/match-summary.dto';
 import { PlayerInsightsDto } from './dto/player-insights.dto';
 import { ShotOfTheDayDto } from './dto/shot-of-the-day.dto';
+import { SotdProposeEnvelopeDto } from './dto/sotd-propose.dto';
 import type { RackUpCoachRequest } from '../../ai/realai-coach.client';
 
 @Controller('realai/v2')
@@ -31,6 +32,16 @@ export class RealaiV2Controller {
   @Get('sotd/map/:id')
   async getSotdMap(@Param('id') id: string) {
     return this.realaiV2.getSotdMap(id);
+  }
+
+  /**
+   * Validate + merge-preview a RealAI envelope (schema 1.0).
+   * Auth required. Does not persist; roc applies `map`/`catalog` into the static modules.
+   */
+  @Post('sotd/propose')
+  @UseGuards(AuthGuard('jwt'))
+  proposeSotd(@Body() dto: SotdProposeEnvelopeDto) {
+    return this.realaiV2.proposeSotdCatalogue(dto);
   }
 
   @Get('summary-job/:jobId')

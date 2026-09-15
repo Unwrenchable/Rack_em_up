@@ -29,10 +29,16 @@ import { CoachDto } from './dto/coach.dto';
 import { MatchSummaryDto } from './dto/match-summary.dto';
 import { PlayerInsightsDto } from './dto/player-insights.dto';
 import { ShotOfTheDayDto } from './dto/shot-of-the-day.dto';
+import { SHOT_CATALOG } from '../../shots/shot-catalog';
+import {
+  applySotdProposeEnvelope,
+  SOTD_PROPOSE_APPLY_HELP,
+} from './sotd-propose-ingest';
 import {
   getSotdMapById,
   listSotdMaps,
   sotdMapCount,
+  SOTD_SHOT_MAPS,
   SotdShotMap,
 } from './sotd-shot-maps';
 
@@ -156,6 +162,29 @@ export class RealaiV2Service {
       total: sotdMapCount(),
       realaiReachable: status.reachable,
       maps: listSotdMaps(),
+    };
+  }
+
+  /**
+   * Validate + merge-preview a RealAI SotdProposeEnvelope.
+   * Does not persist, does not call RealAI, does not change live catalogue draw.
+   */
+  proposeSotdCatalogue(raw: unknown) {
+    const result = applySotdProposeEnvelope(raw, {
+      maps: SOTD_SHOT_MAPS,
+      catalog: SHOT_CATALOG,
+    });
+    if (!result.ok) {
+      throw new BadRequestException(result);
+    }
+    return {
+      ok: true,
+      persisted: false,
+      action: result.action,
+      how: SOTD_PROPOSE_APPLY_HELP,
+      map: result.map,
+      catalog: result.catalog,
+      localGeometry: result.localGeometry,
     };
   }
 

@@ -644,6 +644,7 @@ describe('V2 route inventory', () => {
     'POST /realai/v2/coach',
     'GET /realai/v2/sotd/maps',
     'GET /realai/v2/sotd/map/:id',
+    'POST /realai/v2/sotd/propose',
     'POST /realai/v2/summary-job',
     'GET /users/:id',
     'GET /users/profiles',
@@ -718,6 +719,7 @@ describe('V2 route inventory', () => {
     expect(routes.length).toBeGreaterThanOrEqual(15);
     expect(routes.some((r) => r === 'GET /tournaments/v2')).toBe(true);
     expect(routes.some((r) => r.includes('sotd/maps'))).toBe(true);
+    expect(routes).toContain('POST /realai/v2/sotd/propose');
     expect(routes.some((r) => r.includes('report-match'))).toBe(true);
     expect(routes.some((r) => r.includes('/health'))).toBe(true);
     expect(routes.some((r) => r.includes('health/scorekeeping'))).toBe(true);
