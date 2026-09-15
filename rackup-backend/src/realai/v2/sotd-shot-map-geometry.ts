@@ -242,6 +242,36 @@ export function aimBehind(ob: SotdGeomPoint, toward: SotdGeomPoint, gap: number)
   return clampOnTable(add(ob, scale(away, gap)));
 }
 
+/** Ghost-ball offset diameter: ghost = OB − normalize(aim − OB) × 4.4 */
+export const GHOST_BALL_DIAMETER = 4.4;
+
+export function ghostBallFromAim(
+  ob: SotdGeomPoint,
+  aim: SotdGeomPoint,
+  diameter = GHOST_BALL_DIAMETER,
+): SotdGeomPoint {
+  const toAim = norm(sub(aim, ob));
+  return { x: ob.x - toAim.x * diameter, y: ob.y - toAim.y * diameter };
+}
+
+export function sampleQuadratic(
+  a: SotdGeomPoint,
+  ctrl: SotdGeomPoint,
+  b: SotdGeomPoint,
+  n = 12,
+): SotdGeomPoint[] {
+  const out: SotdGeomPoint[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const u = 1 - t;
+    out.push({
+      x: u * u * a.x + 2 * u * t * ctrl.x + t * t * b.x,
+      y: u * u * a.y + 2 * u * t * ctrl.y + t * t * b.y,
+    });
+  }
+  return out;
+}
+
 export function pathFromPoints(
   pts: SotdGeomPoint[],
   kinds?: Array<SotdPathKind | undefined>,
@@ -381,8 +411,12 @@ const PATH_POCKET_NEAR = 8;
 const REFLECT_MAX_DEG = 32;
 /** Max bend at a combo contact — the driven ball must leave along the line of centers. */
 export const COMBO_ALIGN_MAX_DEG = 14;
-/** Solid ground kinks on a jump (not the dashed airborne apex) read as massé. */
+/** Solid ground kinks on a jump (not the dashed airborne hop) read as massé. */
 export const JUMP_ZIGZAG_MAX_DEG = 28;
+/** Airborne vertex farther than this from takeoff–landing is a tent apex. */
+export const JUMP_AIRBORNE_TENT_MAX = 2;
+/** Sparse polyline tents on masse/curve maps. */
+export const CURVE_ZIGZAG_MAX_DEG = 28;
 /** Half-width of the travel corridor a parked ball may not occupy. */
 export const LANE_CLEARANCE = 2.4;
 
@@ -599,6 +633,36 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
         ),
       );
     }
+    const airSegs = segs.filter((s) => segmentIsAirborne(s));
+    if (airSegs.length) {
+      const takeoff = airSegs[0].from;
+      const landing = airSegs[airSegs.length - 1].to;
+      for (const s of airSegs) {
+        for (const p of [s.from, s.to]) {
+          const d = pointToSegmentDistance(p, takeoff, landing);
+          if (d > JUMP_AIRBORNE_TENT_MAX) {
+            issues.push(
+              issue(
+                'jump_airborne_tent',
+                `airborne vertex (${p.x.toFixed(1)},${p.y.toFixed(1)}) is ${d.toFixed(1)} off the takeoff–landing line — hop must go straight over the blocker, not a tent apex`,
+              ),
+            );
+          }
+        }
+      }
+      const blockers = (map.object_ball_positions ?? []).filter((b) => b.role === 'blocker');
+      for (const b of blockers) {
+        const over = airSegs.some((s) => pointToSegmentDistance(b, s.from, s.to) < 3.6);
+        if (!over) {
+          issues.push(
+            issue(
+              'jump_needs_airborne',
+              `airborne hop must pass over blocker #${b.ballId} at (${b.x},${b.y})`,
+            ),
+          );
+        }
+      }
+    }
     for (let i = 1; i < pts.length - 1; i++) {
       const arriving = segs[i - 1];
       const leaving = segs[i];
@@ -618,6 +682,71 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
           issue(
             'jump_zigzag',
             `solid jump path bends ${ang.toFixed(0)}° at (${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)}) — ground stays straight; the hop over the blocker must be dashed airborne`,
+          ),
+        );
+      }
+    }
+  }
+
+  if (cat === 'masse' || cat === 'curve') {
+    if (segs.some((s) => segmentIsAirborne(s))) {
+      issues.push(
+        issue(
+          'curve_used_jump_dash',
+          'massé / cloth swerve stays on the cloth — do not tag it airborne / jump-dashed',
+        ),
+      );
+    }
+    if (pts.length < 10) {
+      for (let i = 1; i < pts.length - 1; i++) {
+        if (classifyRail(pts[i], 2.2)) continue;
+        if ((map.object_ball_positions ?? []).some((b) => dist(b, pts[i]) <= 3.2)) continue;
+        const incoming = sub(pts[i], pts[i - 1]);
+        const outgoing = sub(pts[i + 1], pts[i]);
+        const inLen = Math.hypot(incoming.x, incoming.y);
+        const outLen = Math.hypot(outgoing.x, outgoing.y);
+        if (inLen < 8 || outLen < 8) continue;
+        const ang = unitAngleDeg(incoming, outgoing);
+        if (ang > CURVE_ZIGZAG_MAX_DEG) {
+          issues.push(
+            issue(
+              'curve_zigzag',
+              `massé/curve bends ${ang.toFixed(0)}° at (${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)}) — use a smooth curve, not a polyline tent`,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  if (primary && pocket && !['bank', 'kick', 'combo', 'carom'].includes(cat)) {
+    const toPocket = sub(pocket, primary);
+    const approach = pts[Math.max(0, contactIdx - 1)] ?? cue;
+    const incoming = sub(primary, approach);
+    const inLen = Math.hypot(incoming.x, incoming.y);
+    const outLen = Math.hypot(toPocket.x, toPocket.y);
+    if (inLen > 1 && outLen > 1) {
+      const na = norm(incoming);
+      const nb = norm(toPocket);
+      const dot = na.x * nb.x + na.y * nb.y;
+      if (dot < -0.25) {
+        issues.push(
+          issue(
+            'pocket_unmakeable',
+            `contact side contradicts pocket_target — incoming CB cannot send object ball #${primary.ballId} to (${pocket.x},${pocket.y})`,
+          ),
+        );
+      }
+    }
+    const last = segs[segs.length - 1];
+    const lastDir = sub(last.to, last.from);
+    if (Math.hypot(lastDir.x, lastDir.y) > 1 && outLen > 1) {
+      const pathAng = unitAngleDeg(toPocket, lastDir);
+      if (pathAng > 35 && dist(last.to, pocket) < PATH_POCKET_NEAR) {
+        issues.push(
+          issue(
+            'pocket_unmakeable',
+            `object path from contact does not aim at pocket_target (${pocket.x},${pocket.y})`,
           ),
         );
       }

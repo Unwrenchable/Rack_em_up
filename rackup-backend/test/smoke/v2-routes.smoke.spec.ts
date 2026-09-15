@@ -416,7 +416,7 @@ describe('SOTD maps catalogue', () => {
     }
   });
 
-  it('sotd-15 Jump Over the Troublemaker uses the orch dashed airborne arc', () => {
+  it('sotd-15 Jump Over the Troublemaker hops dashed straight over the blocker', () => {
     const m = getSotdMapById('sotd-15')!;
     expect(m.cue_ball_start).toEqual({ x: 24, y: 25.5 });
     expect(m.pocket_target).toEqual({ x: 100, y: 25 });
@@ -424,34 +424,35 @@ describe('SOTD maps catalogue', () => {
       { ballId: 1, x: 70, y: 25.2, role: 'object' },
       { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
     ]);
+    expect(m.ghost_ball).toBeUndefined();
     expect(m.intended_path).toEqual([
       { from: { x: 24, y: 25.5 }, to: { x: 39, y: 25.4 }, style: 'solid', kind: 'ground' },
-      { from: { x: 39, y: 25.4 }, to: { x: 45, y: 30.5 }, style: 'dashed', kind: 'airborne' },
-      { from: { x: 45, y: 30.5 }, to: { x: 51, y: 25.4 }, style: 'dashed', kind: 'airborne' },
-      { from: { x: 51, y: 25.4 }, to: { x: 70, y: 25.2 }, style: 'solid', kind: 'ground' },
+      { from: { x: 39, y: 25.4 }, to: { x: 45, y: 25.2 }, style: 'dashed', kind: 'airborne' },
+      { from: { x: 45, y: 25.2 }, to: { x: 51, y: 25.3 }, style: 'dashed', kind: 'airborne' },
+      { from: { x: 51, y: 25.3 }, to: { x: 70, y: 25.2 }, style: 'solid', kind: 'ground' },
       { from: { x: 70, y: 25.2 }, to: { x: 100, y: 25 }, style: 'solid', kind: 'object' },
     ]);
     expect(validateSotdShotMap(m).ok).toBe(true);
   });
 
-  it('sotd-32/45/50 use the same takeoff–apex–landing dashed hop', () => {
+  it('sotd-32/45/50 hop dashed through the blocker XY, not a tent apex', () => {
     for (const id of ['sotd-32', 'sotd-45', 'sotd-50'] as const) {
       const m = getSotdMapById(id)!;
       const blocker = m.object_ball_positions.find((b) => b.role === 'blocker')!;
-      const cue = m.cue_ball_start;
       const air = m.intended_path.filter((s) => s.kind === 'airborne' || s.style === 'dashed');
       expect({ id, n: air.length }).toEqual({ id, n: 2 });
       expect(air[0].from.x).toBeCloseTo(blocker.x - 6, 0);
-      expect(air[0].to).toEqual({ x: blocker.x, y: cue.y + 5 });
+      expect(air[0].to).toEqual({ x: blocker.x, y: blocker.y });
       expect(air[1].to.x).toBeCloseTo(blocker.x + 6, 0);
       expect(air.every((s) => s.style === 'dashed' && s.kind === 'airborne')).toBe(true);
+      expect(validateSotdShotMap(m).ok).toBe(true);
     }
   });
 
-  it('accepts a dashed airborne jump arc and does not treat the apex as a massé zigzag', () => {
-    const hop = validateSotdShotMap({
-      id: 'jump-arc',
-      name: 'Airborne arc',
+  it('rejects a dashed airborne tent off the blocker line', () => {
+    const tent = validateSotdShotMap({
+      id: 'jump-tent',
+      name: 'Airborne tent',
       category: 'jump',
       cue_ball_start: { x: 24, y: 25.5 },
       object_ball_positions: [
@@ -467,8 +468,113 @@ describe('SOTD maps catalogue', () => {
       ],
       pocket_target: { x: 100, y: 25 },
     });
+    expect(tent.ok).toBe(false);
+    expect(tent.issues.some((i) => i.code === 'jump_airborne_tent')).toBe(true);
+  });
+
+  it('accepts a dashed hop straight over the blocker and does not treat it as a massé zigzag', () => {
+    const hop = validateSotdShotMap({
+      id: 'jump-over',
+      name: 'Collinear hop',
+      category: 'jump',
+      cue_ball_start: { x: 24, y: 25.5 },
+      object_ball_positions: [
+        { ballId: 1, x: 70, y: 25.2, role: 'object' },
+        { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
+      ],
+      intended_path: [
+        { from: { x: 24, y: 25.5 }, to: { x: 39, y: 25.4 }, style: 'solid', kind: 'ground' },
+        { from: { x: 39, y: 25.4 }, to: { x: 45, y: 25.2 }, style: 'dashed', kind: 'airborne' },
+        { from: { x: 45, y: 25.2 }, to: { x: 51, y: 25.3 }, style: 'dashed', kind: 'airborne' },
+        { from: { x: 51, y: 25.3 }, to: { x: 70, y: 25.2 }, style: 'solid', kind: 'ground' },
+        { from: { x: 70, y: 25.2 }, to: { x: 100, y: 25 }, style: 'solid', kind: 'object' },
+      ],
+      pocket_target: { x: 100, y: 25 },
+    });
     expect(hop.ok).toBe(true);
-    expect(hop.issues.some((i) => i.code === 'jump_zigzag')).toBe(false);
+    expect(hop.issues.some((i) => i.code === 'jump_zigzag' || i.code === 'jump_airborne_tent')).toBe(
+      false,
+    );
+  });
+
+  it('rejects a massé polyline tent', () => {
+    const tent = validateSotdShotMap({
+      id: 'masse-tent',
+      name: 'Kink massé',
+      category: 'masse',
+      cue_ball_start: { x: 22, y: 12 },
+      object_ball_positions: [
+        { ballId: 1, x: 64, y: 36, role: 'object' },
+        { ballId: 8, x: 40, y: 24, role: 'blocker' },
+      ],
+      intended_path: [
+        { from: { x: 22, y: 12 }, to: { x: 20, y: 28 } },
+        { from: { x: 20, y: 28 }, to: { x: 36, y: 42 } },
+        { from: { x: 36, y: 42 }, to: { x: 64, y: 36 } },
+        { from: { x: 64, y: 36 }, to: { x: 100, y: 50 } },
+      ],
+      pocket_target: { x: 100, y: 50 },
+    });
+    expect(tent.ok).toBe(false);
+    expect(tent.issues.some((i) => i.code === 'curve_zigzag')).toBe(true);
+  });
+
+  it('masse and curve catalogue maps are dense cloth curves, not tents', () => {
+    const curved = listSotdMaps().filter((m) => m.category === 'masse' || m.category === 'curve');
+    expect(curved.length).toBeGreaterThanOrEqual(2);
+    for (const m of curved) {
+      const report = validateSotdShotMap(m);
+      expect({ id: m.id, ok: report.ok, issues: report.issues }).toEqual({
+        id: m.id,
+        ok: true,
+        issues: [],
+      });
+      expect(m.intended_path.some((s) => s.kind === 'airborne' || s.style === 'dashed')).toBe(false);
+    }
+  });
+
+  it('sotd-09 is a bent carom off the 1 into the 9, not a cheat line through both balls', () => {
+    const m = getSotdMapById('sotd-09')!;
+    const one = m.object_ball_positions.find((b) => b.ballId === 1)!;
+    const nine = m.object_ball_positions.find((b) => b.ballId === 9)!;
+    expect(one.role).toBe('object');
+    expect(nine.role).toBe('helper');
+    expect(m.ghost_ball).toBeUndefined();
+    const cue = m.cue_ball_start;
+    const incoming = { x: one.x - cue.x, y: one.y - cue.y };
+    const outgoing = { x: nine.x - one.x, y: nine.y - one.y };
+    const li = Math.hypot(incoming.x, incoming.y) || 1;
+    const lo = Math.hypot(outgoing.x, outgoing.y) || 1;
+    const bend =
+      (Math.acos(
+        Math.max(-1, Math.min(1, (incoming.x * outgoing.x + incoming.y * outgoing.y) / (li * lo))),
+      ) *
+        180) /
+      Math.PI;
+    expect(bend).toBeGreaterThan(25);
+    const pts = m.intended_path.flatMap((s) => [s.from, s.to]);
+    const nearOne = pts.findIndex((p) => Math.hypot(p.x - one.x, p.y - one.y) < 3.4);
+    const nearNine = pts.findIndex((p) => Math.hypot(p.x - nine.x, p.y - nine.y) < 3.4);
+    expect(nearOne).toBeGreaterThanOrEqual(0);
+    expect(nearNine).toBeGreaterThan(nearOne);
+    expect(validateSotdShotMap(m).ok).toBe(true);
+  });
+
+  it('sotd-25 is a nearly-frozen rail thin cut, not a through-center cheat', () => {
+    const m = getSotdMapById('sotd-25')!;
+    const ob = m.object_ball_positions[0];
+    const gap = Math.hypot(m.cue_ball_start.x - ob.x, m.cue_ball_start.y - ob.y);
+    expect(gap).toBeLessThan(4.2);
+    expect(m.ghost_ball).toBeUndefined();
+    expect(validateSotdShotMap(m).ok).toBe(true);
+  });
+
+  it('cut maps omit ghost_ball so SPA auto-derives at 4.4', () => {
+    const ids = ['sotd-05', 'sotd-06', 'sotd-10', 'sotd-15', 'sotd-26', 'sotd-48'];
+    for (const id of ids) {
+      const m = getSotdMapById(id)!;
+      expect({ id, ghost: m.ghost_ball }).toEqual({ id, ghost: undefined });
+    }
   });
 
   it('every combo map visits 2+ balls on a colinear transfer line', () => {

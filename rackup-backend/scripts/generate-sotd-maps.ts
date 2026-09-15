@@ -30,6 +30,7 @@ import {
   pointToSegmentDistance,
   railChain,
   roundPt,
+  sampleQuadratic,
   scale,
   sub,
   validateSotdShotMap,
@@ -185,11 +186,13 @@ const LAYOUTS: Record<string, Layout> = {
   'sotd-09': {
     kind: 'carom',
     pocket: 'foot-near',
+    cue: { x: 38, y: 12 },
+    lockBalls: true,
     balls: [
-      { ballId: 9, x: 58, y: 30, role: 'helper' },
-      { ballId: 1, x: 76, y: 16, role: 'object' },
+      { ballId: 1, x: 66, y: 26, role: 'object' },
+      { ballId: 9, x: 90, y: 8, role: 'helper' },
     ],
-    cueGap: 16,
+    via: [{ x: 65.4, y: 24.9 }],
   },
   'sotd-10': {
     kind: 'cut',
@@ -235,8 +238,8 @@ const LAYOUTS: Record<string, Layout> = {
     cue: { x: 24, y: 25.5 },
     lockBalls: true,
     jumpTakeoff: { x: 39, y: 25.4 },
-    jumpApex: { x: 45, y: 30.5 },
-    jumpLanding: { x: 51, y: 25.4 },
+    jumpApex: { x: 45, y: 25.2 },
+    jumpLanding: { x: 51, y: 25.3 },
     balls: [
       { ballId: 1, x: 70, y: 25.2, role: 'object' },
       { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
@@ -246,10 +249,7 @@ const LAYOUTS: Record<string, Layout> = {
     kind: 'curve',
     pocket: 'foot-far',
     cue: { x: 22, y: 12 },
-    via: [
-      { x: 20, y: 28 },
-      { x: 36, y: 42 },
-    ],
+    via: [arcVia({ x: 22, y: 12 }, { x: 64, y: 36 }, 12, 1)],
     balls: [
       { ballId: 1, x: 64, y: 36, role: 'object' },
       { ballId: 5, x: 40, y: 24, role: 'blocker' },
@@ -320,10 +320,12 @@ const LAYOUTS: Record<string, Layout> = {
     ],
   },
   'sotd-25': {
-    kind: 'line',
+    kind: 'carom',
     pocket: 'foot-near',
-    cue: { x: 64.2, y: 3.6 },
-    balls: [{ ballId: 1, x: 70, y: 3.4, role: 'object' }],
+    cue: { x: 73.4, y: 5.2 },
+    lockBalls: true,
+    balls: [{ ballId: 1, x: 76, y: 2.5, role: 'object' }],
+    via: [{ x: 74.8, y: 2.6 }],
   },
   'sotd-26': {
     kind: 'cut',
@@ -664,9 +666,16 @@ function buildPath(layout: Layout): {
 
   if (layout.kind === 'carom') {
     const helper = balls.find((b) => b.role === 'helper') ?? balls.find((b) => b.ballId !== primary.ballId);
-    const helperPt = helper ? { x: helper.x, y: helper.y } : aimBehind(ob, pocket, 12);
-    const cue = clampOnTable(layout.cue ?? aimBehind(helperPt, ob, gap));
-    return { cue, pocket, balls, pts: [cue, helperPt, ob, pocket], kinds: [] };
+    const first = { x: primary.x, y: primary.y };
+    const second = helper ? { x: helper.x, y: helper.y } : null;
+    const cue = clampOnTable(layout.cue ?? aimBehind(first, second ?? pocket, gap));
+    const via = (layout.via ?? []).map((p) => clampOnTable(p));
+    const pts = second ? [cue, ...via, second, pocket] : [cue, ...via, first, pocket];
+    const kinds: Array<SotdPathKind | undefined> = second
+      ? [...via.map(() => 'ground' as const), 'ground', 'object']
+      : [...via.map(() => 'ground' as const), 'ground', 'object'];
+    while (kinds.length < Math.max(0, pts.length - 1)) kinds.unshift('ground');
+    return { cue, pocket, balls, pts, kinds };
   }
 
   if (layout.kind === 'jump') {
@@ -681,7 +690,10 @@ function buildPath(layout: Layout): {
       x: takeoffX,
       y: yOnLine(cue, ob, takeoffX),
     };
-    const apex = layout.jumpApex ?? { x: bx, y: cue.y + 5 };
+    const over = layout.jumpApex ?? {
+      x: blocker?.x ?? bx,
+      y: blocker?.y ?? yOnLine(takeoff, { x: landingX, y: yOnLine(cue, ob, landingX) }, bx),
+    };
     const landing = layout.jumpLanding ?? {
       x: landingX,
       y: yOnLine(cue, ob, landingX),
@@ -690,7 +702,7 @@ function buildPath(layout: Layout): {
       cue,
       pocket,
       balls,
-      pts: [cue, takeoff, apex, landing, ob, pocket],
+      pts: [cue, takeoff, over, landing, ob, pocket],
       kinds: ['ground', 'airborne', 'airborne', 'ground', 'object'],
     };
   }
@@ -699,12 +711,13 @@ function buildPath(layout: Layout): {
     const cue = clampOnTable(layout.cue ?? aimBehind(ob, pocket, gap));
     const via = (layout.via ?? []).map((p) => clampOnTable(p));
     const blocker = balls.find((b) => b.role === 'blocker');
-    if (blocker && via.length) {
-      const snapped = placeBlockerOnLine(cue, ob, blocker);
-      blocker.x = snapped.x;
-      blocker.y = snapped.y;
-    }
-    return { cue, pocket, balls, pts: [cue, ...via, ob, pocket], kinds: [] };
+    const ctrl =
+      via[0] ??
+      (blocker
+        ? arcVia(cue, ob, Math.max(10, 8), 1)
+        : arcVia(cue, ob, 10, 1));
+    const samples = sampleQuadratic(cue, ctrl, ob, 12).map((p) => roundPt(p));
+    return { cue, pocket, balls, pts: [...samples, pocket], kinds: [] };
   }
 
   if (layout.kind === 'cut') {
@@ -870,7 +883,9 @@ export type SotdShotMap = {
   english: SotdEnglish;
   landing_zones: SotdLandingZone[];
   pocket_target: SotdPoint;
+  /** Rare pin — omit so SPA derives ghost = OB − normalize(aim − OB)×4.4 */
   ghost_ball?: SotdGhostBall;
+  /** Rare pin — omit so SPA uses midpoint(ghost, OB). */
   contact_point?: SotdPoint;
   coordinate_system: { x: string; y: string; units: string };
   source: SotdMapSource;

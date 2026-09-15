@@ -47,9 +47,19 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
       .join(' ');
   };
 
+  /** Smooth quadratic (massé / cloth swerve) — never an angled polyline tent. */
+  const curveD = (pts: Pt[], ctrl: Pt) => {
+    if (pts.length < 2) return '';
+    const a = pts[0];
+    const b = pts[pts.length - 1];
+    return `M ${sx(a.x).toFixed(2)} ${sy(a.y).toFixed(2)} Q ${sx(ctrl.x).toFixed(2)} ${sy(ctrl.y).toFixed(2)} ${sx(b.x).toFixed(2)} ${sy(b.y).toFixed(2)}`;
+  };
+
   const ballR = table.ballRadius;
   const obColor = poolBallStyle(geo.pocketObject.ballId).fill;
   const targetPk = nearestPocket(table, map.pocket_target);
+  // Ring the claimed target (jump cloth-edge included), not a different corner.
+  const targetHighlight = map.pocket_target;
 
   const clothClip = `cloth-${uid}`;
   const feltGrad = `felt-${uid}`;
@@ -203,10 +213,10 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
           </g>
         ))}
 
-        {/* Target pocket emphasis */}
+        {/* Target pocket emphasis — claimed pocket_target, not a different corner */}
         <circle
-          cx={sx(targetPk.center.x)}
-          cy={sy(targetPk.center.y)}
+          cx={sx(targetHighlight.x)}
+          cy={sy(targetHighlight.y)}
           r={targetPk.mouthWidth * 0.42}
           fill="none"
           stroke="#5ad4a0"
@@ -216,7 +226,7 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
         />
 
         <g clipPath={`url(#${clothClip})`}>
-          {/* Ghost ball when cut needs it */}
+          {/* Ghost ball: auto-derived dashed CB for readable cuts */}
           {geo.showGhost && geo.ghostBall && (
             <circle
               cx={sx(geo.ghostBall.x)}
@@ -228,10 +238,10 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
               strokeDasharray="0.75 0.65"
             />
           )}
-          {map.contact_point && (
+          {geo.showGhost && geo.contactPoint && (
             <circle
-              cx={sx(map.contact_point.x)}
-              cy={sy(map.contact_point.y)}
+              cx={sx(geo.contactPoint.x)}
+              cy={sy(geo.contactPoint.y)}
               r={Math.max(0.28, ballR * 0.22)}
               fill="rgba(255,255,255,0.55)"
               stroke="none"
@@ -275,10 +285,14 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             solid
           />
 
-          {/* CB → takeoff (ground only — never a solid chord through a jump hop) */}
+          {/* CB approach: smooth quadratic for massé/curve; polyline otherwise */}
           <PathWithArrow
             pts={geo.cueApproach}
-            d={pathD(geo.cueApproach)}
+            d={
+              geo.cueCurveControl
+                ? curveD(geo.cueApproach, geo.cueCurveControl)
+                : pathD(geo.cueApproach)
+            }
             color="#f5f0e6"
             width={1.05}
             sx={sx}
