@@ -358,7 +358,8 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     }
   }
 
-  const aimTarget = isCombo && comboBalls[1] ? comboBalls[1] : pocket;
+  // Combos and caroms: ghost/contact sit on the first-ball → next-ball line, not the pocket.
+  const aimTarget = (isCombo || isCarom) && comboBalls[1] ? comboBalls[1] : pocket;
   // Automatic ghost: never the jump hop apex. Rare map pin only when derive would be wrong.
   let ghostBall: SotdPoint = ghostBallFromAim(primary, aimTarget, GHOST_BALL_DIAMETER);
   let ghostRadius: number | undefined;
@@ -469,7 +470,7 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
       ? sub(ghostBall, cueAirborne[cueAirborne.length - 1])
       : sub(primary, start);
   const cut = cutAngleDeg(inbound, sub(aimTarget, primary));
-  let showGhost = !isCombo && !isCarom && cut > 12 && cut < 78 && !railFirst;
+  let showGhost = !isCombo && cut > 12 && cut < 78 && !railFirst;
   if (gb?.show === false) showGhost = false;
   else if (gb?.show === true) showGhost = true;
 

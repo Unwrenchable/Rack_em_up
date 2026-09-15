@@ -22,7 +22,7 @@ import {
   UNIFIED_RATING_MIN,
 } from '../../src/leagues/v2/rating/unified-rackup-rating';
 import { listSotdMaps, getSotdMapById, sotdMapCount } from '../../src/realai/v2/sotd-shot-maps';
-import { validateSotdShotMap } from '../../src/realai/v2/sotd-shot-map-geometry';
+import { pathPoints, validateSotdShotMap } from '../../src/realai/v2/sotd-shot-map-geometry';
 import { applySeedStrategy } from '../../src/tournaments/v2/seed-strategy';
 import {
   isSotdCandidateEvent,
@@ -517,6 +517,37 @@ describe('SOTD maps catalogue', () => {
     });
     expect(tent.ok).toBe(false);
     expect(tent.issues.some((i) => i.code === 'curve_zigzag')).toBe(true);
+  });
+
+  it('rejects a dense massé path that still has a long-leg tent kink', () => {
+    // 11 vertices: old `pts.length < 10` guard would skip the 90° tent at (22,40).
+    const intended_path = [
+      { from: { x: 10, y: 12 }, to: { x: 12, y: 12 } },
+      { from: { x: 12, y: 12 }, to: { x: 14, y: 12 } },
+      { from: { x: 14, y: 12 }, to: { x: 16, y: 12 } },
+      { from: { x: 16, y: 12 }, to: { x: 18, y: 12 } },
+      { from: { x: 18, y: 12 }, to: { x: 20, y: 12 } },
+      { from: { x: 20, y: 12 }, to: { x: 22, y: 12 } },
+      { from: { x: 22, y: 12 }, to: { x: 22, y: 40 } },
+      { from: { x: 22, y: 40 }, to: { x: 55, y: 40 } },
+      { from: { x: 55, y: 40 }, to: { x: 64, y: 36 } },
+      { from: { x: 64, y: 36 }, to: { x: 100, y: 50 } },
+    ];
+    expect(pathPoints(intended_path).length).toBeGreaterThanOrEqual(10);
+    const tent = validateSotdShotMap({
+      id: 'masse-dense-tent',
+      name: 'Dense kink massé',
+      category: 'masse',
+      cue_ball_start: { x: 10, y: 12 },
+      object_ball_positions: [
+        { ballId: 1, x: 64, y: 36, role: 'object' },
+        { ballId: 8, x: 40, y: 24, role: 'blocker' },
+      ],
+      intended_path,
+      pocket_target: { x: 100, y: 50 },
+    });
+    expect(tent.issues.some((i) => i.code === 'curve_zigzag')).toBe(true);
+    expect(tent.ok).toBe(false);
   });
 
   it('masse and curve catalogue maps are dense cloth curves, not tents', () => {
