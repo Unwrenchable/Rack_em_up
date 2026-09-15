@@ -29,6 +29,7 @@ import type {
   ShotOfTheDay,
   SotdShotMap,
   Tournament,
+  UnifiedPlayerCard,
   User,
 } from './types';
 import { DEMO_SHOT_OF_DAY } from './demo-shots';
@@ -357,6 +358,32 @@ export async function fetchUserProfile(id: string): Promise<PublicUserProfile | 
   } catch {
     return null;
   }
+}
+
+/** Unified Player Card — ROC ladder + Fargo read + RackUpRate shadow. UI owned by ROC. */
+export async function fetchPlayerCard(
+  userId: string,
+  opts?: { refreshFargo?: boolean },
+): Promise<UnifiedPlayerCard> {
+  const q = opts?.refreshFargo ? '?refreshFargo=1' : '';
+  return request<UnifiedPlayerCard>(`/users/${encodeURIComponent(userId)}/player-card${q}`);
+}
+
+export async function searchFargoPlayers(q: string): Promise<{
+  q: string;
+  results: Array<{ name: string; rating: number | null; robustness: number | null }>;
+}> {
+  return request('/ratings/fargo/search', {
+    method: 'POST',
+    body: JSON.stringify({ q }),
+  });
+}
+
+export async function recomputeShadowRating(body?: { userId?: string; unifiedId?: string }) {
+  return request<{ card: UnifiedPlayerCard; note: string }>('/ratings/shadow/recompute', {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
 }
 
 export async function fetchUserProfiles(ids: string[]): Promise<Map<string, PublicUserProfile>> {

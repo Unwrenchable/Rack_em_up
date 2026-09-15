@@ -7,9 +7,10 @@ import { UsersService } from './users.service';
 import { RatingService } from './rating.service';
 import { StatsService } from './stats.service';
 import { PoolMatch } from '../matches/pool-match.entity';
+import { RatingsModule } from '../ratings/ratings.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, PoolMatch])],
+  imports: [TypeOrmModule.forFeature([User, PoolMatch]), RatingsModule],
   providers: [UsersService, RatingService, StatsService],
   controllers: [UsersController, LeaderboardController],
   exports: [UsersService, RatingService, StatsService],

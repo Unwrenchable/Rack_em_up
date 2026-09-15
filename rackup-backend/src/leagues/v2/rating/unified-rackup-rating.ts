@@ -1,5 +1,10 @@
 /**
- * Unified RackUp rating normalization (0–3000 scale aligned with users.rating Elo proxy).
+ * Unified RackUp rating normalization (0–3000 scale).
+ *
+ * PIN MAP: this helper is for leagues-v2 `player_external_ratings_v2.unifiedRating`
+ * import mapping ONLY. Never assign the result to `users.rating` (ROC Glicko-2,
+ * defaults 500 / RD 175 / σ 0.06). A future bridge would need an explicit
+ * `ROC_UNIFIED_SCALE_BRIDGE` flag plus RealAI `rating_convert` — not a raw overwrite.
  *
  * Source-aware transforms:
  * - fargo / fargo-rate: pass-through (already skill continuum), clamp

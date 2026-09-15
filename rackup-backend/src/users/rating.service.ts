@@ -65,6 +65,9 @@ export type RatingApplyResult = {
  * Ledger / session payouts are independent (never mixed here).
  *
  * Contract: ROC_GLICKO2_RATING_CONTRACT.md
+ *
+ * Unified Player Card / Fargo / RackUpRate shadow live on `player_identities`
+ * (see ratings/). This service must not persist those continua onto users.rating.
  */
 @Injectable()
 export class RatingService {
