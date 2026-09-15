@@ -567,8 +567,7 @@ describe('SOTD maps catalogue', () => {
         contact: true,
       });
       const d = Math.hypot(m.ghost_ball!.x - ob.x, m.ghost_ball!.y - ob.y);
-      expect({ id, d }).toEqual({ id, d: expect.any(Number) });
-      expect(d).toBeCloseTo(4.4, 1);
+      expect({ id, ghostOffset: +d.toFixed(2) }).toEqual({ id, ghostOffset: expect.closeTo(4.4, 1) });
     }
   });
 });

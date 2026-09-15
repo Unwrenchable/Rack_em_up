@@ -331,9 +331,9 @@ const LAYOUTS: Record<string, Layout> = {
     cue: { x: 73.4, y: 5.2 },
     lockBalls: true,
     balls: [{ ballId: 1, x: 76, y: 2.5, role: 'object' }],
-    via: [{ x: 74.8, y: 2.6 }],
-    ghost_ball: { x: 71.6, y: 3, show: true },
-    contact_point: { x: 74.8, y: 2.6 },
+    via: [{ x: 74.81, y: 2.62 }],
+    ghost_ball: { x: 71.62, y: 2.96, show: true },
+    contact_point: { x: 74.81, y: 2.62 },
   },
   'sotd-26': {
     kind: 'cut',
