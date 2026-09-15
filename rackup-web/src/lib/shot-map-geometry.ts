@@ -463,10 +463,13 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     cueAfter.push(add(contactPoint, { x: 2, y: 0 }));
   }
 
-  const incomingFrom =
-    hasAir && cueApproachAfter.length >= 2 ? cueApproachAfter[0] : start;
-  const cut = cutAngleDeg(sub(primary, incomingFrom), sub(aimTarget, primary));
-  let showGhost = !isCombo && cut > 12 && cut < 78 && !railFirst;
+  const inbound = isClothCurve && cueCurveControl
+    ? sub(ghostBall, cueCurveControl)
+    : hasAir && cueAirborne.length
+      ? sub(ghostBall, cueAirborne[cueAirborne.length - 1])
+      : sub(primary, start);
+  const cut = cutAngleDeg(inbound, sub(aimTarget, primary));
+  let showGhost = !isCombo && !isCarom && cut > 12 && cut < 78 && !railFirst;
   if (gb?.show === false) showGhost = false;
   else if (gb?.show === true) showGhost = true;
 
@@ -476,7 +479,7 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
 
   let tangent: DerivedShotGeometry['tangent'] = null;
   if (showTangent) {
-    const lineDir = norm(sub(primary, incomingFrom));
+    const lineDir = norm(inbound);
     const t = perp(lineDir);
     const len = 10;
     tangent = {
