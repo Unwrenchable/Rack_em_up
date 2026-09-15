@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -9,6 +10,7 @@ import {
 import {
   clearSession,
   enterDemoMode,
+  fetchMe,
   getStoredUser,
   getToken,
   isDemoMode,
@@ -31,23 +33,59 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+function sessionStill(tokenAtStart: string | null) {
+  return getToken() === tokenAtStart && !isDemoMode();
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => getStoredUser());
   const [token, setToken] = useState<string | null>(() => getToken());
   const [demo, setDemo] = useState(() => isDemoMode());
 
+  useEffect(() => {
+    const tokenAtStart = getToken();
+    if (!tokenAtStart || isDemoMode()) return;
+    fetchMe()
+      .then((full) => {
+        if (!sessionStill(tokenAtStart)) return;
+        setUser(full);
+        persistUser(full);
+      })
+      .catch(() => {
+        /* keep stored session */
+      });
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     const u = await apiLogin(email, password);
+    const nextToken = getToken();
     setUser(u);
-    setToken(getToken());
+    setToken(nextToken);
     setDemo(false);
+    try {
+      const full = await fetchMe();
+      if (getToken() !== nextToken || isDemoMode()) return;
+      setUser(full);
+      persistUser(full);
+    } catch {
+      /* login payload still has ROC fields */
+    }
   }, []);
 
   const signup = useCallback(async (email: string, password: string, displayName: string) => {
     const u = await apiSignup(email, password, displayName);
+    const nextToken = getToken();
     setUser(u);
-    setToken(getToken());
+    setToken(nextToken);
     setDemo(false);
+    try {
+      const full = await fetchMe();
+      if (getToken() !== nextToken || isDemoMode()) return;
+      setUser(full);
+      persistUser(full);
+    } catch {
+      /* signup payload still has ROC fields */
+    }
   }, []);
 
   const startDemo = useCallback(() => {

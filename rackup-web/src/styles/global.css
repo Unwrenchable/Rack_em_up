@@ -698,6 +698,53 @@ img.avatar {
   font-size: 0.85rem;
 }
 
+.player-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.chip-fargo {
+  background: rgba(90, 160, 224, 0.12);
+  border-color: rgba(90, 160, 224, 0.3);
+  color: #8ec4f0;
+}
+
+.chip-shadow {
+  background: rgba(180, 140, 255, 0.1);
+  border-color: rgba(180, 140, 255, 0.28);
+  color: #cbb6ff;
+}
+
+.chip-apa {
+  background: rgba(224, 180, 90, 0.1);
+  border-color: rgba(224, 180, 90, 0.28);
+  color: var(--gold);
+}
+
+.chip-slot-empty {
+  opacity: 0.55;
+  border-style: dashed;
+  font-weight: 500;
+}
+
+.player-card-panel {
+  gap: 12px;
+}
+
+.player-card-id-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .quick-actions {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

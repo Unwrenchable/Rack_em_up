@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
-import { fetchBadges, fetchMemories, uploadAvatar } from '../lib/api';
+import { fetchBadges, fetchMemories, fetchMyPlayerCard, uploadAvatar } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import { useEffect, useRef, useState } from 'react';
 import type { MatchMemory } from '../lib/types';
 import { UserAvatar } from '../components/UserAvatar';
+import { PlayerCardPanel } from '../components/PlayerCardPanel';
 import { useToast } from '../lib/toast-context';
 import { showDevModeChrome } from '../lib/dev-flags';
 
@@ -81,11 +82,29 @@ export function ProfilePage() {
           {user.email}
         </p>
         <div className="row" style={{ justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-          <span className="rating-ring">★ {user.rating}</span>
           <span className="chip chip-gold">Rep {user.reputation}</span>
           <span className="chip">Streak 14</span>
         </div>
       </header>
+
+      <PlayerCardPanel
+        rating={user.rating}
+        ratingDisplay={user.ratingDisplay}
+        band={user.band}
+        playerCard={user.playerCard}
+        interactive
+        onCard={async (card, opts) => {
+          const next = opts?.refreshFargo ? await fetchMyPlayerCard({ refreshFargo: true }) : card;
+          updateUser({
+            playerCard: next,
+            rating: next.player.rackup_stats?.rating ?? user.rating,
+            rd: next.player.rackup_stats?.rd ?? user.rd,
+            matches: next.player.rackup_stats?.matches ?? user.matches,
+            band: next.player.rackup_stats?.band ?? user.band,
+            ratingDisplay: next.player.rackup_stats?.display ?? user.ratingDisplay,
+          });
+        }}
+      />
 
       <div className="grid-2">
         <div className="stat-tile">

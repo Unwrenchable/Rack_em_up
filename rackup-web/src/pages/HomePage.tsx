@@ -12,6 +12,7 @@ import {
   IconTrophy,
   IconUsers,
 } from '../components/Icons';
+import { PlayerCardChips } from '../components/PlayerCardChips';
 
 function pulseChip(status: LiveHall['pulseStatus']) {
   if (status === 'BUSY') return 'chip chip-busy';
@@ -62,9 +63,19 @@ export function HomePage() {
             <IconBell />
             {unread > 0 && <span className="badge-dot">{unread}</span>}
           </Link>
-          <div className="rating-ring" title="Your rating">
-            ★ {user?.rating ?? '—'}
-          </div>
+          {user ? (
+            <PlayerCardChips
+              rating={user.rating}
+              ratingDisplay={user.ratingDisplay}
+              band={user.band}
+              playerCard={user.playerCard}
+              compact
+            />
+          ) : (
+            <div className="rating-ring" title="Your rating">
+              —
+            </div>
+          )}
         </div>
       </header>
 

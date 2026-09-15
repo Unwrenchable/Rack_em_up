@@ -13,6 +13,7 @@ import {
   DEMO_PLAYERS,
   DEMO_TOURNAMENTS,
   DEMO_USER,
+  demoPlayerCardFor,
 } from './demo';
 import type {
   ActionPost,
@@ -33,6 +34,14 @@ import type {
   User,
 } from './types';
 import { DEMO_SHOT_OF_DAY } from './demo-shots';
+import {
+  applyRackupStatsToUser,
+  computeRackupShadow,
+  formatFargoPair,
+  formatShadowPair,
+  isUnifiedPlayerCard,
+  RACKUP_SHADOW_DISCLAIMER,
+} from './player-card';
 
 /** Strip accidental `VITE_FOO=` prefixes from mis-pasted Render/env values. */
 function scrubEnv(raw: unknown, keys: string[]): string {
@@ -228,6 +237,7 @@ async function request<T>(path: string, init?: RequestInit, _retried = false): P
 }
 
 function normalizeUser(raw: Record<string, unknown>): User {
+  const playerCard = isUnifiedPlayerCard(raw.playerCard) ? raw.playerCard : undefined;
   return {
     id: String(raw.id),
     email: String(raw.email),
@@ -236,6 +246,16 @@ function normalizeUser(raw: Record<string, unknown>): User {
     role: String(raw.role ?? 'USER'),
     reputation: Number(raw.reputation ?? 0),
     rating: Number(raw.rating ?? 500),
+    rd: raw.rd != null ? Number(raw.rd) : undefined,
+    volatility: raw.volatility != null ? Number(raw.volatility) : undefined,
+    matches: raw.matches != null ? Number(raw.matches) : undefined,
+    band: raw.band != null ? String(raw.band) : undefined,
+    ratingDisplay:
+      raw.ratingDisplay != null
+        ? String(raw.ratingDisplay)
+        : playerCard?.player.rackup_stats?.display,
+    ladder: 'roc_glicko2',
+    playerCard,
   };
 }
 
@@ -319,7 +339,13 @@ export type PublicUserProfile = {
   avatarUrl: string | null;
   reputation: number;
   rating: number;
+  rd?: number;
+  matches?: number;
+  band?: string;
+  ratingDisplay?: string;
+  ladder?: 'roc_glicko2';
   role: string;
+  playerCard?: UnifiedPlayerCard;
 };
 
 export async function searchUsers(q: string): Promise<PublicUserProfile[]> {
@@ -327,6 +353,17 @@ export async function searchUsers(q: string): Promise<PublicUserProfile[]> {
   if (query.length < 2) return [];
   if (isDemoMode()) {
     const demo: PublicUserProfile[] = [
+      ...DEMO_PLAYERS.map((p) => ({
+        id: p.userId,
+        displayName: p.displayName,
+        avatarUrl: p.avatarUrl ?? null,
+        reputation: p.reputation,
+        rating: p.rating,
+        ratingDisplay: p.ratingDisplay,
+        band: p.band,
+        role: 'USER',
+        playerCard: p.playerCard,
+      })),
       { id: 'demo-user-2', displayName: 'Riley Chen', avatarUrl: null, reputation: 12, rating: 540, role: 'USER' },
       { id: 'demo-user-3', displayName: 'Sam Ortiz', avatarUrl: null, reputation: 4, rating: 490, role: 'USER' },
     ];
@@ -336,7 +373,8 @@ export async function searchUsers(q: string): Promise<PublicUserProfile[]> {
     );
   }
   try {
-    return await request<PublicUserProfile[]>(`/users/search?q=${encodeURIComponent(query)}`);
+    const rows = await request<PublicUserProfile[]>(`/users/search?q=${encodeURIComponent(query)}`);
+    return withPlayerCards(Array.isArray(rows) ? rows : [], (p) => p.id);
   } catch {
     return [];
   }
@@ -361,25 +399,168 @@ export async function fetchUserProfile(id: string): Promise<PublicUserProfile | 
 }
 
 /** Unified Player Card — ROC ladder + Fargo read + RackUpRate shadow. UI owned by ROC. */
+const PLAYER_CARD_CACHE_MS = 60_000;
+const playerCardCache = new Map<string, { at: number; card: UnifiedPlayerCard }>();
+
+function rememberPlayerCard(userId: string, card: UnifiedPlayerCard) {
+  playerCardCache.set(userId, { at: Date.now(), card });
+}
+
+export async function fetchMyPlayerCard(opts?: { refreshFargo?: boolean }): Promise<UnifiedPlayerCard> {
+  if (isDemoMode()) {
+    const card = DEMO_USER.playerCard;
+    if (!card) throw new Error('Demo player card missing');
+    return card;
+  }
+  const q = opts?.refreshFargo ? '?refreshFargo=1' : '';
+  const card = await request<UnifiedPlayerCard>(`/users/me/player-card${q}`);
+  const me = getStoredUser()?.id;
+  if (me) rememberPlayerCard(me, card);
+  return card;
+}
+
 export async function fetchPlayerCard(
   userId: string,
   opts?: { refreshFargo?: boolean },
 ): Promise<UnifiedPlayerCard> {
+  if (isDemoMode()) {
+    const demo = demoPlayerCardFor(userId);
+    if (demo) return demo;
+    throw new Error('Demo player card missing');
+  }
+  if (!opts?.refreshFargo) {
+    const hit = playerCardCache.get(userId);
+    if (hit && Date.now() - hit.at < PLAYER_CARD_CACHE_MS) return hit.card;
+  }
+  const me = getStoredUser()?.id;
   const q = opts?.refreshFargo ? '?refreshFargo=1' : '';
-  return request<UnifiedPlayerCard>(`/users/${encodeURIComponent(userId)}/player-card${q}`);
+  const path =
+    me && userId === me
+      ? `/users/me/player-card${q}`
+      : `/users/${encodeURIComponent(userId)}/player-card${q}`;
+  const card = await request<UnifiedPlayerCard>(path);
+  rememberPlayerCard(userId, card);
+  return card;
 }
+
+export async function fetchPlayerCards(userIds: string[]): Promise<Map<string, UnifiedPlayerCard>> {
+  const map = new Map<string, UnifiedPlayerCard>();
+  const unique = [...new Set(userIds.filter(Boolean))];
+  await Promise.all(
+    unique.map(async (id) => {
+      try {
+        map.set(id, await fetchPlayerCard(id));
+      } catch {
+        /* ROC chips still render from rating / ratingDisplay */
+      }
+    }),
+  );
+  return map;
+}
+
+async function withPlayerCards<T extends {
+  playerCard?: UnifiedPlayerCard;
+  rating?: number;
+  ratingDisplay?: string;
+  band?: string;
+}>(rows: T[], idOf: (row: T) => string | undefined): Promise<T[]> {
+  const cards = await fetchPlayerCards(rows.map(idOf).filter((id): id is string => Boolean(id)));
+  return rows.map((row) => {
+    const id = idOf(row);
+    const card = id ? cards.get(id) : undefined;
+    if (!card) return row;
+    return {
+      ...row,
+      playerCard: card,
+      rating: card.player.rackup_stats?.rating ?? row.rating,
+      ratingDisplay: card.player.rackup_stats?.display ?? row.ratingDisplay,
+      band: card.player.rackup_stats?.band ?? row.band,
+    };
+  });
+}
+
+export type FargoSearchHit = {
+  name: string;
+  rating: number | null;
+  robustness: number | null;
+  effective_rating?: number | null;
+  fargo_id?: string | null;
+  readable_id?: string | null;
+  location?: string | null;
+};
 
 export async function searchFargoPlayers(q: string): Promise<{
   q: string;
-  results: Array<{ name: string; rating: number | null; robustness: number | null }>;
+  results: FargoSearchHit[];
+  official?: true;
+  source?: string;
+  note?: string;
 }> {
+  const query = q.trim();
+  if (isDemoMode()) {
+    const pool: FargoSearchHit[] = [
+      {
+        name: 'Ace Delgado',
+        rating: 650,
+        robustness: 420,
+        fargo_id: 'demo-fargo',
+        readable_id: '10001',
+      },
+      {
+        name: 'Vegas Vee',
+        rating: 672,
+        robustness: 880,
+        fargo_id: 'demo-vee',
+        readable_id: '10002',
+      },
+    ];
+    const n = query.toLowerCase();
+    return {
+      q: query,
+      results: pool.filter((r) => r.name.toLowerCase().includes(n)),
+      official: true,
+      source: 'demo',
+      note: 'Read-only demo FargoRate lookup. RackUp does not submit matches or claim LMS partnership.',
+    };
+  }
   return request('/ratings/fargo/search', {
     method: 'POST',
-    body: JSON.stringify({ q }),
+    body: JSON.stringify({ q: query }),
   });
 }
 
 export async function recomputeShadowRating(body?: { userId?: string; unifiedId?: string }) {
+  if (isDemoMode()) {
+    const user = getStoredUser() ?? DEMO_USER;
+    const shadow = computeRackupShadow({
+      rating: user.rating,
+      rd: user.rd,
+      matches: user.matches,
+    });
+    const prev = user.playerCard ?? DEMO_USER.playerCard!;
+    const card: UnifiedPlayerCard = {
+      ...prev,
+      player: { ...prev.player, rackup_shadow: shadow },
+      display: {
+        ...prev.display,
+        rackup_shadow: formatShadowPair(shadow),
+        disclaimer: RACKUP_SHADOW_DISCLAIMER,
+        fargo: prev.display.fargo ?? formatFargoPair(prev.player.fargo_rating, prev.player.fargo_robustness),
+      },
+      meta: {
+        ...prev.meta,
+        shadow_computed_at: new Date().toISOString(),
+        notes: [
+          ...prev.meta.notes,
+          'Demo recompute: RackUpRate shadow only — users.rating (ROC Glicko-2) was not written.',
+        ],
+      },
+    };
+    return {
+      card,
+      note: 'RackUpRate shadow stored on player_identities only — users.rating (ROC Glicko-2) was not written.',
+    };
+  }
   return request<{ card: UnifiedPlayerCard; note: string }>('/ratings/shadow/recompute', {
     method: 'POST',
     body: JSON.stringify(body ?? {}),
@@ -591,13 +772,18 @@ export async function fetchLookingPlayers(opts?: {
     >(`/matchmaking/search?${qs.toString()}`);
     if (!Array.isArray(raw)) return [];
     const profiles = await fetchUserProfiles(raw.map((r) => r.user_id));
+    const cards = await fetchPlayerCards(raw.map((r) => r.user_id));
     return raw.map((r) => {
       const p = profiles.get(r.user_id);
+      const card = cards.get(r.user_id) ?? p?.playerCard;
       return {
         id: r.id,
         userId: r.user_id,
         displayName: p?.displayName ?? `Player ${r.user_id.slice(0, 6)}`,
-        rating: p?.rating ?? Math.round((r.min_rating + r.max_rating) / 2),
+        rating: card?.player.rackup_stats?.rating ?? p?.rating ?? Math.round((r.min_rating + r.max_rating) / 2),
+        ratingDisplay: card?.player.rackup_stats?.display ?? p?.ratingDisplay,
+        band: card?.player.rackup_stats?.band ?? p?.band,
+        playerCard: card,
         game: r.game,
         stakes: r.stakes,
         distanceKm: Math.round((r.distance_meters ?? 0) / 100) / 10,
@@ -648,7 +834,13 @@ export async function challengePlayer(payload: {
 
 export async function fetchMe(): Promise<User> {
   const raw = await request<Record<string, unknown>>('/users/me');
-  return normalizeUser(raw);
+  const user = normalizeUser(raw);
+  try {
+    const card = await fetchMyPlayerCard();
+    return applyRackupStatsToUser(user, card);
+  } catch {
+    return user;
+  }
 }
 
 export async function uploadAvatar(photoBase64: string): Promise<{ avatarUrl: string }> {
@@ -713,41 +905,50 @@ export async function fetchFriends(): Promise<FriendCard[]> {
   const me = getStoredUser()?.id;
   const mapped = mapFriendCards(raw, me);
   const missingNames = mapped.filter((f) => f.displayName.startsWith('User '));
+  let hydrated = mapped;
   if (missingNames.length) {
     const profiles = await fetchUserProfiles(missingNames.map((f) => f.id));
-    return mapped.map((f) => {
+    hydrated = mapped.map((f) => {
       const p = profiles.get(f.id);
-      return p ? { ...f, displayName: p.displayName, rating: p.rating, avatarUrl: p.avatarUrl } : f;
+      return p
+        ? {
+            ...f,
+            displayName: p.displayName,
+            rating: p.rating,
+            ratingDisplay: p.ratingDisplay ?? f.ratingDisplay,
+            playerCard: p.playerCard ?? f.playerCard,
+            avatarUrl: p.avatarUrl,
+          }
+        : f;
     });
   }
-  return mapped;
+  return withPlayerCards(hydrated, (f) => f.id);
+}
+
+type PendingFriendRow = {
+  friendshipId: string;
+  userId: string;
+  displayName: string;
+  rating: number;
+  ratingDisplay?: string;
+  band?: string;
+  playerCard?: UnifiedPlayerCard;
+  online: boolean;
+  avatarUrl?: string | null;
+};
+
+async function loadPendingFriends(path: string): Promise<PendingFriendRow[]> {
+  const rows = await request<PendingFriendRow[]>(path);
+  return withPlayerCards(Array.isArray(rows) ? rows : [], (r) => r.userId);
 }
 
 export async function fetchPendingFriendsIncoming() {
   if (isDemoMode()) return [];
   try {
-    return await request<
-      Array<{
-        friendshipId: string;
-        userId: string;
-        displayName: string;
-        rating: number;
-        online: boolean;
-        avatarUrl?: string | null;
-      }>
-    >('/friends/pending/incoming');
+    return await loadPendingFriends('/friends/pending/incoming');
   } catch {
     try {
-      return await request<
-        Array<{
-          friendshipId: string;
-          userId: string;
-          displayName: string;
-          rating: number;
-          online: boolean;
-          avatarUrl?: string | null;
-        }>
-      >('/friends/pending');
+      return await loadPendingFriends('/friends/pending');
     } catch {
       return [];
     }

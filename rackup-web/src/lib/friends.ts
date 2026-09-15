@@ -17,6 +17,8 @@ type RawFriend = {
   displayName?: string;
   avatarUrl?: string | null;
   rating?: number;
+  ratingDisplay?: string;
+  playerCard?: import('./types').UnifiedPlayerCard;
   online?: boolean;
   status?: string;
   lastSeenAt?: string | null;
@@ -60,6 +62,8 @@ export function mapFriendCards(raw: unknown, meId?: string): FriendCard[] {
       friendshipId: row.friendshipId ?? row.id,
       displayName: row.displayName ?? `User ${userId.slice(0, 6)}`,
       rating: row.rating ?? 500,
+      ratingDisplay: row.ratingDisplay,
+      playerCard: row.playerCard,
       status: atHall ? 'at_hall' : online ? 'online' : 'offline',
       hallName: atHall ? row.activity?.label : undefined,
       avatarUrl: row.avatarUrl ?? null,
