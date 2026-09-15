@@ -5,7 +5,7 @@ import {
   publishedFargoRating,
   type PlayerCard,
 } from '../lib/player-card';
-import { isDemoMode, recomputeShadowRating, searchFargoPlayers } from '../lib/api';
+import { isDemoMode, recomputeShadowRating, searchFargoPlayers, type FargoSearchHit } from '../lib/api';
 import { useToast } from '../lib/toast-context';
 
 export function PlayerCardPanel({
@@ -27,9 +27,7 @@ export function PlayerCardPanel({
   const p = playerCard?.player;
   const stats = p?.rackup_stats;
   const [fargoQ, setFargoQ] = useState(p?.name ?? '');
-  const [fargoHits, setFargoHits] = useState<
-    Array<{ name: string; rating: number | null; robustness: number | null; effective_rating?: number | null }>
-  > | null>(null);
+  const [fargoHits, setFargoHits] = useState<FargoSearchHit[] | null>(null);
   const [busy, setBusy] = useState<'fargo' | 'shadow' | 'search' | null>(null);
 
   async function onRefreshFargo() {
