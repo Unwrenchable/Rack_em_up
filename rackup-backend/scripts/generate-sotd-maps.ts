@@ -65,11 +65,9 @@ type Layout = {
   /** Jump: override pocket (orch may aim at a rail, not a named corner). */
   pocketPt?: Pt;
   jumpTakeoff?: Pt;
-  jumpApex?: Pt;
   jumpLanding?: Pt;
   /** When true, leave blocker/cue where the layout put them (orch coords). */
   lockBalls?: boolean;
-  ghost_ball?: { x: number; y: number; radius?: number; show?: boolean };
   contact_point?: Pt;
 };
 
@@ -110,6 +108,22 @@ function arcVia(from: Pt, to: Pt, bulge: number, sign: 1 | -1 = 1): Pt {
   const mid = midpoint(from, to);
   const n = norm(perp(sub(to, from)));
   return clampOnTable(add(mid, scale(n, bulge * sign)));
+}
+
+/** Dense samples along a quadratic — massé/curve cloth swerve, not a 2-kink tent. */
+function denseQuad(p0: Pt, p1: Pt, p2: Pt, n = 8): Pt[] {
+  const out: Pt[] = [];
+  for (let i = 1; i <= n; i++) {
+    const t = i / (n + 1);
+    const u = 1 - t;
+    out.push(
+      roundPt({
+        x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
+        y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y,
+      }),
+    );
+  }
+  return out;
 }
 
 const LAYOUTS: Record<string, Layout> = {
@@ -194,7 +208,6 @@ const LAYOUTS: Record<string, Layout> = {
       { ballId: 9, x: 90, y: 8, role: 'helper' },
     ],
     via: [{ x: 65.4, y: 24.9 }],
-    ghost_ball: { x: 63.9, y: 22.1, show: true },
     contact_point: { x: 65.4, y: 24.9 },
   },
   'sotd-10': {
@@ -241,7 +254,6 @@ const LAYOUTS: Record<string, Layout> = {
     cue: { x: 24, y: 25.5 },
     lockBalls: true,
     jumpTakeoff: { x: 39, y: 25.4 },
-    jumpApex: { x: 45, y: 30.5 },
     jumpLanding: { x: 51, y: 25.4 },
     balls: [
       { ballId: 1, x: 70, y: 25.2, role: 'object' },
@@ -252,10 +264,7 @@ const LAYOUTS: Record<string, Layout> = {
     kind: 'curve',
     pocket: 'foot-far',
     cue: { x: 22, y: 12 },
-    via: [
-      { x: 20, y: 28 },
-      { x: 36, y: 42 },
-    ],
+    via: denseQuad({ x: 22, y: 12 }, { x: 30, y: 44 }, { x: 64, y: 36 }, 8),
     balls: [
       { ballId: 1, x: 64, y: 36, role: 'object' },
       { ballId: 5, x: 40, y: 24, role: 'blocker' },
@@ -332,7 +341,6 @@ const LAYOUTS: Record<string, Layout> = {
     lockBalls: true,
     balls: [{ ballId: 1, x: 76, y: 2.5, role: 'object' }],
     via: [{ x: 74.81, y: 2.62 }],
-    ghost_ball: { x: 71.62, y: 2.96, show: true },
     contact_point: { x: 74.81, y: 2.62 },
   },
   'sotd-26': {
@@ -698,7 +706,9 @@ function buildPath(layout: Layout): {
       x: takeoffX,
       y: yOnLine(cue, ob, takeoffX),
     };
-    const apex = layout.jumpApex ?? { x: bx, y: cue.y + 5 };
+    const over = blocker
+      ? { x: blocker.x, y: blocker.y }
+      : { x: bx, y: yOnLine(cue, ob, bx) };
     const landing = layout.jumpLanding ?? {
       x: landingX,
       y: yOnLine(cue, ob, landingX),
@@ -707,7 +717,7 @@ function buildPath(layout: Layout): {
       cue,
       pocket,
       balls,
-      pts: [cue, takeoff, apex, landing, ob, pocket],
+      pts: [cue, takeoff, over, landing, ob, pocket],
       kinds: ['ground', 'airborne', 'airborne', 'ground', 'object'],
     };
   }
@@ -827,12 +837,7 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     coordinate_system: COORDINATE_SYSTEM,
     source: 'catalogue',
     ascii_table: renderAscii(cue, roundedBalls, pts, pocket),
-    ...(layout.ghost_ball ? { ghost_ball: layout.ghost_ball } : prev.ghost_ball ? { ghost_ball: prev.ghost_ball } : {}),
-    ...(layout.contact_point
-      ? { contact_point: roundPt(layout.contact_point) }
-      : prev.contact_point
-        ? { contact_point: prev.contact_point }
-        : {}),
+    ...(layout.contact_point ? { contact_point: roundPt(layout.contact_point) } : {}),
   };
 }
 
@@ -889,8 +894,6 @@ export type SotdShotMap = {
   tip_zone: string;
   cue_ball_start: SotdPoint;
   object_ball_positions: SotdObjectBall[];
-  ghost_ball?: SotdGhostBall;
-  contact_point?: SotdPoint;
   intended_path: SotdPathSegment[];
   english: SotdEnglish;
   landing_zones: SotdLandingZone[];

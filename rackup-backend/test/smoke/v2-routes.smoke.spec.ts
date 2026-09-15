@@ -416,33 +416,27 @@ describe('SOTD maps catalogue', () => {
     }
   });
 
-  it('sotd-15 Jump Over the Troublemaker uses the orch dashed airborne arc', () => {
+  it('sotd-15 Jump Over the Troublemaker dashes straight over the blocker', () => {
     const m = getSotdMapById('sotd-15')!;
     expect(m.cue_ball_start).toEqual({ x: 24, y: 25.5 });
     expect(m.pocket_target).toEqual({ x: 100, y: 25 });
-    expect(m.object_ball_positions).toEqual([
-      { ballId: 1, x: 70, y: 25.2, role: 'object' },
-      { ballId: 7, x: 45, y: 25.2, role: 'blocker' },
-    ]);
-    expect(m.intended_path).toEqual([
-      { from: { x: 24, y: 25.5 }, to: { x: 39, y: 25.4 }, style: 'solid', kind: 'ground' },
-      { from: { x: 39, y: 25.4 }, to: { x: 45, y: 30.5 }, style: 'dashed', kind: 'airborne' },
-      { from: { x: 45, y: 30.5 }, to: { x: 51, y: 25.4 }, style: 'dashed', kind: 'airborne' },
-      { from: { x: 51, y: 25.4 }, to: { x: 70, y: 25.2 }, style: 'solid', kind: 'ground' },
-      { from: { x: 70, y: 25.2 }, to: { x: 100, y: 25 }, style: 'solid', kind: 'object' },
-    ]);
+    const blocker = m.object_ball_positions.find((b) => b.role === 'blocker')!;
+    expect(blocker).toEqual({ ballId: 7, x: 45, y: 25.2, role: 'blocker' });
+    const air = m.intended_path.filter((s) => s.kind === 'airborne' || s.style === 'dashed');
+    expect(air.length).toBe(2);
+    expect(air[0].to).toEqual({ x: blocker.x, y: blocker.y });
+    expect(air[1].from).toEqual({ x: blocker.x, y: blocker.y });
     expect(validateSotdShotMap(m).ok).toBe(true);
   });
 
-  it('sotd-32/45/50 use the same takeoff–apex–landing dashed hop', () => {
+  it('sotd-32/45/50 dash straight over/through the blocker, not a tent apex', () => {
     for (const id of ['sotd-32', 'sotd-45', 'sotd-50'] as const) {
       const m = getSotdMapById(id)!;
       const blocker = m.object_ball_positions.find((b) => b.role === 'blocker')!;
-      const cue = m.cue_ball_start;
       const air = m.intended_path.filter((s) => s.kind === 'airborne' || s.style === 'dashed');
       expect({ id, n: air.length }).toEqual({ id, n: 2 });
       expect(air[0].from.x).toBeCloseTo(blocker.x - 6, 0);
-      expect(air[0].to).toEqual({ x: blocker.x, y: cue.y + 5 });
+      expect(air[0].to).toEqual({ x: blocker.x, y: blocker.y });
       expect(air[1].to.x).toBeCloseTo(blocker.x + 6, 0);
       expect(air.every((s) => s.style === 'dashed' && s.kind === 'airborne')).toBe(true);
     }
@@ -469,6 +463,14 @@ describe('SOTD maps catalogue', () => {
     });
     expect(hop.ok).toBe(true);
     expect(hop.issues.some((i) => i.code === 'jump_zigzag')).toBe(false);
+  });
+
+  it('sotd-16 massé is a dense cloth arc, not a 2-kink tent', () => {
+    const m = getSotdMapById('sotd-16')!;
+    const cloth = m.intended_path.filter((s) => s.kind !== 'object');
+    expect(cloth.length).toBeGreaterThanOrEqual(8);
+    const report = validateSotdShotMap(m);
+    expect({ ok: report.ok, issues: report.issues }).toEqual({ ok: true, issues: [] });
   });
 
   it('every combo map visits 2+ balls on a colinear transfer line', () => {
@@ -515,10 +517,8 @@ describe('SOTD maps catalogue', () => {
     const nine = m.object_ball_positions.find((b) => b.ballId === 9)!;
     expect(one.role).toBe('object');
     expect(nine.role).toBe('helper');
-    expect(m.ghost_ball).toBeDefined();
+    expect(m.ghost_ball).toBeUndefined();
     expect(m.contact_point).toBeDefined();
-    const ghostDist = Math.hypot(m.ghost_ball!.x - one.x, m.ghost_ball!.y - one.y);
-    expect(ghostDist).toBeCloseTo(4.4, 1);
 
     const cue = m.cue_ball_start;
     const incoming = { x: one.x - cue.x, y: one.y - cue.y };
@@ -542,12 +542,12 @@ describe('SOTD maps catalogue', () => {
     expect(validateSotdShotMap(m).ok).toBe(true);
   });
 
-  it('sotd-25 is a nearly-frozen rail thin cut with an explicit ghost, not a through-center cheat', () => {
+  it('sotd-25 is a nearly-frozen rail thin cut, not a through-center cheat', () => {
     const m = getSotdMapById('sotd-25')!;
     const ob = m.object_ball_positions[0];
     const gap = Math.hypot(m.cue_ball_start.x - ob.x, m.cue_ball_start.y - ob.y);
     expect(gap).toBeLessThan(4.2);
-    expect(m.ghost_ball).toBeDefined();
+    expect(m.ghost_ball).toBeUndefined();
     expect(m.contact_point).toBeDefined();
     const throughCenter = m.intended_path.some(
       (s) => Math.hypot(s.to.x - ob.x, s.to.y - ob.y) < 0.2 && s.kind !== 'object',
@@ -556,18 +556,9 @@ describe('SOTD maps catalogue', () => {
     expect(validateSotdShotMap(m).ok).toBe(true);
   });
 
-  it('sample cut maps carry explicit ghost_ball / contact_point at the 4.4 offset', () => {
-    const ids = ['sotd-05', 'sotd-06', 'sotd-10', 'sotd-26', 'sotd-33', 'sotd-48', 'sotd-49'];
-    for (const id of ids) {
-      const m = getSotdMapById(id)!;
-      const ob = m.object_ball_positions.find((b) => !b.role || b.role === 'object')!;
-      expect({ id, ghost: !!m.ghost_ball, contact: !!m.contact_point }).toEqual({
-        id,
-        ghost: true,
-        contact: true,
-      });
-      const d = Math.hypot(m.ghost_ball!.x - ob.x, m.ghost_ball!.y - ob.y);
-      expect({ id, ghostOffset: +d.toFixed(2) }).toEqual({ id, ghostOffset: expect.closeTo(4.4, 1) });
+  it('catalogue maps do not pin ghost_ball — derive/showGhost is automatic', () => {
+    for (const m of listSotdMaps()) {
+      expect({ id: m.id, ghost: m.ghost_ball }).toEqual({ id: m.id, ghost: undefined });
     }
   });
 });
