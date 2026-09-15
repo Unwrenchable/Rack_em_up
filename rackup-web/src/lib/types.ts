@@ -14,6 +14,8 @@ export type User = {
   /** e.g. "Advanced • 547" from RealAI / RackUp public payload */
   ratingDisplay?: string;
   ladder?: 'roc_glicko2';
+  /** Nest GET /users/me/player-card — parallel continua, never copies onto rating. */
+  playerCard?: UnifiedPlayerCard;
 };
 
 export type LiveHall = {
@@ -90,6 +92,9 @@ export type LookingPlayer = {
   userId: string;
   displayName: string;
   rating: number;
+  ratingDisplay?: string;
+  band?: string;
+  playerCard?: UnifiedPlayerCard;
   game: string;
   stakes: string;
   distanceKm: number;
@@ -149,6 +154,8 @@ export type FriendCard = {
   friendshipId?: string;
   displayName: string;
   rating: number;
+  ratingDisplay?: string;
+  playerCard?: UnifiedPlayerCard;
   status: 'online' | 'at_hall' | 'offline';
   hallName?: string;
   avatarUrl?: string | null;
@@ -162,6 +169,8 @@ export type FriendListItem = {
   displayName: string;
   avatarUrl: string | null;
   rating: number;
+  ratingDisplay?: string;
+  playerCard?: UnifiedPlayerCard;
   status: FriendshipStatus;
   direction?: 'incoming' | 'outgoing' | 'mutual';
   online: boolean;

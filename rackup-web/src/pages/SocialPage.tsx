@@ -23,6 +23,7 @@ import { useToast } from '../lib/toast-context';
 import type { ActionPost, FriendCard } from '../lib/types';
 import { Modal } from '../components/Modal';
 import { UserAvatar } from '../components/UserAvatar';
+import { PlayerCardChips } from '../components/PlayerCardChips';
 
 type Tab = 'friends' | 'board' | 'chat';
 
@@ -31,6 +32,9 @@ type PendingFriend = {
   userId: string;
   displayName: string;
   rating: number;
+  ratingDisplay?: string;
+  band?: string;
+  playerCard?: import('../lib/types').UnifiedPlayerCard;
   online: boolean;
   avatarUrl?: string | null;
 };
@@ -224,9 +228,13 @@ export function SocialPage() {
                     <UserAvatar name={p.displayName} avatarUrl={p.avatarUrl} />
                     <div>
                     <div style={{ fontWeight: 600 }}>{p.displayName}</div>
-                    <p className="muted" style={{ fontSize: '0.82rem' }}>
-                      ★ {p.rating}
-                    </p>
+                    <PlayerCardChips
+                      rating={p.rating}
+                      ratingDisplay={p.ratingDisplay}
+                      band={p.band}
+                      playerCard={p.playerCard}
+                      compact
+                    />
                     </div>
                   </div>
                   {alreadyFriend ? (
@@ -282,9 +290,15 @@ export function SocialPage() {
                       <div>
                       <h3 style={{ fontWeight: 600 }}>{p.displayName}</h3>
                       <p className="muted" style={{ fontSize: '0.85rem' }}>
-                        ★ {p.rating}
-                        {p.online ? ' · Online' : ''}
+                        {p.online ? 'Online' : 'Offline'}
                       </p>
+                      <PlayerCardChips
+                        rating={p.rating}
+                        ratingDisplay={p.ratingDisplay}
+                        band={p.band}
+                        playerCard={p.playerCard}
+                        compact
+                      />
                       </div>
                     </div>
                     <div className="row" style={{ gap: 8 }}>
@@ -316,9 +330,14 @@ export function SocialPage() {
               <div className="row">
                 <UserAvatar name={f.displayName} avatarUrl={f.avatarUrl} />
                 <div style={{ flex: 1 }}>
-                  <div className="row-between">
+                  <div className="row-between" style={{ gap: 8, alignItems: 'flex-start' }}>
                     <h3 style={{ fontWeight: 600 }}>{f.displayName}</h3>
-                    <span className="rating-ring">★ {f.rating}</span>
+                    <PlayerCardChips
+                      rating={f.rating}
+                      ratingDisplay={f.ratingDisplay}
+                      playerCard={f.playerCard}
+                      compact
+                    />
                   </div>
                   <p className="muted" style={{ fontSize: '0.85rem', marginTop: 2 }}>
                     {f.status === 'at_hall' && (

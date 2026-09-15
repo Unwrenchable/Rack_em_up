@@ -25,6 +25,7 @@ import type { FriendCard, LookingPlayer } from '../lib/types';
 import { HallsMap } from '../components/HallsMap';
 import { Modal } from '../components/Modal';
 import { UserAvatar } from '../components/UserAvatar';
+import { PlayerCardChips } from '../components/PlayerCardChips';
 
 const GAMES = ['All', '8-ball', '9-ball', '10-ball', 'One-pocket'];
 const STAKES = ['Any', 'Casual', '$$', 'Action'];
@@ -314,6 +315,20 @@ export function FindPage() {
                 {mm.radiusMeters ? ` · ${Math.round(mm.radiusMeters / 1000)} km` : ''}
                 {mm.matchId ? ` · Match ready` : ''}
               </p>
+              {user && (
+                <div style={{ marginTop: 8 }}>
+                  <PlayerCardChips
+                    rating={user.rating}
+                    ratingDisplay={user.ratingDisplay}
+                    band={user.band}
+                    playerCard={user.playerCard}
+                    compact
+                  />
+                  <p className="muted" style={{ fontSize: '0.75rem', marginTop: 6 }}>
+                    Pairing uses ROC Glicko-2 only — Fargo and RackUpRate stay parallel.
+                  </p>
+                </div>
+              )}
             </div>
             <span className="chip chip-live">
               <span className="dot-live" /> V2
@@ -394,9 +409,14 @@ export function FindPage() {
                 <div className="row">
                   <UserAvatar name={f.displayName} avatarUrl={f.avatarUrl} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="row-between">
+                    <div className="row-between" style={{ gap: 8, alignItems: 'flex-start' }}>
                       <h3 style={{ fontWeight: 600 }}>{f.displayName}</h3>
-                      <span className="rating-ring">★ {f.rating}</span>
+                      <PlayerCardChips
+                        rating={f.rating}
+                        ratingDisplay={f.ratingDisplay}
+                        playerCard={f.playerCard}
+                        compact
+                      />
                     </div>
                     <p className="muted" style={{ fontSize: '0.85rem', marginTop: 2 }}>
                       {f.status === 'at_hall'
@@ -444,9 +464,15 @@ export function FindPage() {
             <div className="row">
               <UserAvatar name={p.displayName} avatarUrl={p.avatarUrl} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="row-between">
+                <div className="row-between" style={{ gap: 8, alignItems: 'flex-start' }}>
                   <h3 style={{ fontWeight: 600 }}>{p.displayName}</h3>
-                  <span className="rating-ring">★ {p.rating}</span>
+                  <PlayerCardChips
+                    rating={p.rating}
+                    ratingDisplay={p.ratingDisplay}
+                    band={p.band}
+                    playerCard={p.playerCard}
+                    compact
+                  />
                 </div>
                 <p className="muted" style={{ fontSize: '0.85rem', marginTop: 2 }}>
                   {p.game} · {p.stakes} · {p.distanceKm} km
@@ -492,9 +518,20 @@ export function FindPage() {
       <Modal open={liveOpen} title="Go live (Matchmaking V2)" onClose={() => setLiveOpen(false)}>
         <div className="stack">
           <p className="muted" style={{ fontSize: '0.9rem' }}>
-            Enqueues you on Redis Matchmaking V2 with radius pairing. You also appear on the looking
-            board.
+            Enqueues you on Redis Matchmaking V2 with radius pairing on ROC Glicko-2 (
+            {user?.ratingDisplay ?? user?.rating ?? '—'} ±100). FargoRate and RackUpRate shadow are
+            display-only and never overwrite the ROC ladder. You also appear on the looking board.
           </p>
+          {user && (
+            <PlayerCardChips
+              rating={user.rating}
+              ratingDisplay={user.ratingDisplay}
+              band={user.band}
+              playerCard={user.playerCard}
+              compact
+              showEmptySlots
+            />
+          )}
           <div className="field">
             <label>Game</label>
             <select className="input" value={liveGame} onChange={(e) => setLiveGame(e.target.value)}>

@@ -13,6 +13,41 @@ import type {
   Tournament,
   User,
 } from './types';
+import { buildUnifiedPlayerCard, formatRatingDisplay, type PlayerCard } from './player-card';
+
+function demoCard(
+  rating: number,
+  extra?: {
+    fargo?: number;
+    fargoRobustness?: number;
+    apa_sl?: number | null;
+    bca?: number | null;
+    tap?: number | null;
+    playerId?: string;
+    displayName?: string;
+    rd?: number;
+    matches?: number;
+  },
+): PlayerCard {
+  const name = extra?.displayName ?? 'Player';
+  const id = extra?.playerId ?? `demo-${name.toLowerCase().replace(/\s+/g, '-')}`;
+  return buildUnifiedPlayerCard({
+    name,
+    unifiedId: `00000000-0000-4000-8000-${id.replace(/[^a-z0-9]/gi, '').slice(0, 12).padEnd(12, '0')}`,
+    userId: id,
+    rating,
+    rd: extra?.rd,
+    matches: extra?.matches,
+    fargo: extra?.fargo ?? null,
+    fargoRobustness: extra?.fargoRobustness ?? null,
+    fargoId: extra?.fargo != null ? 'demo-fargo' : null,
+    fargoReadableId: extra?.fargo != null ? '10001' : null,
+    apaSl: extra?.apa_sl ?? null,
+    apaMemberId: extra?.apa_sl != null ? 'demo-apa' : null,
+    bcaElo: extra?.bca ?? null,
+    tapSkill: extra?.tap ?? null,
+  });
+}
 
 export const DEMO_USER: User = {
   id: 'demo-user-1',
@@ -21,6 +56,20 @@ export const DEMO_USER: User = {
   role: 'USER',
   reputation: 92,
   rating: 612,
+  rd: 72,
+  matches: 24,
+  band: 'Expert',
+  ratingDisplay: formatRatingDisplay(612, 'Expert'),
+  ladder: 'roc_glicko2',
+  playerCard: demoCard(612, {
+    fargo: 650,
+    fargoRobustness: 420,
+    apa_sl: 6,
+    playerId: 'demo-user-1',
+    displayName: 'Ace Delgado',
+    rd: 72,
+    matches: 24,
+  }),
 };
 
 export const DEMO_HALLS_LIVE: LiveHall[] = [
@@ -89,6 +138,8 @@ export const DEMO_PLAYERS: LookingPlayer[] = [
     userId: 'demo-user-vee',
     displayName: 'VegasVee',
     rating: 640,
+    ratingDisplay: formatRatingDisplay(640),
+    playerCard: demoCard(640, { fargo: 672, fargoRobustness: 880, apa_sl: 7, displayName: 'VegasVee' }),
     game: '9-ball',
     stakes: '$100/game',
     distanceKm: 1.2,
@@ -100,6 +151,8 @@ export const DEMO_PLAYERS: LookingPlayer[] = [
     userId: 'demo-user-bank',
     displayName: 'BankShot_B',
     rating: 575,
+    ratingDisplay: formatRatingDisplay(575),
+    playerCard: demoCard(575, { fargo: 598, displayName: 'BankShot_B' }),
     game: 'One-pocket',
     stakes: 'Race to 5 · $50',
     distanceKm: 2.8,
@@ -111,6 +164,8 @@ export const DEMO_PLAYERS: LookingPlayer[] = [
     userId: 'demo-user-soft',
     displayName: 'SoftBreak',
     rating: 510,
+    ratingDisplay: formatRatingDisplay(510),
+    playerCard: demoCard(510, { displayName: 'SoftBreak' }),
     game: '8-ball',
     stakes: 'Casual',
     distanceKm: 0.6,
@@ -122,6 +177,12 @@ export const DEMO_PLAYERS: LookingPlayer[] = [
     userId: 'demo-user-rail',
     displayName: 'RailRunner',
     rating: 700,
+    ratingDisplay: formatRatingDisplay(700),
+    playerCard: demoCard(700, {
+      fargo: 734,
+      fargoRobustness: 2100,
+      displayName: 'RailRunner',
+    }),
     game: '10-ball',
     stakes: 'Race to 7 · $200',
     distanceKm: 4.1,
@@ -255,6 +316,8 @@ export const DEMO_FRIENDS: FriendCard[] = [
     friendshipId: 'demo-fr-p1',
     displayName: 'VegasVee',
     rating: 640,
+    ratingDisplay: formatRatingDisplay(640),
+    playerCard: demoCard(640, { fargo: 672, apa_sl: 7, displayName: 'VegasVee' }),
     status: 'at_hall',
     hallName: 'Midnight Rack',
     avatarUrl: null,
@@ -264,6 +327,8 @@ export const DEMO_FRIENDS: FriendCard[] = [
     friendshipId: 'demo-fr-p2',
     displayName: 'BankShot_B',
     rating: 575,
+    ratingDisplay: formatRatingDisplay(575),
+    playerCard: demoCard(575, { fargo: 598, displayName: 'BankShot_B' }),
     status: 'online',
     avatarUrl: null,
   },
@@ -272,6 +337,8 @@ export const DEMO_FRIENDS: FriendCard[] = [
     friendshipId: 'demo-fr-p3',
     displayName: 'SoftBreak',
     rating: 510,
+    ratingDisplay: formatRatingDisplay(510),
+    playerCard: demoCard(510, { displayName: 'SoftBreak' }),
     status: 'offline',
     avatarUrl: null,
   },
@@ -280,6 +347,8 @@ export const DEMO_FRIENDS: FriendCard[] = [
     friendshipId: 'demo-fr-p4',
     displayName: 'RailRunner',
     rating: 700,
+    ratingDisplay: formatRatingDisplay(700),
+    playerCard: demoCard(700, { fargo: 734, displayName: 'RailRunner' }),
     status: 'online',
     avatarUrl: null,
   },
@@ -369,4 +438,11 @@ export const DEMO_NOTIFICATIONS: AppNotification[] = [
     kind: 'social',
   },
 ];
+
+export function demoPlayerCardFor(userId: string): PlayerCard | undefined {
+  if (userId === DEMO_USER.id) return DEMO_USER.playerCard;
+  const looking = DEMO_PLAYERS.find((p) => p.userId === userId || p.id === userId);
+  if (looking?.playerCard) return looking.playerCard;
+  return DEMO_FRIENDS.find((f) => f.id === userId)?.playerCard;
+}
 
