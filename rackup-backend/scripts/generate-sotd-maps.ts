@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { SHOT_CATALOG } from '../src/shots/shot-catalog';
-import { SOTD_SHOT_MAPS, type SotdShotMap } from '../src/realai/v2/sotd-shot-maps';
+import { SOTD_SHOT_MAPS, type SotdGhostBall, type SotdShotMap } from '../src/realai/v2/sotd-shot-maps';
 import {
   type PocketId,
   type RailId,
@@ -70,6 +70,12 @@ type Layout = {
   jumpLanding?: Pt;
   /** When true, leave blocker/cue where the layout put them (orch coords). */
   lockBalls?: boolean;
+  /** Rare pin — only when SPA auto-ghost would sit on the wrong ball/aim. */
+  ghostBall?: SotdGhostBall;
+  /** Explicit segment kinds for lockBalls carom polylines (via → pocket). */
+  pathKinds?: SotdPathKind[];
+  /** Optional CB finish; otherwise estimated from tip zone. */
+  cbRest?: Pt;
 };
 
 const FOOT_SPOT: Pt = { x: 75, y: 25 };
@@ -186,13 +192,20 @@ const LAYOUTS: Record<string, Layout> = {
   'sotd-09': {
     kind: 'carom',
     pocket: 'foot-near',
-    cue: { x: 38, y: 12 },
+    cue: { x: 28.7, y: 19.1 },
     lockBalls: true,
     balls: [
-      { ballId: 1, x: 66, y: 26, role: 'object' },
-      { ballId: 9, x: 90, y: 8, role: 'helper' },
+      { ballId: 9, x: 50, y: 26, role: 'object' },
+      { ballId: 1, x: 80, y: 14, role: 'object' },
     ],
-    via: [{ x: 65.4, y: 24.9 }],
+    via: [
+      { x: 47.9, y: 25.3 },
+      { x: 78.2, y: 15.3 },
+    ],
+    pathKinds: ['ground', 'cue_after', 'object'],
+    // Auto ghost aims the 9 at the pocket; carom contact is the CB glance on the 9.
+    ghostBall: { x: 45.8, y: 24.6 },
+    cbRest: { x: 84, y: 12.5 },
   },
   'sotd-10': {
     kind: 'cut',
@@ -322,10 +335,18 @@ const LAYOUTS: Record<string, Layout> = {
   'sotd-25': {
     kind: 'carom',
     pocket: 'foot-near',
-    cue: { x: 73.4, y: 5.2 },
+    cue: { x: 72.5, y: 5.4 },
     lockBalls: true,
-    balls: [{ ballId: 1, x: 76, y: 2.5, role: 'object' }],
-    via: [{ x: 74.8, y: 2.6 }],
+    balls: [{ ballId: 1, x: 76, y: 2.3, role: 'object' }],
+    via: [
+      { x: 74.4, y: 3.8 },
+      { x: 78.2, y: 0 },
+      { x: 80.8, y: 2.5 },
+    ],
+    pathKinds: ['ground', 'object', 'object', 'object'],
+    // Auto ghost sits behind the 1 along the rail (naive cut). First-kiss CB is off-rail.
+    ghostBall: { x: 72.7, y: 5.2, show: false },
+    cbRest: { x: 68.5, y: 7.5 },
   },
   'sotd-26': {
     kind: 'cut',
@@ -668,7 +689,18 @@ function buildPath(layout: Layout): {
     const helper = balls.find((b) => b.role === 'helper') ?? balls.find((b) => b.ballId !== primary.ballId);
     const first = { x: primary.x, y: primary.y };
     const second = helper ? { x: helper.x, y: helper.y } : null;
-    const cue = clampOnTable(layout.cue ?? aimBehind(first, second ?? pocket, gap));
+    const cue =
+      layout.lockBalls && layout.cue
+        ? { ...layout.cue }
+        : clampOnTable(layout.cue ?? aimBehind(first, second ?? pocket, gap));
+    if (layout.lockBalls && layout.via?.length) {
+      // Keep rail vertices (y=0 / x=0) — clampOnTable would pull them off the cushion.
+      const via = layout.via.map((p) => ({ ...p }));
+      const pts = [cue, ...via, pocket];
+      const kinds: Array<SotdPathKind | undefined> = [...(layout.pathKinds ?? [])];
+      while (kinds.length < Math.max(0, pts.length - 1)) kinds.unshift('ground');
+      return { cue, pocket, balls, pts, kinds };
+    }
     const via = (layout.via ?? []).map((p) => clampOnTable(p));
     const pts = second ? [cue, ...via, second, pocket] : [cue, ...via, first, pocket];
     const kinds: Array<SotdPathKind | undefined> = second
@@ -817,9 +849,13 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     english: prev.english,
     landing_zones: [
       { ...roundPt(pocket), label: 'pocket' },
-      { ...estimateCbRest(prev.tip_zone, cue, primary, pocket), label: 'cb_rest' },
+      {
+        ...(layout.cbRest ? roundPt(layout.cbRest) : estimateCbRest(prev.tip_zone, cue, primary, pocket)),
+        label: 'cb_rest',
+      },
     ],
     pocket_target: roundPt(pocket),
+    ...(layout.ghostBall ? { ghost_ball: layout.ghostBall } : {}),
     coordinate_system: COORDINATE_SYSTEM,
     source: 'catalogue',
     ascii_table: renderAscii(cue, roundedBalls, pts, pocket),

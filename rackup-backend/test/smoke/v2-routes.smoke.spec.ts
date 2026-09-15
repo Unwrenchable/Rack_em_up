@@ -533,16 +533,28 @@ describe('SOTD maps catalogue', () => {
     }
   });
 
-  it('sotd-09 is a bent carom off the 1 into the 9, not a cheat line through both balls', () => {
+  it('sotd-09 contacts the 9 first, then caroms toward the 1 into the corner', () => {
     const m = getSotdMapById('sotd-09')!;
     const one = m.object_ball_positions.find((b) => b.ballId === 1)!;
     const nine = m.object_ball_positions.find((b) => b.ballId === 9)!;
+    expect(nine.role).toBe('object');
     expect(one.role).toBe('object');
-    expect(nine.role).toBe('helper');
-    expect(m.ghost_ball).toBeUndefined();
+    // Rare pin for carom aim (auto would send the 9 at the pocket). No overlay spam.
+    expect(m.ghost_ball?.show).not.toBe(true);
+    const pts = m.intended_path.flatMap((s) => [s.from, s.to]);
+    const nearNine = pts.findIndex((p) => Math.hypot(p.x - nine.x, p.y - nine.y) < 3.4);
+    const nearOne = pts.findIndex((p) => Math.hypot(p.x - one.x, p.y - one.y) < 3.4);
+    expect(nearNine).toBeGreaterThanOrEqual(0);
+    expect(nearOne).toBeGreaterThan(nearNine);
+    const nearestNine = Math.min(...pts.map((p) => Math.hypot(p.x - nine.x, p.y - nine.y)));
+    const nearestOne = Math.min(...pts.map((p) => Math.hypot(p.x - one.x, p.y - one.y)));
+    expect(nearestNine).toBeGreaterThan(1.5);
+    expect(nearestOne).toBeGreaterThan(1.5);
     const cue = m.cue_ball_start;
-    const incoming = { x: one.x - cue.x, y: one.y - cue.y };
-    const outgoing = { x: nine.x - one.x, y: nine.y - one.y };
+    const contact9 = pts[nearNine];
+    const contact1 = pts[nearOne];
+    const incoming = { x: contact9.x - cue.x, y: contact9.y - cue.y };
+    const outgoing = { x: contact1.x - contact9.x, y: contact1.y - contact9.y };
     const li = Math.hypot(incoming.x, incoming.y) || 1;
     const lo = Math.hypot(outgoing.x, outgoing.y) || 1;
     const bend =
@@ -552,20 +564,22 @@ describe('SOTD maps catalogue', () => {
         180) /
       Math.PI;
     expect(bend).toBeGreaterThan(25);
-    const pts = m.intended_path.flatMap((s) => [s.from, s.to]);
-    const nearOne = pts.findIndex((p) => Math.hypot(p.x - one.x, p.y - one.y) < 3.4);
-    const nearNine = pts.findIndex((p) => Math.hypot(p.x - nine.x, p.y - nine.y) < 3.4);
-    expect(nearOne).toBeGreaterThanOrEqual(0);
-    expect(nearNine).toBeGreaterThan(nearOne);
+    expect(m.pocket_target).toEqual({ x: 100, y: 0 });
+    expect(m.intended_path.some((s) => s.kind === 'airborne' || s.style === 'dashed')).toBe(false);
     expect(validateSotdShotMap(m).ok).toBe(true);
   });
 
-  it('sotd-25 is a nearly-frozen rail thin cut, not a through-center cheat', () => {
+  it('sotd-25 is a double-kiss rail rebound, not a two-segment CB→1→pocket', () => {
     const m = getSotdMapById('sotd-25')!;
-    const ob = m.object_ball_positions[0];
-    const gap = Math.hypot(m.cue_ball_start.x - ob.x, m.cue_ball_start.y - ob.y);
-    expect(gap).toBeLessThan(4.2);
-    expect(m.ghost_ball).toBeUndefined();
+    expect(m.intended_path.length).toBeGreaterThan(2);
+    const pts = m.intended_path.flatMap((s) => [s.from, s.to]);
+    const railIdx = pts.findIndex((p) => p.y <= 0.2 && p.x > 60 && p.x < 95);
+    expect(railIdx).toBeGreaterThan(0);
+    expect(railIdx).toBeLessThan(pts.length - 1);
+    const rebound = pts.find((p, i) => i > railIdx && p.y > 1.5 && p.x < 95);
+    expect(rebound).toBeTruthy();
+    expect(m.ghost_ball?.show).not.toBe(true);
+    expect(m.intended_path.some((s) => s.kind === 'airborne' || s.style === 'dashed')).toBe(false);
     expect(validateSotdShotMap(m).ok).toBe(true);
   });
 
