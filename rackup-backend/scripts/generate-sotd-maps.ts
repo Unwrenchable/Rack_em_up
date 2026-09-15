@@ -69,6 +69,8 @@ type Layout = {
   jumpLanding?: Pt;
   /** When true, leave blocker/cue where the layout put them (orch coords). */
   lockBalls?: boolean;
+  ghost_ball?: { x: number; y: number; radius?: number; show?: boolean };
+  contact_point?: Pt;
 };
 
 const FOOT_SPOT: Pt = { x: 75, y: 25 };
@@ -185,11 +187,15 @@ const LAYOUTS: Record<string, Layout> = {
   'sotd-09': {
     kind: 'carom',
     pocket: 'foot-near',
+    cue: { x: 38, y: 12 },
+    lockBalls: true,
     balls: [
-      { ballId: 9, x: 58, y: 30, role: 'helper' },
-      { ballId: 1, x: 76, y: 16, role: 'object' },
+      { ballId: 1, x: 66, y: 26, role: 'object' },
+      { ballId: 9, x: 90, y: 8, role: 'helper' },
     ],
-    cueGap: 16,
+    via: [{ x: 65.4, y: 24.9 }],
+    ghost_ball: { x: 63.9, y: 22.1, show: true },
+    contact_point: { x: 65.4, y: 24.9 },
   },
   'sotd-10': {
     kind: 'cut',
@@ -320,10 +326,14 @@ const LAYOUTS: Record<string, Layout> = {
     ],
   },
   'sotd-25': {
-    kind: 'line',
+    kind: 'carom',
     pocket: 'foot-near',
-    cue: { x: 64.2, y: 3.6 },
-    balls: [{ ballId: 1, x: 70, y: 3.4, role: 'object' }],
+    cue: { x: 73.4, y: 5.2 },
+    lockBalls: true,
+    balls: [{ ballId: 1, x: 76, y: 2.5, role: 'object' }],
+    via: [{ x: 74.8, y: 2.6 }],
+    ghost_ball: { x: 71.6, y: 3, show: true },
+    contact_point: { x: 74.8, y: 2.6 },
   },
   'sotd-26': {
     kind: 'cut',
@@ -664,9 +674,16 @@ function buildPath(layout: Layout): {
 
   if (layout.kind === 'carom') {
     const helper = balls.find((b) => b.role === 'helper') ?? balls.find((b) => b.ballId !== primary.ballId);
-    const helperPt = helper ? { x: helper.x, y: helper.y } : aimBehind(ob, pocket, 12);
-    const cue = clampOnTable(layout.cue ?? aimBehind(helperPt, ob, gap));
-    return { cue, pocket, balls, pts: [cue, helperPt, ob, pocket], kinds: [] };
+    const first = { x: primary.x, y: primary.y };
+    const second = helper ? { x: helper.x, y: helper.y } : null;
+    const cue = clampOnTable(layout.cue ?? aimBehind(first, second ?? pocket, gap));
+    const via = (layout.via ?? []).map((p) => clampOnTable(p));
+    const pts = second ? [cue, ...via, second, pocket] : [cue, ...via, pocket];
+    const kinds: Array<SotdPathKind | undefined> = second
+      ? [...via.map(() => 'ground' as const), 'ground', 'object']
+      : [...via.map(() => 'ground' as const), 'object'];
+    while (kinds.length < Math.max(0, pts.length - 1)) kinds.unshift('ground');
+    return { cue, pocket, balls, pts, kinds };
   }
 
   if (layout.kind === 'jump') {
@@ -810,6 +827,12 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     coordinate_system: COORDINATE_SYSTEM,
     source: 'catalogue',
     ascii_table: renderAscii(cue, roundedBalls, pts, pocket),
+    ...(layout.ghost_ball ? { ghost_ball: layout.ghost_ball } : prev.ghost_ball ? { ghost_ball: prev.ghost_ball } : {}),
+    ...(layout.contact_point
+      ? { contact_point: roundPt(layout.contact_point) }
+      : prev.contact_point
+        ? { contact_point: prev.contact_point }
+        : {}),
   };
 }
 
@@ -866,6 +889,8 @@ export type SotdShotMap = {
   tip_zone: string;
   cue_ball_start: SotdPoint;
   object_ball_positions: SotdObjectBall[];
+  ghost_ball?: SotdGhostBall;
+  contact_point?: SotdPoint;
   intended_path: SotdPathSegment[];
   english: SotdEnglish;
   landing_zones: SotdLandingZone[];

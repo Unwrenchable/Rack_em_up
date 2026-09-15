@@ -402,6 +402,15 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "role": "object"
       }
     ],
+    "ghost_ball": {
+      "x": 76.6,
+      "y": 18.7,
+      "show": true
+    },
+    "contact_point": {
+      "x": 79.1,
+      "y": 16.7
+    },
     "intended_path": [
       {
         "from": {
@@ -475,6 +484,15 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "role": "object"
       }
     ],
+    "ghost_ball": {
+      "x": 68.4,
+      "y": 22.6,
+      "show": true
+    },
+    "contact_point": {
+      "x": 71,
+      "y": 20.7
+    },
     "intended_path": [
       {
         "from": {
@@ -719,53 +737,68 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "12-high",
     "cue_ball_start": {
-      "x": 45.4,
-      "y": 39.8
+      "x": 38,
+      "y": 12
     },
     "object_ball_positions": [
       {
-        "ballId": 9,
-        "x": 58,
-        "y": 30,
-        "role": "helper"
+        "ballId": 1,
+        "x": 66,
+        "y": 26,
+        "role": "object"
       },
       {
-        "ballId": 1,
-        "x": 76,
-        "y": 16,
-        "role": "object"
+        "ballId": 9,
+        "x": 90,
+        "y": 8,
+        "role": "helper"
       }
     ],
+    "ghost_ball": {
+      "x": 63.9,
+      "y": 22.1,
+      "show": true
+    },
+    "contact_point": {
+      "x": 65.4,
+      "y": 24.9
+    },
     "intended_path": [
       {
         "from": {
-          "x": 45.4,
-          "y": 39.8
+          "x": 38,
+          "y": 12
         },
         "to": {
-          "x": 58,
-          "y": 30
-        }
+          "x": 65.4,
+          "y": 24.9
+        },
+        "kind": "ground",
+        "style": "solid"
       },
       {
         "from": {
-          "x": 58,
-          "y": 30
+          "x": 65.4,
+          "y": 24.9
         },
         "to": {
-          "x": 76,
-          "y": 16
-        }
+          "x": 90,
+          "y": 8
+        },
+        "kind": "ground",
+        "style": "solid"
       },
       {
         "from": {
-          "x": 76,
-          "y": 16
+          "x": 90,
+          "y": 8
         },
         "to": {
           "x": 100,
           "y": 0
-        }
+        },
+        "kind": "object",
+        "style": "solid"
       }
     ],
     "english": {
@@ -782,8 +815,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 87.1,
-        "y": 7.4,
+        "x": 84,
+        "y": 14,
         "label": "cb_rest"
       }
     ],
@@ -819,6 +852,15 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "role": "object"
       }
     ],
+    "ghost_ball": {
+      "x": 81.8,
+      "y": 6.2,
+      "show": true
+    },
+    "contact_point": {
+      "x": 84.9,
+      "y": 5.2
+    },
     "intended_path": [
       {
         "from": {
@@ -2095,37 +2137,50 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
     "speed_category": "soft",
     "tip_zone": "1:30-high-right",
     "cue_ball_start": {
-      "x": 64.2,
-      "y": 3.6
+      "x": 73.4,
+      "y": 5.2
     },
     "object_ball_positions": [
       {
         "ballId": 1,
-        "x": 70,
-        "y": 3.4,
+        "x": 76,
+        "y": 2.5,
         "role": "object"
       }
     ],
+    "ghost_ball": {
+      "x": 71.6,
+      "y": 3,
+      "show": true
+    },
+    "contact_point": {
+      "x": 74.8,
+      "y": 2.6
+    },
     "intended_path": [
       {
         "from": {
-          "x": 64.2,
-          "y": 3.6
+          "x": 73.4,
+          "y": 5.2
         },
         "to": {
-          "x": 70,
-          "y": 3.4
-        }
+          "x": 74.8,
+          "y": 2.6
+        },
+        "kind": "ground",
+        "style": "solid"
       },
       {
         "from": {
-          "x": 70,
-          "y": 3.4
+          "x": 74.8,
+          "y": 2.6
         },
         "to": {
           "x": 100,
           "y": 0
-        }
+        },
+        "kind": "object",
+        "style": "solid"
       }
     ],
     "english": {
@@ -2142,8 +2197,8 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "label": "pocket"
       },
       {
-        "x": 84,
-        "y": 3,
+        "x": 70,
+        "y": 6.5,
         "label": "cb_rest"
       }
     ],
@@ -2157,7 +2212,7 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
       "units": "normalized table percent (9-foot aspect 2:1)"
     },
     "source": "catalogue",
-    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                        C· 1·· ·       │\n│                                · ·· ·O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
+    "ascii_table": "O───────────────────────────────────────O\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                                       │\n│                           C 1         │\n│                                · ·· ·O│\nO───────────────────────────────────────O\nLegend: C=cue  1-9=object  H=helper  X=blocker  O=pocket  ·=path"
   },
   {
     "id": "sotd-26",
@@ -2179,6 +2234,15 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "role": "object"
       }
     ],
+    "ghost_ball": {
+      "x": 60.2,
+      "y": 17.8,
+      "show": true
+    },
+    "contact_point": {
+      "x": 58.6,
+      "y": 15
+    },
     "intended_path": [
       {
         "from": {
@@ -2810,6 +2874,15 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "role": "object"
       }
     ],
+    "ghost_ball": {
+      "x": 61.8,
+      "y": 7.1,
+      "show": true
+    },
+    "contact_point": {
+      "x": 59,
+      "y": 5.4
+    },
     "intended_path": [
       {
         "from": {
@@ -4169,6 +4242,15 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "role": "object"
       }
     ],
+    "ghost_ball": {
+      "x": 64.6,
+      "y": 28.8,
+      "show": true
+    },
+    "contact_point": {
+      "x": 67.1,
+      "y": 26.8
+    },
     "intended_path": [
       {
         "from": {
@@ -4242,6 +4324,15 @@ export const SOTD_SHOT_MAPS: SotdShotMap[] = [
         "role": "object"
       }
     ],
+    "ghost_ball": {
+      "x": 80,
+      "y": 9.4,
+      "show": true
+    },
+    "contact_point": {
+      "x": 82.9,
+      "y": 8
+    },
     "intended_path": [
       {
         "from": {

@@ -508,6 +508,69 @@ describe('SOTD maps catalogue', () => {
       expect(Math.hypot(end.x - pk.x, end.y - pk.y)).toBeLessThan(1);
     }
   });
+
+  it('sotd-09 is a bent carom off the 1 into the 9, not a cheat line through both balls', () => {
+    const m = getSotdMapById('sotd-09')!;
+    const one = m.object_ball_positions.find((b) => b.ballId === 1)!;
+    const nine = m.object_ball_positions.find((b) => b.ballId === 9)!;
+    expect(one.role).toBe('object');
+    expect(nine.role).toBe('helper');
+    expect(m.ghost_ball).toBeDefined();
+    expect(m.contact_point).toBeDefined();
+    const ghostDist = Math.hypot(m.ghost_ball!.x - one.x, m.ghost_ball!.y - one.y);
+    expect(ghostDist).toBeCloseTo(4.4, 1);
+
+    const cue = m.cue_ball_start;
+    const incoming = { x: one.x - cue.x, y: one.y - cue.y };
+    const outgoing = { x: nine.x - one.x, y: nine.y - one.y };
+    const li = Math.hypot(incoming.x, incoming.y) || 1;
+    const lo = Math.hypot(outgoing.x, outgoing.y) || 1;
+    const bend =
+      (Math.acos(
+        Math.max(-1, Math.min(1, (incoming.x * outgoing.x + incoming.y * outgoing.y) / (li * lo))),
+      ) *
+        180) /
+      Math.PI;
+    expect(bend).toBeGreaterThan(25);
+
+    const pts = m.intended_path.flatMap((s) => [s.from, s.to]);
+    const nearOne = pts.findIndex((p) => Math.hypot(p.x - one.x, p.y - one.y) < 3.4);
+    const nearNine = pts.findIndex((p) => Math.hypot(p.x - nine.x, p.y - nine.y) < 3.4);
+    expect(nearOne).toBeGreaterThanOrEqual(0);
+    expect(nearNine).toBeGreaterThan(nearOne);
+    expect(m.intended_path.some((s) => s.kind === 'object')).toBe(true);
+    expect(validateSotdShotMap(m).ok).toBe(true);
+  });
+
+  it('sotd-25 is a nearly-frozen rail thin cut with an explicit ghost, not a through-center cheat', () => {
+    const m = getSotdMapById('sotd-25')!;
+    const ob = m.object_ball_positions[0];
+    const gap = Math.hypot(m.cue_ball_start.x - ob.x, m.cue_ball_start.y - ob.y);
+    expect(gap).toBeLessThan(4.2);
+    expect(m.ghost_ball).toBeDefined();
+    expect(m.contact_point).toBeDefined();
+    const throughCenter = m.intended_path.some(
+      (s) => Math.hypot(s.to.x - ob.x, s.to.y - ob.y) < 0.2 && s.kind !== 'object',
+    );
+    expect(throughCenter).toBe(false);
+    expect(validateSotdShotMap(m).ok).toBe(true);
+  });
+
+  it('sample cut maps carry explicit ghost_ball / contact_point at the 4.4 offset', () => {
+    const ids = ['sotd-05', 'sotd-06', 'sotd-10', 'sotd-26', 'sotd-33', 'sotd-48', 'sotd-49'];
+    for (const id of ids) {
+      const m = getSotdMapById(id)!;
+      const ob = m.object_ball_positions.find((b) => !b.role || b.role === 'object')!;
+      expect({ id, ghost: !!m.ghost_ball, contact: !!m.contact_point }).toEqual({
+        id,
+        ghost: true,
+        contact: true,
+      });
+      const d = Math.hypot(m.ghost_ball!.x - ob.x, m.ghost_ball!.y - ob.y);
+      expect({ id, d }).toEqual({ id, d: expect.any(Number) });
+      expect(d).toBeCloseTo(4.4, 1);
+    }
+  });
 });
 
 /** Documented V2 route surface for smoke checklists / future e2e. */

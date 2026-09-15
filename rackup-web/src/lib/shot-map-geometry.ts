@@ -295,7 +295,9 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   const cat = (map.category || '').toLowerCase();
   const comboBalls = orderComboBalls(map, fullPts);
   const isCombo = cat === 'combo' && comboBalls.length >= 2;
-  const pocketObject = isCombo ? comboBalls[comboBalls.length - 1] : primary;
+  const isCarom = cat === 'carom' && comboBalls.length >= 2;
+  // Carom: first ball is the contact, last visited ball is the one that goes to the pocket.
+  const pocketObject = isCombo || isCarom ? comboBalls[comboBalls.length - 1] : primary;
   const comboLegs: ComboLeg[] = [];
   if (isCombo) {
     for (let i = 0; i < comboBalls.length - 1; i++) {
@@ -310,7 +312,7 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   }
 
   const pocketContact = nearestPathIndex(pocketObject, fullPts);
-  const afterPts = fullPts.slice((isCombo ? pocketContact.idx : contactIdx) + 1);
+  const afterPts = fullPts.slice((isCombo || isCarom ? pocketContact.idx : contactIdx) + 1);
   let objectPath: SotdPoint[];
   if (afterPts.length >= 1) {
     objectPath = dedupePoints([
@@ -331,9 +333,17 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     ];
   }
 
-  // CB post-contact (always)
+  // CB post-contact (always). Caroms follow the path into the second ball.
   const restZone = map.landing_zones?.find((z) => /cb|rest|cue/i.test(z.label));
-  const cueAfter = estimateCueAfter(map, contactPoint, primary, pocket, restZone);
+  let cueAfter: SotdPoint[];
+  if (isCarom) {
+    const caromTarget = comboBalls[comboBalls.length - 1];
+    const via = [contactPoint, { x: caromTarget.x, y: caromTarget.y }];
+    if (restZone && dist(restZone, caromTarget) > 2.5) via.push({ x: restZone.x, y: restZone.y });
+    cueAfter = dedupePoints(via);
+  } else {
+    cueAfter = estimateCueAfter(map, contactPoint, primary, pocket, restZone);
+  }
   if (cueAfter.length < 2) {
     cueAfter.push(add(contactPoint, { x: 2, y: 0 }));
   }
@@ -341,14 +351,14 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   const aimTarget = isCombo && comboBalls[1] ? comboBalls[1] : pocket;
   const toAim = norm(sub(aimTarget, primary));
   const diameter = 4.4;
-  // Contact ghost at the object — never the jump hop apex.
+  // Contact ghost at the object — never the jump hop apex. Derive is primary; map override is a rare pin.
   let ghostBall: SotdPoint = {
     x: primary.x - toAim.x * diameter,
     y: primary.y - toAim.y * diameter,
   };
 
   const cut = cutAngleDeg(sub(primary, start), sub(aimTarget, primary));
-  let showGhost = !isCombo && cut > 12 && cut < 78 && !railFirst;
+  let showGhost = !isCombo && !isCarom && cut > 12 && cut < 78 && !railFirst;
   let ghostRadius: number | undefined;
   const gb = map.ghost_ball;
   if (gb && Number.isFinite(gb.x) && Number.isFinite(gb.y)) {
