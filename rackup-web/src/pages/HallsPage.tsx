@@ -6,6 +6,7 @@ import {
   hallV2CheckOut,
   hallV2Create,
   hallV2Feed,
+  hallV2Geocode,
   verifyHall,
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
@@ -27,8 +28,9 @@ export function HallsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAddress, setNewAddress] = useState('');
-  const [newLat, setNewLat] = useState('36.1699');
-  const [newLon, setNewLon] = useState('-115.1398');
+  const [newLat, setNewLat] = useState('');
+  const [newLon, setNewLon] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
   const [newTables, setNewTables] = useState('8');
   const [creating, setCreating] = useState(false);
 
@@ -54,7 +56,7 @@ export function HallsPage() {
         /* V1 optional */
       }
       setCheckedInId(h.id);
-      push(`Checked in at ${h.name} (Halls V2)`, 'ok');
+      push(`Checked in at ${h.name}`, 'ok');
       const next = await fetchLiveHalls();
       setLive(next);
     } catch (e) {
@@ -109,12 +111,12 @@ export function HallsPage() {
   return (
     <div className="page stack" style={{ gap: 16 }}>
       <header>
-        <p className="eyebrow">Halls V2</p>
+        <p className="eyebrow">Halls</p>
         <h1 className="h1" style={{ fontSize: '2.5rem' }}>
           Halls
         </h1>
         <p className="muted" style={{ marginTop: 6 }}>
-          Verified rooms, live pulse, V2 check-in/out and feed.
+          Verified rooms, live pulse, check-in/out and feed.
         </p>
         <button
           type="button"
@@ -192,7 +194,7 @@ export function HallsPage() {
                   disabled={checking}
                   onClick={() => checkIn(h)}
                 >
-                  Check in (V2)
+                  Check in
                 </button>
                 {checkedInId === h.id && (
                   <button
@@ -274,7 +276,7 @@ export function HallsPage() {
       <Modal open={createOpen} title="Add a hall" onClose={() => setCreateOpen(false)}>
         <div className="stack">
           <p className="muted" style={{ fontSize: '0.85rem' }}>
-            Adds a room to Halls V2. Anyone can add; verification stays with owners/admins.
+            Adds a room from its street address. We look up the pin — Vegas is not used as a default.
           </p>
           <div className="field">
             <label>Name</label>
@@ -291,19 +293,52 @@ export function HallsPage() {
               className="input"
               value={newAddress}
               onChange={(e) => setNewAddress(e.target.value)}
-              placeholder="Optional"
+              placeholder="525 Avenue B, Boulder City, NV"
             />
           </div>
           <div className="grid-2">
             <div className="field">
               <label>Lat</label>
-              <input className="input" value={newLat} onChange={(e) => setNewLat(e.target.value)} />
+              <input
+                className="input"
+                value={newLat}
+                onChange={(e) => setNewLat(e.target.value)}
+                placeholder="From address"
+              />
             </div>
             <div className="field">
               <label>Lon</label>
-              <input className="input" value={newLon} onChange={(e) => setNewLon(e.target.value)} />
+              <input
+                className="input"
+                value={newLon}
+                onChange={(e) => setNewLon(e.target.value)}
+                placeholder="From address"
+              />
             </div>
           </div>
+          <button
+            type="button"
+            className="btn btn-ghost btn-block"
+            disabled={lookingUp || (!newAddress.trim() && newName.trim().length < 2)}
+            onClick={async () => {
+              setLookingUp(true);
+              try {
+                const geo = await hallV2Geocode({
+                  name: newName.trim() || undefined,
+                  address: newAddress.trim() || undefined,
+                });
+                setNewLat(String(geo.lat));
+                setNewLon(String(geo.lon));
+                push(`Pin from ${geo.source}`, 'ok');
+              } catch (e) {
+                push(e instanceof Error ? e.message.slice(0, 120) : 'Look up failed', 'err');
+              } finally {
+                setLookingUp(false);
+              }
+            }}
+          >
+            {lookingUp ? 'Looking up…' : 'Look up address'}
+          </button>
           <div className="field">
             <label>Tables</label>
             <input
@@ -317,14 +352,20 @@ export function HallsPage() {
           <button
             type="button"
             className="btn btn-primary btn-block"
-            disabled={creating || newName.trim().length < 2}
+            disabled={
+              creating ||
+              newName.trim().length < 2 ||
+              (!newAddress.trim() && (!newLat.trim() || !newLon.trim()))
+            }
             onClick={async () => {
               setCreating(true);
               try {
+                const lat = Number(newLat);
+                const lon = Number(newLon);
                 const res = await hallV2Create({
                   name: newName.trim(),
-                  lat: Number(newLat),
-                  lon: Number(newLon),
+                  lat: Number.isFinite(lat) ? lat : undefined,
+                  lon: Number.isFinite(lon) ? lon : undefined,
                   address: newAddress.trim() || undefined,
                   tableCount: Number(newTables) || undefined,
                 });
@@ -336,6 +377,9 @@ export function HallsPage() {
                 await refresh();
                 setCreateOpen(false);
                 setNewName('');
+                setNewAddress('');
+                setNewLat('');
+                setNewLon('');
                 push(res.alreadyExisted ? `Already on the map: ${res.hall.name}` : `Added ${res.hall.name}`, 'ok');
               } catch (e) {
                 push(e instanceof Error ? e.message.slice(0, 120) : 'Add hall failed', 'err');

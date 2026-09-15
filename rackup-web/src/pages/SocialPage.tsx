@@ -14,9 +14,11 @@ import {
   openDmThread,
   requestFriend,
   searchUsers,
+  unfriend,
   type PublicUserProfile,
 } from '../lib/api';
 import { chatThreadPath, conversationLabel } from '../lib/chat-labels';
+import { confirmUnfriend } from '../lib/friends';
 import { useToast } from '../lib/toast-context';
 import type { ActionPost, FriendCard } from '../lib/types';
 import { Modal } from '../components/Modal';
@@ -126,6 +128,17 @@ export function SocialPage() {
     }
   }
 
+  async function onUnfriend(f: FriendCard) {
+    if (!confirmUnfriend(f.displayName)) return;
+    try {
+      await unfriend({ friendshipId: f.friendshipId, userId: f.id });
+      setFriends((list) => (list ?? []).filter((x) => x.id !== f.id));
+      push(`Removed ${f.displayName}`, 'ok');
+    } catch (err) {
+      push(err instanceof Error ? err.message.slice(0, 120) : 'Could not unfriend', 'err');
+    }
+  }
+
   async function challengeFriend(f: FriendCard) {
     try {
       const res = await challengePlayer({ opponentId: f.id });
@@ -203,7 +216,7 @@ export function SocialPage() {
               </p>
             )}
             {findResults?.map((p) => {
-              const alreadyFriend = friends?.some((f) => f.id === p.id);
+              const alreadyFriend = friends?.find((f) => f.id === p.id);
               const sent = requestedIds[p.id];
               return (
                 <div key={p.id} className="row-between" style={{ gap: 8 }}>
@@ -216,14 +229,24 @@ export function SocialPage() {
                     </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    disabled={alreadyFriend || sent}
-                    onClick={() => onSendRequest(p)}
-                  >
-                    {alreadyFriend ? 'Friends' : sent ? 'Requested' : 'Request'}
-                  </button>
+                  {alreadyFriend ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => onUnfriend(alreadyFriend)}
+                    >
+                      Unfriend
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={sent}
+                      onClick={() => onSendRequest(p)}
+                    >
+                      {sent ? 'Requested' : 'Request'}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -328,6 +351,13 @@ export function SocialPage() {
                   onClick={() => challengeFriend(f)}
                 >
                   {challengedIds[f.id] ? 'Challenged' : 'Challenge'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => onUnfriend(f)}
+                >
+                  Unfriend
                 </button>
               </div>
             </article>

@@ -8,6 +8,11 @@
 
 export type SotdPoint = { x: number; y: number };
 
+export type SotdGhostBall = SotdPoint & {
+  radius?: number;
+  show?: boolean;
+};
+
 export type SotdObjectBall = SotdPoint & {
   ballId: number;
   role?: 'object' | 'blocker' | 'prop' | 'helper';
@@ -49,6 +54,8 @@ export type SotdShotMap = {
   english: SotdEnglish;
   landing_zones: SotdLandingZone[];
   pocket_target: SotdPoint;
+  ghost_ball?: SotdGhostBall;
+  contact_point?: SotdPoint;
   coordinate_system: { x: string; y: string; units: string };
   source: SotdMapSource;
   ascii_table: string;

@@ -6,17 +6,19 @@ export class CreateHallDto {
   @MaxLength(120)
   name!: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(-90)
   @Max(90)
-  lat!: number;
+  lat?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(-180)
   @Max(180)
-  lon!: number;
+  lon?: number;
 
   @IsOptional()
   @IsString()

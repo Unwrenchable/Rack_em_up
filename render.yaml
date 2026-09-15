@@ -52,6 +52,17 @@ services:
           name: rackup-redis
           type: keyvalue
           property: connectionString
+      # RealAI stays an external Render service (not this monorepo).
+      # Host + names match rackup-backend/.env.example and realai-endpoint.ts.
+      - key: REALAI_BASE_URL
+        value: https://realai-api.onrender.com
+      - key: REALAI_COACH_PATH
+        value: /v1/plugins/rackup-coach
+      # Dashboard secrets — Nest sends Authorization + X-RackUp-Tenant.
+      - key: REALAI_API_KEY
+        sync: false
+      - key: RACKUP_TENANT
+        sync: false
 
   # SPA on Render Static Sites: missing files otherwise serve dist/404.html
   # with HTTP 404 (same HTML as /, verified live 2026-09-13). A rewrite

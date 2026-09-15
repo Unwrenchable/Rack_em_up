@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { MatchMemory } from '../lib/types';
 import { UserAvatar } from '../components/UserAvatar';
 import { useToast } from '../lib/toast-context';
+import { showDevModeChrome } from '../lib/dev-flags';
 
 export function ProfilePage() {
   const { user, demo, logout, updateUser } = useAuth();
@@ -116,7 +117,9 @@ export function ProfilePage() {
           { label: 'Reliability', value: '14 shows · 0 no-shows' },
           { label: 'Favorite game', value: '9-ball' },
           { label: 'Home hall', value: 'Midnight Rack' },
-          { label: 'Mode', value: demo ? 'Demo' : 'Live API' },
+          ...(showDevModeChrome()
+            ? [{ label: 'Mode', value: demo ? 'Demo' : 'Live API' }]
+            : []),
         ].map((row, i) => (
           <div
             key={row.label}

@@ -134,6 +134,19 @@
       "photos": [],
       "leaderboard": [],
       "feed": []
+    },
+    {
+      "id": "hall-backstop-boulder",
+      "name": "Backstop Sports Pub",
+      "address": "533 Avenue B, Boulder City, NV 89005",
+      "location": { "lat": 35.9773965, "lng": -114.8375001 },
+      "tables": 8,
+      "amenities": ["Bar", "Pool tables", "Live music"],
+      "admins": [{ "userId": "admin-backstop-001" }],
+      "events": [],
+      "photos": [],
+      "leaderboard": [],
+      "feed": []
     }
   ],
   "tournaments": [

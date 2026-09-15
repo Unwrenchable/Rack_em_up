@@ -36,9 +36,10 @@ export class HallSeedService {
     let updatedCount = 0;
 
     for (const hall of (vegasHalls as any).halls) {
-      const existing = await this.hallsRepo.findOne({
-        where: { name: hall.name },
-      });
+      const existing = await this.hallsRepo
+        .createQueryBuilder('h')
+        .where('LOWER(h.name) = LOWER(:name)', { name: hall.name })
+        .getOne();
 
       if (existing) {
         // Update location + address on existing hall

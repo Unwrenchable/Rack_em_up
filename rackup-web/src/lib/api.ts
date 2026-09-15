@@ -774,6 +774,21 @@ export async function blockUser(userId: string) {
   });
 }
 
+export async function unfriend(opts: { friendshipId?: string; userId?: string }) {
+  if (isDemoMode()) return { ok: true as const };
+  if (opts.friendshipId && isPlayerUuid(opts.friendshipId)) {
+    return request<{ ok: true }>(`/friends/${encodeURIComponent(opts.friendshipId)}`, {
+      method: 'DELETE',
+    });
+  }
+  if (opts.userId && isPlayerUuid(opts.userId)) {
+    return request<{ ok: true }>(`/friends/with/${encodeURIComponent(opts.userId)}`, {
+      method: 'DELETE',
+    });
+  }
+  throw new Error('Missing friendship to remove');
+}
+
 export async function fetchChatThreads() {
   if (isDemoMode()) {
     return DEMO_FRIENDS.map((f) => ({
@@ -1549,8 +1564,8 @@ export async function mmV2Status(sessionId: string): Promise<unknown> {
 /** Halls V2 — check-in + feed */
 export async function hallV2Create(body: {
   name: string;
-  lat: number;
-  lon: number;
+  lat?: number;
+  lon?: number;
   address?: string;
   tableCount?: number;
 }): Promise<{ hall: Hall; alreadyExisted?: boolean }> {
@@ -1559,8 +1574,8 @@ export async function hallV2Create(body: {
       hall: {
         id: `demo-hall-${Date.now()}`,
         name: body.name,
-        lat: body.lat,
-        lon: body.lon,
+        lat: body.lat ?? 0,
+        lon: body.lon ?? 0,
         address: body.address ?? null,
         tableCount: body.tableCount ?? null,
         isVerified: false,
@@ -1569,6 +1584,18 @@ export async function hallV2Create(body: {
     };
   }
   return request('/halls/v2/create', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export async function hallV2Geocode(body: {
+  name?: string;
+  address?: string;
+  lat?: number;
+  lon?: number;
+}): Promise<{ lat: number; lon: number; source: string; displayName?: string; address?: string }> {
+  if (isDemoMode()) {
+    return { lat: body.lat ?? 35.9774, lon: body.lon ?? -114.8375, source: 'demo' };
+  }
+  return request('/halls/v2/geocode', { method: 'POST', body: JSON.stringify(body) });
 }
 
 export async function hallV2CheckIn(body: { hallId: string }): Promise<unknown> {

@@ -22,6 +22,14 @@ export class HallsV2Controller {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Post('geocode')
+  async geocode(
+    @Body() dto: { name?: string; address?: string; lat?: number; lon?: number },
+  ) {
+    return this.hallsV2.geocode(dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Post('checkin')
   async checkin(@Req() req: any, @Body() dto: CheckInDto) {
     return this.hallsV2.checkIn(req.user.id, dto);

@@ -66,8 +66,8 @@ async function main() {
         await halls.save(
           halls.create({
             name: h.name,
-            lat: h.lat,
-            lon: h.lon,
+            lat: h.location?.lat ?? h.lat,
+            lon: h.location?.lng ?? h.lon,
             address: h.address ?? null,
             tableCount: h.tableCount ?? h.tables ?? null,
             isVerified: true,
