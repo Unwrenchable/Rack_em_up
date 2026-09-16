@@ -10,9 +10,8 @@ export function BlogIndexPage() {
           RackUp blog
         </h1>
         <p className="muted" style={{ marginTop: 10, maxWidth: 520 }}>
-          How the Rack of Champions player network works — finding games, hall
-          check-in, money sets, tournaments, and practice. Not a scorekeeping
-          app that shares the RackUp name.
+          Guides from RackUp by Rack of Champions — matchmaking, halls, money
+          sets, tournaments, and Coach AI at rackofchampions.com.
         </p>
       </header>
 

@@ -1,52 +1,104 @@
 ---
-meta_title: "RackUp FAQ | Rack of Champions"
-meta_description: "FAQ for RackUp by Rack of Champions — finding pool players, hall check-in, money sets, tournaments, Coach AI, and how this RackUp differs from scorekeeping apps."
+meta_title: RackUp FAQ | Rack of Champions Pool Players Network
+meta_description: FAQ for RackUp by Rack of Champions—matchmaking, halls, money sets, tournaments, Coach AI, Shot of the Day, and name disambiguation.
 ---
 
-# RackUp FAQ
+# RackUp by Rack of Champions — FAQ
 
-Short answers for players landing on [rackofchampions.com](https://www.rackofchampions.com/). RackUp is the Rack of Champions player network — not a scorekeeping clipboard that shares the name.
+Ready for FAQPage schema. Answers are written for players first; keep URLs absolute in production schema if required.
 
-## What is RackUp?
+**Canonical site:** https://www.rackofchampions.com/
 
-RackUp is the app for the Rack of Champions pool network. You use it to [find players near you](/find), [check into halls](/halls), [book money sets](/play), [run or join tournaments](/tournaments), and [train with Coach AI and Shot of the Day](/coach).
+---
 
-## Is this the same as other apps named RackUp?
+### 1) What is RackUp by Rack of Champions?
 
-No. Other billiard products use the RackUp name for scorekeeping or league sheets. **RackUp by Rack of Champions** is the player network at rackofchampions.com. If the listing does not point at this site, it is a different product.
+RackUp is the Rack of Champions pool players network. It helps you find opponents, check into halls, arrange play sessions (including consensual money sets), run or join tournaments, and train with Coach AI plus a shots catalogue / Shot of the Day. Visit https://www.rackofchampions.com/.
 
-## How do I find pool players near me?
+### 2) Is this the same RackUp as the pool scorekeeper apps?
 
-Open **[Find](/find)**. The looking board shows players who went live, with game and stakes filters. You can search, challenge, or go live yourself so the room can find you. Matchmaking is built for the hall — not for a worldwide random queue.
+No. RackUp by Rack of Champions at rackofchampions.com is a players network. Other products also use the RackUp name for scorekeeping (for example, handicapped scoring tools associated with sites like rackuppool.com). Always pair “RackUp” with “Rack of Champions” and share rackofchampions.com links to avoid confusion.
 
-## How does pool hall check-in work?
+### 3) How do I find pool players near me?
 
-On **[Halls](/halls)** you pick a room and check in. That check-in feeds Hall Pulse: who is there, how busy the room looks, and whether it is worth the drive. Check out when you leave so the pulse stays honest. Details are in [How pool hall check-in works](/blog/how-pool-hall-check-in-works).
+Open the Find experience at https://www.rackofchampions.com/find, set your availability and preferences (game, location intent, optional stakes posture, skill-range honesty), and connect with players looking for a match. Pair Find with Halls to choose a realistic venue.
 
-## Are money sets escrowed? How do stake matches work?
+### 4) How does pool hall check-in work?
 
-Money sets live on **[Play](/play)**. You book the game, race, opponent, and stake. When the set is over, **both players confirm the result**. That dual confirm is the trust layer — it is not a bank, and it is not a handshake that evaporates in the parking lot. Read [Money sets and stake matches](/blog/money-sets-and-stake-matches).
+Halls at https://www.rackofchampions.com/halls help you discover venues and signal presence when you are at a room. Check-in is a coordination layer for players—it is not automatically the same thing as a table reservation system. Always follow the hall’s own hours and house rules.
 
-## Can I run a pool tournament from my phone?
+### 5) Can I arrange money sets or stake matches?
 
-Yes. **[Tournaments](/tournaments)** supports single elimination, double elimination, Swiss, and chip races, with live brackets and a public TV board for the house. You do not need a laptop at the counter. See [Run pool tournaments on your phone](/blog/run-pool-tournaments-on-your-phone).
+Yes, when both adults consent and local laws and hall policies allow. Use Play at https://www.rackofchampions.com/play to arrange sessions with clear terms: game, race, stake, and break rules before you start. Rack of Champions does not encourage hustling or pressuring social players into stakes.
 
-## What is Coach AI and Shot of the Day?
+### 6) Does RackUp hold stake money in escrow?
 
-**[Coach](/coach)** is daily practice: Shot of the Day, drills, and Coach AI notes on a shot or a clip. **[Shots](/shots)** is the catalogue — banks, kicks, combos, jumps, and massé — with diagrams. Start with [Pool Coach AI and Shot of the Day](/blog/pool-coach-ai-and-shot-of-the-day).
+Do not assume escrow or in-app payments unless the live product explicitly offers them. Many stake settlements still happen directly between players under venue norms. Confirm any payment-related features on the site itself.
 
-## Is RackUp only for gamblers?
+### 7) Can I run a pool tournament from my phone?
 
-No. Stakes filters include casual. Plenty of players use Find, Halls, Coach, and tournaments without putting money on a set. When money is on it, the set is explicit and dual-confirmed — it is not hidden inside a chat thread.
+Yes. Tournaments at https://www.rackofchampions.com/tournaments support creating events, registration, starting a field, reporting matches, and viewing brackets/standings (including spectator-oriented views where available). It is designed for practical amateur and bar/room events.
 
-## Do I need an account to read this site?
+### 8) What is Coach AI?
 
-About, FAQ, and the blog are public. The live board — Find, Halls, Play, Social — needs a player card so the pulse is real people, not empty seats. [Join here](/auth).
+Coach AI at https://www.rackofchampions.com/coach is an AI-assisted training companion that helps you turn match problems into practice plans. It is not a substitute for every hands-on lesson with a qualified instructor, but it is useful for structure, accountability, and drill planning.
 
-## Is there a native App Store or Google Play listing?
+### 9) What is Shot of the Day?
 
-Not yet. Install RackUp from the browser (Add to Home Screen / Install app) until store listings are actually live. We do not ship fake store buttons.
+Shot of the Day on https://www.rackofchampions.com/shots highlights a rotating catalogue shot so you always have a focused drill. You can also browse the wider catalogue by category and difficulty—including jump, masse, combo, and other patterns.
 
-## Where is the blog?
+### 10) Is Rack of Champions officially affiliated with APA or Fargo Rate?
 
-Guides for the network live at **[Blog](/blog)** — finding players, check-in, money sets, tournaments, Coach AI, the shot catalogue, and how Rack of Champions compares with other pool apps.
+No official APA or Fargo partnership is claimed here. Many players are familiar with APA-style skill levels or approximate Fargo-style strength and can use that self-knowledge when seeking fair matches. That cultural fluency is not the same as affiliation.
+
+### 11) Is RackUp only for advanced tournament players?
+
+No. The network is for competitive and social players—including bar-table grinders, league players between nights, travelers, and tournament regulars. Honest intent labeling (social vs stakes vs practice) keeps matches enjoyable.
+
+### 12) What games can people look for?
+
+Players commonly arrange popular formats such as 8-ball and 9-ball, and may also look for other pocket-billiards games depending on local interest. State your preferred game clearly when matchmaking or creating a tournament.
+
+### 13) Is the product free?
+
+Access and packaging can change. Check https://www.rackofchampions.com/ for current details rather than relying on third-party summaries or outdated posts.
+
+### 14) How is this different from Facebook groups or Meetup?
+
+Those tools are broad social layers. RackUp focuses on pool-native workflows: find opponents, halls presence, play arrangements, brackets, and structured practice. You can still use groups; Rack of Champions is for clearer table logistics.
+
+### 15) How is this different from a scorekeeper?
+
+Scorekeepers excel at tallying racks, innings, and sometimes handicap math. Rack of Champions focuses on finding people, venues, sessions, tournaments, and training. Some players use both. They solve different jobs.
+
+### 16) Is my check-in visible to everyone forever?
+
+Treat location-adjacent features intentionally. Check in when coordination helps, review any privacy controls in-product, and prefer public halls for first meetings with new opponents.
+
+### 17) Can travelers use RackUp in a new city?
+
+Yes. Start with Halls to learn venues, use Find with conservative first-session stakes, and consider tournaments as a structured way to meet regulars. Be transparent about your skill and schedule.
+
+### 18) What should directors know before starting a tournament?
+
+Publish game and race, registration cutoff, dispute path, and reporting expectations before you start. Then create and run the event in Tournaments, keep scores updated immediately, and minimize surprise admin edits mid-bracket.
+
+### 19) Does practice on /shots replace match play?
+
+No. Catalogue work and Coach AI build mechanics and decision quality. You still need live testing through Find, Play, and Tournaments for timing, nerves, and adaptability.
+
+### 20) How do I share RackUp so friends install the right product?
+
+Say “RackUp by Rack of Champions” and send https://www.rackofchampions.com/. Mention that it is the players network—not a scorekeeper-only RackUp—if your friends have heard the name elsewhere.
+
+### 21) Where can I ask a support or press question?
+
+Use the Contact / Press page copy and channels published by Rack of Champions. For privacy topics, refer to the site Privacy Policy when available.
+
+### 22) What if there are not many players in my area yet?
+
+Be a consistent early participant: check into halls, post clear availability, invite one trusted local, and join or host small events. Local networks grow through reliability more than through one viral night.
+
+---
+
+*Schema tip:* map each question to `Question` / `acceptedAnswer` → `Answer` with the text above; set `mainEntity` on an `FAQPage` node pointing at https://www.rackofchampions.com/faq (or your final FAQ URL).

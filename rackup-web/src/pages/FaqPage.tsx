@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
-import { FAQ, FAQ_ITEMS, firstParagraph, splitTitle } from '../lib/content';
+import { FAQ, FAQ_ITEMS, faqIntroMarkdown, splitTitle } from '../lib/content';
 import { MarkdownBody } from '../lib/markdown';
 
 export function FaqPage() {
   const { title } = splitTitle(FAQ.body);
-  const intro = firstParagraph(FAQ.body);
+  const intro = faqIntroMarkdown(FAQ.body);
 
   return (
     <article className="page marketing-page stack" style={{ gap: 16 }}>
@@ -14,9 +14,9 @@ export function FaqPage() {
           {title}
         </h1>
         {intro && (
-          <p className="muted" style={{ marginTop: 10, maxWidth: 520 }}>
-            {intro}
-          </p>
+          <div className="muted" style={{ marginTop: 10 }}>
+            <MarkdownBody source={intro} />
+          </div>
         )}
       </header>
 

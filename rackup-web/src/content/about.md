@@ -1,53 +1,89 @@
 ---
-meta_title: "About RackUp | Rack of Champions Player Network"
-meta_description: "RackUp by Rack of Champions is the pool player network at rackofchampions.com — find players, check into halls, book money sets, and train. Not a scorekeeping app."
+meta_title: About Rack of Champions | RackUp Pool Players Network
+meta_description: About RackUp by Rack of Champions—the pool players network for matchmaking, hall check-ins, money sets, tournaments, and Coach AI at rackofchampions.com.
 ---
 
-# About RackUp
+# About Rack of Champions
 
-RackUp is the player network for **Rack of Champions**. It lives at [rackofchampions.com](https://www.rackofchampions.com/) — a place to find a game, see who is in the hall, book a set, run a tournament, and put in honest practice.
+**RackUp by Rack of Champions** is a pool players network built for people who actually show up to tables: competitive amateurs, social regulars, bar-table grinders, and tournament players who want fairer games with less friction.
 
-This is not a generic sports social app, and it is not a table-side scorekeeper that happens to share the RackUp name. If you came here looking for a button that just counts racks, you are in the wrong product. If you came here looking for **action**, you are in the right one.
+**Website:** [https://www.rackofchampions.com/](https://www.rackofchampions.com/)
 
-## What RackUp is for
+## The short version
 
-Pool players already know the old loop: group chats, “anyone playing?”, a hall that looks dead until you walk in, a set that falls apart when the score gets fuzzy. RackUp is built to replace that loop with a live board.
+Pool has no shortage of content. What it often lacks is logistics. Who is looking for a set tonight? Which hall is alive? Can we agree on a race and stakes without a messy thread? Who is running a bracket? What should I practice tomorrow so the next match feels different?
 
-- **[Find](/find)** — see who is looking near you, filter by game and stakes, and go live yourself.
-- **[Halls](/halls)** — check in, read Hall Pulse, and stop guessing whether the room has tables.
-- **[Play](/play)** — book money sets, join leagues, and keep the result honest with dual confirm.
-- **[Tournaments](/tournaments)** — run or enter single elim, double elim, Swiss, and chip races from your phone.
-- **[Coach](/coach)** and **[Shots](/shots)** — Shot of the Day, Coach AI, and a catalogue of jumps, massés, combos, banks, and kicks.
+Rack of Champions exists to answer those questions in one place.
 
-Friends, challenges, and table chat sit on **[Social](/social)**. The app is the network. The felt is the point.
+## What RackUp includes
 
-## Rack of Champions
+- **Find players** — location-aware matchmaking and availability on [/find](/find)
+- **Halls** — discover rooms and use check-in style presence on [/halls](/halls)
+- **Play** — arrange sessions, including consensual money sets, on [/play](/play)
+- **Tournaments** — create, register, run, and follow brackets on [/tournaments](/tournaments)
+- **Coach AI** — training conversations and plans on [/coach](/coach)
+- **Shots** — Shot of the Day and a practice catalogue on [/shots](/shots)
 
-Rack of Champions is the organization behind the network. RackUp is the product name players use day to day. You will see both on purpose:
+## Who it is for
 
-- **RackUp** — the app, the player card, the live board.
-- **Rack of Champions** — the house, the site, the longer name on a result or a league.
+- Players searching for **pool players near me** without relying only on dying group chats
+- Regulars who want better **hall** coordination
+- Adults arranging **stake matches** with clear terms
+- Directors who need a **phone-first bracket**
+- Anyone building a practice habit with **Coach AI** and **Shot of the Day**
 
-If a search result or a store listing is ambiguous, look for **rackofchampions.com**. That origin is the canonical home for this RackUp.
+Whether you think in APA-style skill levels, approximate Fargo-style strength, or simply “I play around the same speed as the Tuesday regulars,” you can use that self-knowledge to seek fairer games. Rack of Champions is **not** claiming official APA or Fargo Rate partnership on this page—only that competitive American pool culture already speaks those languages.
 
-## What we are not
+## What makes us different
 
-Several billiard tools use “RackUp” for scorekeeping, frame counters, or league sheet helpers. Those can be useful. They are **not this product**.
+Many apps keep score. Some manage full league seasons. Some help people RSVP to hangouts. Those are valuable categories.
 
-RackUp by Rack of Champions does not pretend to be a clipboard. Scorekeeping exists here as part of a match, a tournament TV board, or a confirmed set — not as the whole app. We do not run fake ads, fake store buttons, or fake “players online” counts. Demo data is labeled when the API is down. Live pulse is live.
+RackUp by Rack of Champions is centered on the **network loop**:
 
-## How a night on the network looks
+1. Find someone to play  
+2. Meet at a real hall  
+3. Compete in a set or a tournament  
+4. Train with purpose  
+5. Repeat  
 
-1. Open **[Find](/find)** and see who is looking, or put yourself on the board.
-2. Check **[Halls](/halls)** so you are not driving to a dark room.
-3. Book the set on **[Play](/play)** if money is on it — both players confirm the result.
-4. If the hall is running a bracket, join it on **[Tournaments](/tournaments)**.
-5. The next morning, hit **[Coach](/coach)** or pick a drill from **[Shots](/shots)**.
+If you need a dedicated scorekeeper for innings and handicap math, you may still use one alongside Rack of Champions. Just know that **this RackUp** is the Rack of Champions product at **rackofchampions.com**—not the unrelated scorekeeper products that also use the RackUp name.
 
-That is the product. No pitch deck required.
+## How we talk about the game
 
-## Join the network
+We aim for white-hat, professional, authoritative tone:
 
-Create a player card, set your game, and get on the board.
+- No fake rankings, traffic claims, or invented awards  
+- No hustle glorification  
+- No pressure to stake when someone wants social play  
+- Respect for hall rules and local laws  
+- Clear disambiguation when names overlap in the market  
 
-[Join RackUp](/auth)
+## Our point of view
+
+Softwares does not replace manners. Punctuality, honest skill talk, paying for table time, and knowing when to walk away still decide whether a local scene thrives. The product’s job is to reduce unnecessary friction so those values can scale across more nights and more rooms.
+
+## Brand essentials
+
+| | |
+|--|--|
+| **Product name** | RackUp |
+| **Company / brand** | Rack of Champions |
+| **Preferred full mention** | RackUp by Rack of Champions |
+| **Canonical domain** | rackofchampions.com |
+| **Category** | Pool players network (Sports / billiards application) |
+
+## Get started
+
+- Looking for a game? Start at [/find](/find)  
+- Picking a room? See [/halls](/halls)  
+- Arranging a set? Use [/play](/play)  
+- Running an event? Open [/tournaments](/tournaments)  
+- Training tonight? Visit [/coach](/coach) and [/shots](/shots)  
+
+## Contact
+
+For press, partnerships, or support questions, use the contact options on our Contact / Press page. For privacy details, see our Privacy Policy when published on the site.
+
+---
+
+Rack of Champions is for players who love the sound of a clean strike—and the logistics that make another rack possible.

@@ -1,10 +1,60 @@
 import { Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-function isInternalHref(href: string): boolean {
-  if (!href.startsWith('/')) return false;
-  if (href.startsWith('//')) return false;
-  return !href.startsWith('/api');
+const SITE_URL = /https?:\/\/(?:www\.)?rackofchampions\.com[^\s<]*/gi;
+
+function spaPath(href: string): string | null {
+  const trimmed = href.trim();
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.startsWith('/api')) {
+    return trimmed;
+  }
+  const m = trimmed.match(/^https?:\/\/(?:www\.)?rackofchampions\.com(\/[^?\s#]*)?/i);
+  if (!m) return null;
+  const path = m[1] || '/';
+  return path.replace(/\/+$/, '') || '/';
+}
+
+function hrefLink(href: string, label: string, key: number): ReactNode {
+  const path = spaPath(href);
+  if (path) {
+    return (
+      <Link key={key} to={path} className="prose-a">
+        {label}
+      </Link>
+    );
+  }
+  const external = /^https?:\/\//i.test(href);
+  return (
+    <a
+      key={key}
+      href={href}
+      className="prose-a"
+      {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+    >
+      {label}
+    </a>
+  );
+}
+
+function autolinkText(text: string, keyRef: { n: number }): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const re = new RegExp(SITE_URL.source, 'gi');
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    let url = m[0];
+    let trailing = '';
+    while (/[.,;:!?]$/.test(url)) {
+      trailing = url.slice(-1) + trailing;
+      url = url.slice(0, -1);
+    }
+    nodes.push(hrefLink(url, url, keyRef.n++));
+    if (trailing) nodes.push(trailing);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
 }
 
 function renderInline(text: string): ReactNode[] {
@@ -12,52 +62,36 @@ function renderInline(text: string): ReactNode[] {
   const re =
     /(!?\[([^\]]+)\]\(([^)]+)\))|(\*\*([^*]+)\*\*)|(`([^`]+)`)|(\*([^*]+)\*)/g;
   let last = 0;
-  let key = 0;
+  const keyRef = { n: 0 };
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     if (m.index > last) {
-      nodes.push(text.slice(last, m.index));
+      nodes.push(...autolinkText(text.slice(last, m.index), keyRef));
     }
     if (m[1]) {
       const label = m[2];
       const href = m[3];
       if (m[1].startsWith('!')) {
         nodes.push(
-          <img key={key++} src={href} alt={label} className="prose-img" />,
-        );
-      } else if (isInternalHref(href)) {
-        nodes.push(
-          <Link key={key++} to={href} className="prose-a">
-            {label}
-          </Link>,
+          <img key={keyRef.n++} src={href} alt={label} className="prose-img" />,
         );
       } else {
-        const external = /^https?:\/\//i.test(href);
-        nodes.push(
-          <a
-            key={key++}
-            href={href}
-            className="prose-a"
-            {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-          >
-            {label}
-          </a>,
-        );
+        nodes.push(hrefLink(href, label, keyRef.n++));
       }
     } else if (m[4]) {
-      nodes.push(<strong key={key++}>{renderInline(m[5])}</strong>);
+      nodes.push(<strong key={keyRef.n++}>{renderInline(m[5])}</strong>);
     } else if (m[6]) {
       nodes.push(
-        <code key={key++} className="prose-code">
+        <code key={keyRef.n++} className="prose-code">
           {m[7]}
         </code>,
       );
     } else if (m[8]) {
-      nodes.push(<em key={key++}>{renderInline(m[9])}</em>);
+      nodes.push(<em key={keyRef.n++}>{renderInline(m[9])}</em>);
     }
     last = m.index + m[0].length;
   }
-  if (last < text.length) nodes.push(text.slice(last));
+  if (last < text.length) nodes.push(...autolinkText(text.slice(last), keyRef));
   return nodes;
 }
 

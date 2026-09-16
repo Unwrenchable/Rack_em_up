@@ -104,14 +104,28 @@ export function stripMd(input: string): string {
     .trim();
 }
 
+export function faqIntroMarkdown(markdown: string): string {
+  const { rest } = splitTitle(markdown);
+  return rest
+    .split(/^#{2,3}\s+/m)[0]
+    .replace(/\n---+\s*$/g, '')
+    .trim();
+}
+
 export function extractFaqItems(markdown: string): FaqItem[] {
-  const parts = markdown.replace(/\r\n/g, '\n').split(/^##\s+/m);
+  const parts = markdown.replace(/\r\n/g, '\n').split(/^#{2,3}\s+/m);
   const items: FaqItem[] = [];
   for (const part of parts.slice(1)) {
     const nl = part.indexOf('\n');
-    const question = stripMd((nl < 0 ? part : part.slice(0, nl)).trim());
-    const answerMarkdown = (nl < 0 ? '' : part.slice(nl + 1)).trim();
-    if (!question || !answerMarkdown) continue;
+    let question = stripMd((nl < 0 ? part : part.slice(0, nl)).trim());
+    question = question.replace(/^\d+\)\s*/, '');
+    if (!question || /^schema tip/i.test(question)) continue;
+    let answerMarkdown = (nl < 0 ? '' : part.slice(nl + 1)).trim();
+    answerMarkdown = answerMarkdown
+      .replace(/\n---+\s*\n\*Schema tip:[\s\S]*$/i, '')
+      .replace(/\n---+\s*$/g, '')
+      .trim();
+    if (!answerMarkdown) continue;
     items.push({
       question,
       answerMarkdown,

@@ -139,6 +139,22 @@ for (const rel of contentFiles) {
   mustInclude(rel, md, 'meta_description:');
 }
 
+mustInclude(
+  'src/content/about.md',
+  readFileSync(join(root, 'src/content/about.md'), 'utf8'),
+  'About Rack of Champions | RackUp Pool Players Network',
+);
+mustInclude(
+  'src/content/faq.md',
+  readFileSync(join(root, 'src/content/faq.md'), 'utf8'),
+  'RackUp FAQ | Rack of Champions Pool Players Network',
+);
+const faqMd = readFileSync(join(root, 'src/content/faq.md'), 'utf8');
+const faqQuestions = faqMd.match(/^###\s+\d+\)/gm) || [];
+if (faqQuestions.length !== 22) {
+  failures.push(`faq.md expected 22 numbered questions, found ${faqQuestions.length}`);
+}
+
 if (failures.length) {
   console.error('SEO check failed:\n - ' + failures.join('\n - '));
   process.exit(1);
