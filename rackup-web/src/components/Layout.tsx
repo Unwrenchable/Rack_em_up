@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { BottomNav } from './BottomNav';
+import { SiteFooter } from './SiteFooter';
 import { useAuth } from '../lib/auth-context';
 
 export function Layout() {
@@ -27,6 +28,7 @@ export function Layout() {
         </div>
       )}
       <Outlet />
+      <SiteFooter compact />
       <BottomNav />
     </div>
   );

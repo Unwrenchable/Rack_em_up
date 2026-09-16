@@ -1303,3 +1303,251 @@ select.input {
 .hall-pin-verified {
   filter: sepia(1) saturate(6) hue-rotate(5deg) brightness(1.15);
 }
+
+/* Public marketing / content */
+.marketing-shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 12px 0 28px;
+}
+
+.marketing-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px 4px;
+}
+
+.marketing-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.marketing-tag {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.marketing-page {
+  padding-top: 12px;
+}
+
+.card-link {
+  display: block;
+  color: inherit;
+}
+
+.card-link:active {
+  transform: none;
+}
+
+.blog-card-cta {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.site-footer {
+  padding: 20px 18px 8px;
+  text-align: center;
+}
+
+.site-footer-compact {
+  padding: 8px 18px 4px;
+}
+
+.site-footer-nav {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.site-footer-link {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.site-footer-link.active,
+.site-footer-link:hover {
+  color: var(--gold);
+}
+
+.site-footer-note {
+  margin-top: 10px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.faq-item {
+  background: linear-gradient(160deg, rgba(26, 40, 34, 0.95), rgba(16, 24, 22, 0.98));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 16px;
+}
+
+.faq-q {
+  cursor: pointer;
+  list-style: none;
+  padding: 16px 0;
+  font-weight: 600;
+  font-size: 0.98rem;
+}
+
+.faq-q::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item[open] .faq-q {
+  color: var(--gold);
+  border-bottom: 1px solid var(--border);
+}
+
+.faq-a {
+  padding: 12px 0 16px;
+}
+
+.faq-a .prose-p:last-child {
+  margin-bottom: 0;
+}
+
+.prose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  font-size: 1.02rem;
+  line-height: 1.62;
+  color: var(--text);
+}
+
+.prose-h1 {
+  font-family: var(--display);
+  font-size: clamp(2.3rem, 8vw, 3rem);
+  letter-spacing: 0.04em;
+  line-height: 0.95;
+  margin: 4px 0 6px;
+}
+
+.prose-h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 10px;
+  color: var(--gold);
+}
+
+.prose-h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.prose-p {
+  color: #d5ddd8;
+}
+
+.prose-a {
+  color: var(--gold);
+  text-decoration: underline;
+  text-decoration-color: rgba(224, 180, 90, 0.45);
+  text-underline-offset: 3px;
+}
+
+.prose-ul,
+.prose-ol {
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 8px;
+  color: #d5ddd8;
+}
+
+.prose-quote {
+  border-left: 3px solid var(--gold);
+  padding: 4px 0 4px 14px;
+  color: var(--text-muted);
+}
+
+.prose-hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+
+.prose-pre,
+.prose-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+}
+
+.prose-pre {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.prose-code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.prose-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.prose-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.prose-table th,
+.prose-table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.prose-table th {
+  color: var(--gold);
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.prose-table tr:last-child td {
+  border-bottom: none;
+}
+
+.prose-img {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+@media (min-width: 720px) {
+  .marketing-shell {
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    box-shadow: 0 0 80px rgba(0, 0, 0, 0.5);
+    min-height: 100dvh;
+  }
+}

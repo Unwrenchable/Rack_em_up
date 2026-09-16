@@ -51,7 +51,7 @@ are served as files. The catch-all rewrite is only for missing SPA paths.
 Real static files in `rackup-web/public/` (Vite copies them to `dist/`):
 
 - `/robots.txt` — `Allow: /` + `Sitemap: https://www.rackofchampions.com/sitemap.xml`
-- `/sitemap.xml` — `/`, `/find`, `/coach`, `/shots`, `/halls`, `/play`, `/social`, `/tournaments`
+- `/sitemap.xml` — `/`, `/find`, `/coach`, `/shots`, `/halls`, `/play`, `/social`, `/tournaments`, `/about`, `/faq`, `/blog`, and each blog post
 
 Auth-only surfaces (`/auth`, `/profile`, `/wallet`, `/settings`, `/chat`, …) are **not** in the sitemap.
 They get `noindex` via the in-app head manager after hydration.

@@ -1,4 +1,5 @@
 import { BRAND, HOME_DESCRIPTION, HOME_TITLE, PUBLIC_ORIGIN } from './brand';
+import { ABOUT, BLOG_POSTS, FAQ, FAQ_ITEMS, getBlogPost } from './content';
 
 export type SeoRobots = 'index,follow' | 'noindex,nofollow';
 
@@ -22,6 +23,10 @@ export const SITEMAP_PATHS = [
   '/play',
   '/social',
   '/tournaments',
+  '/about',
+  '/faq',
+  '/blog',
+  ...BLOG_POSTS.map((post) => post.path),
 ] as const;
 
 const HOME_CRUMB = { name: 'Home', path: '/' };
@@ -90,6 +95,28 @@ export const PAGE_SEO: Record<string, SeoPage> = {
     path: '/tournaments',
     robots: 'index,follow',
     crumbs: [HOME_CRUMB, { name: 'Play', path: '/play' }, { name: 'Tournaments', path: '/tournaments' }],
+  },
+  '/about': {
+    title: ABOUT.metaTitle,
+    description: ABOUT.metaDescription,
+    path: '/about',
+    robots: 'index,follow',
+    crumbs: [HOME_CRUMB, { name: 'About', path: '/about' }],
+  },
+  '/faq': {
+    title: FAQ.metaTitle,
+    description: FAQ.metaDescription,
+    path: '/faq',
+    robots: 'index,follow',
+    crumbs: [HOME_CRUMB, { name: 'FAQ', path: '/faq' }],
+  },
+  '/blog': {
+    title: 'RackUp Blog | Rack of Champions Guides',
+    description:
+      'Guides to finding pool players, hall check-in, money sets, tournaments, and Coach AI on RackUp by Rack of Champions.',
+    path: '/blog',
+    robots: 'index,follow',
+    crumbs: [HOME_CRUMB, { name: 'Blog', path: '/blog' }],
   },
   '/profile': {
     title: 'Your Pool Player Profile | RackUp',
@@ -173,6 +200,22 @@ export function normalizePath(pathname: string): string {
 export function seoForPath(pathname: string): SeoPage {
   const path = normalizePath(pathname);
   if (PAGE_SEO[path]) return PAGE_SEO[path];
+  if (path.startsWith('/blog/')) {
+    const post = getBlogPost(path.slice('/blog/'.length));
+    if (post) {
+      return {
+        title: post.metaTitle,
+        description: post.metaDescription,
+        path: post.path,
+        robots: 'index,follow',
+        crumbs: [
+          HOME_CRUMB,
+          { name: 'Blog', path: '/blog' },
+          { name: post.title, path: post.path },
+        ],
+      };
+    }
+  }
   if (path.startsWith('/tournaments/') && path.endsWith('/tv')) {
     return {
       title: `TV board · ${BRAND.name}`,
@@ -272,6 +315,21 @@ export function breadcrumbJsonLd(page: SeoPage): JsonLd | null {
       position: i + 1,
       name: crumb.name,
       item: canonicalFor(crumb.path),
+    })),
+  };
+}
+
+export function faqPageJsonLd(): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQ_ITEMS.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.answerText,
+      },
     })),
   };
 }
