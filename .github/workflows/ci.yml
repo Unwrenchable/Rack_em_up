@@ -52,5 +52,7 @@ jobs:
         run: npm run build
       - name: Verify share meta + PWA assets
         run: npm run check:share-meta
+      - name: Verify robots, sitemap, JSON-LD, fallback title
+        run: npm run check:seo
       - name: Verify Render SPA rewrite is on the live Blueprint
         run: npm run check:spa-rewrites

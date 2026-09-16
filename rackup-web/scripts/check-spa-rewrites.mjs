@@ -71,7 +71,13 @@ if (!nestedWeb) {
 
 mustInclude('App.tsx', appTsx, "path=\"play\"");
 mustInclude('App.tsx', appTsx, 'PlayPage');
+mustInclude('App.tsx', appTsx, 'SeoHead');
 mustInclude('public/_redirects', redirects, '/index.html');
+mustInclude('root render.yaml', rootYaml, 'Redirects/Rewrites');
+mustInclude('root render.yaml rackup-web', rootWeb, 'application/manifest+json');
+mustInclude('root render.yaml rackup-web', rootWeb, '/robots.txt');
+mustInclude('root render.yaml rackup-web', rootWeb, '/sitemap.xml');
+mustInclude('rackup-web/.render.yaml', nestedWeb, 'application/manifest+json');
 
 if (failures.length) {
   console.error('SPA rewrite check failed:\n - ' + failures.join('\n - '));

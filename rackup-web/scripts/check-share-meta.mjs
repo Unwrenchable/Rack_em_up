@@ -21,6 +21,9 @@ const requiredFiles = [
   'icon-192-maskable.png',
   'icon-512-maskable.png',
   'manifest.webmanifest',
+  'manifest.json',
+  'robots.txt',
+  'sitemap.xml',
   'sw.js',
 ];
 
@@ -41,7 +44,7 @@ const needles = [
   'name="twitter:card" content="summary_large_image"',
   `name="twitter:image" content="${origin}/og-image.png"`,
   'rel="apple-touch-icon"',
-  'rel="manifest" href="/manifest.webmanifest"',
+  'rel="manifest" href="/manifest.json"',
   'rel="icon" type="image/svg+xml"',
 ];
 
@@ -56,15 +59,21 @@ if (html.includes('__PUBLIC_ORIGIN__')) {
   process.exit(1);
 }
 
-const manifest = JSON.parse(readFileSync(join(dist, 'manifest.webmanifest'), 'utf8'));
+const manifest = JSON.parse(readFileSync(join(dist, 'manifest.json'), 'utf8'));
 for (const key of ['name', 'short_name', 'start_url', 'display', 'theme_color', 'background_color', 'icons']) {
   if (!manifest[key]) {
-    console.error(`manifest.webmanifest missing ${key}`);
+    console.error(`manifest.json missing ${key}`);
     process.exit(1);
   }
 }
 if (manifest.display !== 'standalone') {
   console.error('manifest display must be standalone');
+  process.exit(1);
+}
+
+const webManifest = JSON.parse(readFileSync(join(dist, 'manifest.webmanifest'), 'utf8'));
+if (webManifest.description !== manifest.description) {
+  console.error('manifest.json and manifest.webmanifest descriptions differ');
   process.exit(1);
 }
 

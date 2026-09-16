@@ -3,6 +3,11 @@
 # auto-apply this file. Keep both in sync so a Blueprint pointed here still
 # gets SPA rewrites.
 #
+# TRAVIS: if www.rackofchampions.com is the dashboard-created Static Site
+# (not this Blueprint), add Redirects/Rewrites on that service:
+#   Source: /*   Destination: /index.html   Action: Rewrite
+# Verified still HTTP 404 on /play as of 2026-09-16.
+#
 # rootDir is always repository-relative. "." here previously meant the repo
 # root (no Vite build), so dashboard overrides were required and Blueprint
 # routes on this file never reached the live service.
@@ -30,6 +35,18 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      - path: /manifest.webmanifest
+        name: Content-Type
+        value: application/manifest+json
+      - path: /manifest.json
+        name: Content-Type
+        value: application/manifest+json
+      - path: /robots.txt
+        name: Content-Type
+        value: text/plain; charset=utf-8
+      - path: /sitemap.xml
+        name: Content-Type
+        value: application/xml
     envVars:
       # Baked into the Vite client at build time - values must be URLs ONLY
       # (not "VITE_API_URL=https://..."). api.ts + vite.config also scrub a bad paste.

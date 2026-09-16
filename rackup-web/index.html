@@ -6,8 +6,9 @@
     <meta name="theme-color" content="#070a09" />
     <meta
       name="description"
-      content="RackUp — find action, halls, and money sets near you."
+      content="Find pool players near you, check into halls, book money sets, run tournaments, and train with Coach AI. RackUp is the Rack of Champions player network."
     />
+    <meta name="robots" content="index,follow" />
     <meta name="application-name" content="RackUp" />
     <meta name="apple-mobile-web-app-title" content="RackUp" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -15,7 +16,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
     <link rel="canonical" href="__PUBLIC_ORIGIN__/" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+    <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
@@ -23,10 +25,13 @@
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Rack of Champions" />
-    <meta property="og:title" content="RackUp — Rack of Champions" />
+    <meta
+      property="og:title"
+      content="RackUp | Rack of Champions — Pool Matchmaking, Halls & Money Sets"
+    />
     <meta
       property="og:description"
-      content="Find action, halls, and money sets near you."
+      content="Find pool players near you, check into halls, book money sets, run tournaments, and train with Coach AI. RackUp is the Rack of Champions player network."
     />
     <meta property="og:url" content="__PUBLIC_ORIGIN__/" />
     <meta property="og:image" content="__PUBLIC_ORIGIN__/og-image.png" />
@@ -41,10 +46,13 @@
     <meta property="og:locale" content="en_US" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="RackUp — Rack of Champions" />
+    <meta
+      name="twitter:title"
+      content="RackUp | Rack of Champions — Pool Matchmaking, Halls & Money Sets"
+    />
     <meta
       name="twitter:description"
-      content="Find action, halls, and money sets near you."
+      content="Find pool players near you, check into halls, book money sets, run tournaments, and train with Coach AI. RackUp is the Rack of Champions player network."
     />
     <meta name="twitter:image" content="__PUBLIC_ORIGIN__/og-image.png" />
     <meta
@@ -52,16 +60,75 @@
       content="RackUp — pool players network. Dark felt table with gold rails."
     />
 
-    <title>RackUp — Rack of Champions</title>
+    <title>RackUp | Rack of Champions — Pool Matchmaking, Halls & Money Sets</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script type="application/ld+json" id="jsonld-site">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "__PUBLIC_ORIGIN__/#organization",
+            "name": "Rack of Champions",
+            "alternateName": "RackUp",
+            "url": "__PUBLIC_ORIGIN__/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "__PUBLIC_ORIGIN__/icon-512.png"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "__PUBLIC_ORIGIN__/#website",
+            "name": "RackUp",
+            "alternateName": "Rack of Champions",
+            "url": "__PUBLIC_ORIGIN__/",
+            "description": "Find pool players near you, check into halls, book money sets, run tournaments, and train with Coach AI. RackUp is the Rack of Champions player network.",
+            "inLanguage": "en-US",
+            "publisher": { "@id": "__PUBLIC_ORIGIN__/#organization" }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "__PUBLIC_ORIGIN__/#app",
+            "name": "RackUp",
+            "applicationCategory": "SportsApplication",
+            "operatingSystem": "Web",
+            "url": "__PUBLIC_ORIGIN__/",
+            "description": "Find pool players near you, check into halls, book money sets, run tournaments, and train with Coach AI. RackUp is the Rack of Champions player network.",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "publisher": { "@id": "__PUBLIC_ORIGIN__/#organization" }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <header>
+        <h1>RackUp | Rack of Champions</h1>
+        <p>
+          Find pool players near you, check into halls, book money sets, run tournaments, and train
+          with Coach AI. RackUp is the Rack of Champions player network.
+        </p>
+        <nav aria-label="RackUp">
+          <a href="/">Home</a>
+          <a href="/find">Find players</a>
+          <a href="/coach">Coach</a>
+          <a href="/shots">Shots</a>
+          <a href="/halls">Halls</a>
+          <a href="/play">Play</a>
+          <a href="/social">Social</a>
+          <a href="/tournaments">Tournaments</a>
+          <a href="/auth">Join</a>
+        </nav>
+      </header>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

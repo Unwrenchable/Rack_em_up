@@ -1,4 +1,5 @@
 # Netlify-style SPA fallback. Render Static Sites IGNORE this file.
 # Live 200s for /play come from Blueprint `routes` in /render.yaml
 # (or Dashboard → rackup-web → Redirects/Rewrites → Rewrite /* → /index.html).
+# robots.txt and sitemap.xml are real public/ files; they must 200 as files.
 /*    /index.html   200

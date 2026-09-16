@@ -4,39 +4,16 @@ export const PUBLIC_ORIGIN = (
   import.meta.env.VITE_PUBLIC_ORIGIN || DEFAULT_PUBLIC_ORIGIN
 ).replace(/\/$/, '');
 
+export const HOME_TITLE =
+  'RackUp | Rack of Champions — Pool Matchmaking, Halls & Money Sets';
+
+export const HOME_DESCRIPTION =
+  'Find pool players near you, check into halls, book money sets, run tournaments, and train with Coach AI. RackUp is the Rack of Champions player network.';
+
 export const BRAND = {
   name: 'RackUp',
   siteName: 'Rack of Champions',
-  title: 'RackUp — Rack of Champions',
-  description: 'Find action, halls, and money sets near you.',
+  title: HOME_TITLE,
+  description: HOME_DESCRIPTION,
   shareText: 'Find action. Check halls. Protect the money.',
 } as const;
-
-/** SPA document titles. OG/Twitter tags stay static in index.html. */
-export function titleForPath(pathname: string): string {
-  const path = pathname.replace(/\/+$/, '') || '/';
-  const exact: Record<string, string> = {
-    '/': 'Home',
-    '/auth': 'Sign in',
-    '/find': 'Find action',
-    '/play': 'Play',
-    '/money': 'Money sets',
-    '/social': 'Social',
-    '/chat': 'Chat',
-    '/halls': 'Halls',
-    '/coach': 'Coach',
-    '/shots': 'Shot catalog',
-    '/memories': 'Memories',
-    '/notifications': 'Notifications',
-    '/settings': 'Settings',
-    '/profile': 'Profile',
-    '/wallet': 'Wallet',
-    '/tournaments': 'Tournaments',
-    '/scorekeeping': 'Scorekeeping',
-    '/pyramid': 'Pyramid',
-  };
-  if (exact[path]) return `${exact[path]} · ${BRAND.name}`;
-  if (path.startsWith('/tournaments/') && path.endsWith('/tv')) return `TV board · ${BRAND.name}`;
-  if (path.startsWith('/tournaments/')) return `Tournament · ${BRAND.name}`;
-  return BRAND.title;
-}
