@@ -85,7 +85,9 @@ const publicSitemap = readFileSync(join(root, 'public/sitemap.xml'), 'utf8');
 if (publicRobots !== robots) failures.push('dist/robots.txt does not match public/robots.txt');
 if (publicSitemap !== sitemap) failures.push('dist/sitemap.xml does not match public/sitemap.xml');
 
-const seoSrc = readFileSync(join(root, 'src/lib/seo.ts'), 'utf8');
+const seoSrc =
+  readFileSync(join(root, 'src/lib/seo.ts'), 'utf8') +
+  readFileSync(join(root, 'src/lib/brand.ts'), 'utf8');
 for (const title of [
   'RackUp | Rack of Champions — Pool Matchmaking, Halls & Money Sets',
   'Find Pool Players Near You | RackUp Matchmaking',
