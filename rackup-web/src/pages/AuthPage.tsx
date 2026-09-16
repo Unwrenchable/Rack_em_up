@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
+import { SiteFooter } from '../components/SiteFooter';
 import { useAuth } from '../lib/auth-context';
 
 export function AuthPage() {
@@ -126,6 +127,7 @@ export function AuthPage() {
             Store listings are coming later.
           </p>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

@@ -2,8 +2,13 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth-context';
 import { ToastProvider } from './lib/toast-context';
 import { Layout } from './components/Layout';
+import { MarketingLayout } from './components/MarketingLayout';
 import { SeoHead } from './components/SeoHead';
 import { AuthPage } from './pages/AuthPage';
+import { AboutPage } from './pages/AboutPage';
+import { FaqPage } from './pages/FaqPage';
+import { BlogIndexPage } from './pages/BlogIndexPage';
+import { BlogPostPage } from './pages/BlogPostPage';
 import { HomePage } from './pages/HomePage';
 import { FindPage } from './pages/FindPage';
 import { PlayPage } from './pages/PlayPage';
@@ -38,6 +43,13 @@ function AppRoutes() {
         <Route path="/auth" element={<AuthPage />} />
         {/* Public TV board — no shell / no auth for hall displays */}
         <Route path="tournaments/:id/tv" element={<TournamentTvPage />} />
+
+        <Route element={<MarketingLayout />}>
+          <Route path="about" element={<AboutPage />} />
+          <Route path="faq" element={<FaqPage />} />
+          <Route path="blog" element={<BlogIndexPage />} />
+          <Route path="blog/:slug" element={<BlogPostPage />} />
+        </Route>
 
         <Route
           element={

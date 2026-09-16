@@ -45,6 +45,16 @@ const sitemapUrls = [
   `${origin}/play`,
   `${origin}/social`,
   `${origin}/tournaments`,
+  `${origin}/about`,
+  `${origin}/faq`,
+  `${origin}/blog`,
+  `${origin}/blog/find-pool-players-near-me`,
+  `${origin}/blog/how-pool-hall-check-in-works`,
+  `${origin}/blog/money-sets-and-stake-matches`,
+  `${origin}/blog/run-pool-tournaments-on-your-phone`,
+  `${origin}/blog/pool-coach-ai-and-shot-of-the-day`,
+  `${origin}/blog/jump-masse-combo-drills-catalogue`,
+  `${origin}/blog/rack-of-champions-vs-other-pool-apps`,
 ];
 for (const url of sitemapUrls) {
   mustInclude('sitemap.xml', sitemap, `<loc>${url}</loc>`);
@@ -98,8 +108,35 @@ for (const title of [
   'Friends, Chat & Challenges | RackUp Social',
   'Your Pool Player Profile | RackUp',
   'Join RackUp | Sign In — Rack of Champions',
+  'RackUp Blog | Rack of Champions Guides',
 ]) {
   mustInclude('src/lib/seo.ts', seoSrc, title);
+}
+
+mustInclude('src/lib/seo.ts', seoSrc, 'FAQPage');
+mustInclude('src/App.tsx', readFileSync(join(root, 'src/App.tsx'), 'utf8'), 'path="about"');
+mustInclude('src/App.tsx', readFileSync(join(root, 'src/App.tsx'), 'utf8'), 'path="blog/:slug"');
+
+const contentFiles = [
+  'src/content/about.md',
+  'src/content/faq.md',
+  'src/content/blog/find-pool-players-near-me.md',
+  'src/content/blog/how-pool-hall-check-in-works.md',
+  'src/content/blog/money-sets-and-stake-matches.md',
+  'src/content/blog/run-pool-tournaments-on-your-phone.md',
+  'src/content/blog/pool-coach-ai-and-shot-of-the-day.md',
+  'src/content/blog/jump-masse-combo-drills-catalogue.md',
+  'src/content/blog/rack-of-champions-vs-other-pool-apps.md',
+];
+for (const rel of contentFiles) {
+  const full = join(root, rel);
+  if (!existsSync(full)) {
+    failures.push(`missing ${rel}`);
+    continue;
+  }
+  const md = readFileSync(full, 'utf8');
+  mustInclude(rel, md, 'meta_title:');
+  mustInclude(rel, md, 'meta_description:');
 }
 
 if (failures.length) {

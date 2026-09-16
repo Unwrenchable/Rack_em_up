@@ -4,12 +4,14 @@ import { BRAND } from '../lib/brand';
 import {
   breadcrumbJsonLd,
   canonicalFor,
+  faqPageJsonLd,
   seoForPath,
   siteJsonLd,
 } from '../lib/seo';
 
 const SITE_LD_ID = 'jsonld-site';
 const PAGE_LD_ID = 'jsonld-page';
+const FAQ_LD_ID = 'jsonld-faq';
 
 function attrSelector(attr: 'name' | 'property', key: string): string {
   return `meta[${attr}="${key}"]`;
@@ -72,6 +74,7 @@ export function SeoHead() {
 
     upsertJsonLd(SITE_LD_ID, siteJsonLd(!!page.homeGraph));
     upsertJsonLd(PAGE_LD_ID, breadcrumbJsonLd(page));
+    upsertJsonLd(FAQ_LD_ID, page.path === '/faq' ? faqPageJsonLd() : null);
   }, [pathname]);
 
   return null;
