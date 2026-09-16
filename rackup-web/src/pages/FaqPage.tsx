@@ -32,8 +32,15 @@ export function FaqPage() {
       </div>
 
       <p className="muted" style={{ fontSize: '0.85rem' }}>
-        Still looking? Read <Link to="/about">About</Link> or the{' '}
-        <Link to="/blog">blog</Link>.
+        Still looking? Read{' '}
+        <Link to="/about" className="prose-a">
+          About
+        </Link>{' '}
+        or the{' '}
+        <Link to="/blog" className="prose-a">
+          blog
+        </Link>
+        .
       </p>
     </article>
   );

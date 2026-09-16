@@ -45,7 +45,7 @@ function renderInline(text: string): ReactNode[] {
         );
       }
     } else if (m[4]) {
-      nodes.push(<strong key={key++}>{m[5]}</strong>);
+      nodes.push(<strong key={key++}>{renderInline(m[5])}</strong>);
     } else if (m[6]) {
       nodes.push(
         <code key={key++} className="prose-code">
@@ -53,7 +53,7 @@ function renderInline(text: string): ReactNode[] {
         </code>,
       );
     } else if (m[8]) {
-      nodes.push(<em key={key++}>{m[9]}</em>);
+      nodes.push(<em key={key++}>{renderInline(m[9])}</em>);
     }
     last = m.index + m[0].length;
   }
