@@ -31,3 +31,9 @@ Backend optional: `cd ../rackup-backend && npm run start:dev`
 | Settings / safety | `/settings` |
 
 Demo mode fills data when the API is offline. Vite proxies `/api` → `:3000`.
+
+## SEO (Phase 1)
+
+Static `public/robots.txt` + `public/sitemap.xml`. Per-route titles live in `src/lib/seo.ts`.
+
+Render SPA rewrite + Travis dashboard steps: [`docs/RENDER_SPA_AND_SEO.md`](./docs/RENDER_SPA_AND_SEO.md).

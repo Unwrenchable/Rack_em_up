@@ -2,14 +2,28 @@
 # Local DB/Redis stays in docker-compose.yml on your laptop.
 #
 # After merge: Render Dashboard → Blueprints → open this file's Blueprint →
-# Sync / Manual Sync so rackup-web picks up SPA rewrite routes.
+# Sync / Manual Sync so rackup-web picks up SPA rewrite routes + MIME headers.
 #
-# If the live www.rackofchampions.com Static Site is NOT in this Blueprint
-# (dashboard-created), do NOT let Sync create a second site. Instead, on the
-# existing rackup-web service: Redirects/Rewrites → add
-#   Source: /*   Destination: /index.html   Action: Rewrite
-# That CDN rule is what turns /play from HTTP 404 into 200 text/html.
+# TRAVIS — live www.rackofchampions.com still returned HTTP 404 for /play
+# (and /coach, /shots, /find, …) on 2026-09-16. That means the Blueprint
+# rewrite from PR #37 has not been applied to the Static Site that actually
+# serves www. If this Blueprint is NOT attached to that service (dashboard-
+# created site), do NOT let Sync create a second site. On the existing
+# rackup-web service that owns the custom domain:
+#
+#   Redirects/Rewrites → Add
+#     Source: /*    Destination: /index.html    Action: Rewrite
+#   Headers (if still needed after deploy)
+#     /manifest.webmanifest  Content-Type: application/manifest+json
+#     /manifest.json         Content-Type: application/manifest+json
+#     /robots.txt            Content-Type: text/plain; charset=utf-8
+#     /sitemap.xml           Content-Type: application/xml
+#
+# That CDN rewrite is what turns /play from HTTP 404 into 200 text/html.
 # public/_redirects is Netlify-only — Render ignores it.
+# robots.txt + sitemap.xml are real files in rackup-web/public/ (copied to
+# dist/). Existing files are served as-is; /* → /index.html is the fallback
+# for SPA routes that are not files.
 
 databases:
   - name: rackup-db
@@ -65,8 +79,8 @@ services:
         sync: false
 
   # SPA on Render Static Sites: missing files otherwise serve dist/404.html
-  # with HTTP 404 (same HTML as /, verified live 2026-09-13). A rewrite
-  # returns index.html with 200 so /play, /shots, /chat, … deep-link.
+  # with HTTP 404 (same HTML as /, verified live 2026-09-13 and still 404
+  # on /play 2026-09-16 until Travis applies the rewrite on the live service).
   # rootDir is repository-relative (never relative to a nested yaml path).
   - type: web
     name: rackup-web
@@ -88,6 +102,19 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # Live .webmanifest was binary/octet-stream (nosniff → PWA install fails).
+      - path: /manifest.webmanifest
+        name: Content-Type
+        value: application/manifest+json
+      - path: /manifest.json
+        name: Content-Type
+        value: application/manifest+json
+      - path: /robots.txt
+        name: Content-Type
+        value: text/plain; charset=utf-8
+      - path: /sitemap.xml
+        name: Content-Type
+        value: application/xml
     envVars:
       # Baked into the Vite client at build time — URLs ONLY
       # (not "VITE_API_URL=https://..."). api.ts + vite.config also scrub a bad paste.

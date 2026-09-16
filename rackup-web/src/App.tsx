@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { titleForPath } from './lib/brand';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth-context';
 import { ToastProvider } from './lib/toast-context';
 import { Layout } from './components/Layout';
+import { SeoHead } from './components/SeoHead';
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { FindPage } from './pages/FindPage';
@@ -31,18 +30,10 @@ function Protected({ children }: { children: React.ReactNode }) {
   return children;
 }
 
-function PageTitle() {
-  const { pathname } = useLocation();
-  useEffect(() => {
-    document.title = titleForPath(pathname);
-  }, [pathname]);
-  return null;
-}
-
 function AppRoutes() {
   return (
     <>
-      <PageTitle />
+      <SeoHead />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
         {/* Public TV board — no shell / no auth for hall displays */}
