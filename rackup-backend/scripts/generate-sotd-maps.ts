@@ -15,6 +15,8 @@ import {
   type PocketId,
   type RailId,
   type SotdGeomPoint as Pt,
+  BALL_DIAMETER,
+  GHOST_BALL_DIAMETER,
   LANE_CLEARANCE,
   POCKETS,
   add,
@@ -37,6 +39,11 @@ import {
   formatGeomReport,
   type SotdPathKind,
 } from '../src/realai/v2/sotd-shot-map-geometry';
+import {
+  ROUTE_AUDIT_EXEMPT,
+  auditSotdRoute,
+  formatRouteAudit,
+} from '../src/realai/v2/sotd-route-audit';
 
 const COORDINATE_SYSTEM = {
   x: '0=head rail → 100=foot rail',
@@ -74,9 +81,14 @@ type Layout = {
   ghostBall?: SotdGhostBall;
   /** Explicit segment kinds for lockBalls carom polylines (via → pocket). */
   pathKinds?: SotdPathKind[];
-  /** Optional CB finish; otherwise estimated from tip zone. */
+  /** Optional CB finish; otherwise estimated from tip zone + contact physics. */
   cbRest?: Pt;
 };
+
+/** Physical ghost: CB centre at contact, one ball diameter behind the OB on its first leg. */
+function physicalGhost(ob: Pt, toward: Pt): Pt {
+  return sub(ob, scale(norm(sub(toward, ob)), BALL_DIAMETER));
+}
 
 const FOOT_SPOT: Pt = { x: 75, y: 25 };
 
@@ -167,10 +179,12 @@ const LAYOUTS: Record<string, Layout> = {
     balls: [{ ballId: 1, x: 72, y: 20, role: 'object' }],
   },
   'sotd-07': {
+    // Two-rail kick: far long rail → near long rail arrives on the ghost line (cut ≈ 25°).
+    // (near → foot hit the 1 from the pocket side — the OB could never reach the corner.)
     kind: 'kick',
     pocket: 'foot-far',
     cue: { x: 16, y: 10 },
-    rails: ['near', 'foot'],
+    rails: ['far', 'near'],
     balls: [{ ballId: 1, x: 84, y: 38, role: 'object' }],
   },
   'sotd-08': (() => {
@@ -192,20 +206,23 @@ const LAYOUTS: Record<string, Layout> = {
   'sotd-09': {
     kind: 'carom',
     pocket: 'foot-near',
-    cue: { x: 28.7, y: 19.1 },
+    // Half-ball (30°) glance on the 9 with follow: the 30° rule deflects the CB ~34°
+    // onto the 1's ghost line. (Old cue hit the 9 almost full — the CB could not turn 36°.)
+    cue: { x: 28.3, y: 18.4 },
     lockBalls: true,
     balls: [
       { ballId: 9, x: 50, y: 26, role: 'object' },
       { ballId: 1, x: 80, y: 14, role: 'object' },
     ],
     via: [
-      { x: 47.9, y: 25.3 },
+      { x: 48.5, y: 24.4 },
       { x: 78.2, y: 15.3 },
     ],
     pathKinds: ['ground', 'cue_after', 'object'],
-    // Auto ghost aims the 9 at the pocket; carom contact is the CB glance on the 9.
-    ghostBall: { x: 45.8, y: 24.6 },
-    cbRest: { x: 84, y: 12.5 },
+    // Auto ghost aims the 9 at the pocket; carom contact is the CB glance on the 9
+    // (pin sits on the approach line, 4.4 from the 9, so the drawn line is the real one).
+    ghostBall: { x: 46.2, y: 23.7 },
+    cbRest: { x: 84, y: 16.7 },
   },
   'sotd-10': {
     kind: 'cut',
@@ -231,7 +248,8 @@ const LAYOUTS: Record<string, Layout> = {
     kind: 'bank',
     pocket: 'foot-far',
     rails: ['near', 'head'],
-    balls: [{ ballId: 9, x: 38, y: 14, role: 'object' }],
+    // 9 nudged so the head-rail contact clears the corner jaw (was 3.6 from the pocket point).
+    balls: [{ ballId: 9, x: 39.5, y: 10.7, role: 'object' }],
     cueGap: 16,
   },
   'sotd-14': {
@@ -323,14 +341,14 @@ const LAYOUTS: Record<string, Layout> = {
     cueGap: 18,
   },
   'sotd-24': {
-    kind: 'kick',
+    // Story is a dead-straight short pot (rail = bridge rest), not a kick through the side pocket.
+    kind: 'line',
     pocket: 'foot-near',
-    cue: { x: 16, y: 24 },
-    rails: ['near'],
     balls: [
-      { ballId: 1, x: 74, y: 18, role: 'object' },
+      { ballId: 1, x: 94, y: 6, role: 'object' },
       { ballId: 8, x: 48, y: 40, role: 'prop' },
     ],
+    cueGap: 8,
   },
   'sotd-25': {
     kind: 'carom',
@@ -456,7 +474,8 @@ const LAYOUTS: Record<string, Layout> = {
   'sotd-39': {
     kind: 'kick',
     pocket: 'foot-far',
-    cue: { x: 16, y: 12 },
+    // Cue nudged so no cushion contact lands on a corner jaw (foot rail was 4.3 from the point).
+    cue: { x: 13.5, y: 16 },
     rails: ['far', 'foot', 'near', 'head'],
     balls: [{ ballId: 1, x: 70, y: 40, role: 'object' }],
   },
@@ -511,11 +530,14 @@ const LAYOUTS: Record<string, Layout> = {
     ],
   },
   'sotd-44': {
+    // Around the table: far long rail → foot rail → near long rail, mirror reflections,
+    // back past the head spot to a hanging 1 in the head-far corner (soft 17° cut, CB parks
+    // beside it). Old route hit the 1 from the pocket side — it could never reach the corner.
     kind: 'kick',
-    pocket: 'foot-far',
+    pocket: 'head-far',
     cue: { x: 20, y: 12 },
-    rails: ['near', 'foot', 'far'],
-    balls: [{ ballId: 1, x: 72, y: 36, role: 'object' }],
+    rails: ['far', 'foot', 'near'],
+    balls: [{ ballId: 1, x: 2.7, y: 46.3, role: 'object' }],
   },
   'sotd-45': {
     kind: 'jump',
@@ -681,7 +703,10 @@ function buildPath(layout: Layout): {
 
   if (layout.kind === 'kick') {
     const cue = clampOnTable(layout.cue ?? { x: 18, y: 12 });
-    const kickPts = resolveRails(cue, ob, layout);
+    // Mirror the rails onto the ghost-ball position (not the OB centre) so the last
+    // cushion leg arrives on the contact line that actually sends the OB to the pocket.
+    const kickPts = resolveRails(cue, physicalGhost(ob, pocket), layout);
+    kickPts[kickPts.length - 1] = ob;
     return { cue, pocket, balls, pts: [...kickPts, pocket], kinds: [] };
   }
 
@@ -768,23 +793,92 @@ function buildPath(layout: Layout): {
   return { cue, pocket, balls, pts: [cue, ...objectPts, ...after, pocket], kinds: [] };
 }
 
-function estimateCbRest(tip: string, cue: Pt, ob: Pt, pocket: Pt): Pt {
+type SpinKind = 'follow' | 'draw' | 'stun';
+
+function spinKind(tip: string): SpinKind {
   const t = tip.toLowerCase();
-  const line = norm(sub(ob, cue));
-  const toPk = norm(sub(pocket, ob));
-  let end: Pt;
-  if (t.includes('6') || t.includes('low') || t.includes('draw')) {
-    end = add(ob, scale(line, -14));
-  } else if (t.includes('12') || t.includes('high') || t.includes('follow')) {
-    end = add(ob, scale(line, 14));
-  } else if (t.includes('3') || t.includes('right')) {
-    end = add(ob, add(scale(line, 6), { x: 0, y: 8 }));
-  } else if (t.includes('9') || t.includes('left')) {
-    end = add(ob, add(scale(line, 6), { x: 0, y: -8 }));
-  } else {
-    end = add(ob, scale(toPk, -6));
+  if (t.includes('6') || t.includes('low') || t.includes('draw') || t.includes('4:30') || t.includes('7:30')) {
+    return 'draw';
   }
-  return roundPt(clampOnTable(end, 3));
+  if (t.includes('12') || t.includes('high') || t.includes('follow') || t.includes('1:30') || t.includes('10:30')) {
+    return 'follow';
+  }
+  return 'stun'; // center, or side english at centre height
+}
+
+/** Spin ratio used for the CB finish (1 = natural roll, negative = draw). */
+const FINISH_SPIN: Record<SpinKind, number> = { follow: 1.0, draw: -1.2, stun: 0 };
+const FINISH_LEN: Record<SpinKind, number> = { follow: 11, draw: 9, stun: 7 };
+
+function nearRailPad(p: Pt, pad: number): boolean {
+  return p.x <= pad || p.x >= 100 - pad || p.y <= pad || p.y >= 50 - pad;
+}
+
+/** Port of rackup-web clothCurveControl so the CB finish uses the drawn curve's last tangent. */
+function rendererCurveControl(start: Pt, end: Pt, vias: Pt[], blocker?: Pt): Pt {
+  const chord = sub(end, start);
+  const n = norm(perp(chord));
+  const mid = midpoint(start, end);
+  let side = 1;
+  const probe = vias.find((v) => dist(v, start) > 2 && dist(v, end) > 2) ?? blocker;
+  if (probe) {
+    const sd = (probe.x - mid.x) * n.x + (probe.y - mid.y) * n.y;
+    if (sd < 0) side = -1;
+  }
+  let bulge = 10;
+  if (blocker) {
+    const clearance = pointToSegmentDistance(blocker, start, end);
+    bulge = Math.max(9, GHOST_BALL_DIAMETER + 4.5 - Math.min(clearance, 4));
+  } else if (vias.length) {
+    const far = Math.max(...vias.map((v) => pointToSegmentDistance(v, start, end)));
+    bulge = Math.min(16, Math.max(8, far * 0.85));
+  }
+  return add(mid, scale(n, 2 * bulge * side));
+}
+
+/**
+ * Physically plausible CB finish after contact.
+ * The CB leaves along the tangent line (stun), bends forward with follow (natural-roll
+ * 30° rule) or back with draw — never straight through the OB on a cut, never back along
+ * its own incoming line. `from` is the last point the CB travels from (cue, last cushion,
+ * jump landing or massé tangent); `firstLeg` is where the OB goes first (pocket, bank rail
+ * or next combo ball). The finish is shortened (direction kept) to stay on the cloth and
+ * clear of balls and pockets.
+ */
+function physicalCbRest(tip: string, from: Pt, ob: Pt, firstLeg: Pt, others: Pt[]): Pt {
+  const kind = spinKind(tip);
+  const u = norm(sub(firstLeg, ob));
+  const g = sub(ob, scale(u, BALL_DIAMETER));
+  const a = norm(sub(g, from));
+  const cos = Math.max(-1, Math.min(1, a.x * u.x + a.y * u.y));
+  const phi = Math.acos(cos);
+  let dir: Pt;
+  let len = FINISH_LEN[kind];
+  if (phi < (6 * Math.PI) / 180) {
+    if (kind === 'follow') dir = u;
+    else if (kind === 'draw') dir = scale(u, -1);
+    else {
+      dir = scale(u, -1);
+      len = 1.6; // stop shot: CB stays at contact (just past the renderer's 1.5 threshold)
+    }
+  } else {
+    const t = norm(sub(a, scale(u, cos)));
+    const s = FINISH_SPIN[kind];
+    dir = norm(add(scale(t, (5 + 2 * s) * Math.sin(phi)), scale(u, 2 * s * Math.cos(phi))));
+  }
+  const ok = (p: Pt) =>
+    p.x >= 2.2 &&
+    p.x <= 97.8 &&
+    p.y >= 1.6 &&
+    p.y <= 48.4 &&
+    !(p.x < 15 && p.y < 10) &&
+    others.every((o) => pointToSegmentDistance(o, g, p) >= BALL_DIAMETER + 0.3) &&
+    Object.values(POCKETS).every((pk) => pointToSegmentDistance(pk, g, p) >= 3.2);
+  for (let l = len; l >= 1.7; l -= 0.25) {
+    const p = roundPt(add(g, scale(dir, l)));
+    if (ok(p)) return p;
+  }
+  return roundPt(add(g, scale(dir, 1.7)));
 }
 
 function renderAscii(cue: Pt, balls: BallSpec[], pts: Pt[], pocket: Pt): string {
@@ -835,6 +929,31 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     role: b.role ?? 'object',
   }));
   const primary = primaryOf(roundedBalls);
+  const contactIdx = pts.reduce(
+    (best, p, i) => (dist(p, primary) < dist(pts[best], primary) ? i : best),
+    0,
+  );
+  const firstLeg = pts[contactIdx + 1] ?? pocket;
+  let from = pts[Math.max(0, contactIdx - 1)] ?? cue;
+  if (layout.kind === 'curve') {
+    const drawnGhost = sub(primary, scale(norm(sub(pocket, primary)), GHOST_BALL_DIAMETER));
+    const vias = pts.filter(
+      (p, i) => i > 0 && i < contactIdx && dist(p, cue) > 2 && dist(p, primary) > 4 && !nearRailPad(p, 2.4),
+    );
+    const blocker = roundedBalls.find((b) => b.role === 'blocker');
+    from = rendererCurveControl(cue, drawnGhost, vias, blocker);
+  }
+  const others = roundedBalls.filter((b) => b !== primary);
+  // Bank: the SPA auto-ghost aims at the pocket; pin it on the OB's real first leg (bank line).
+  let ghostPin: SotdGhostBall | undefined = layout.ghostBall;
+  if (!ghostPin && layout.kind === 'bank') {
+    const gp = roundPt(sub(primary, scale(norm(sub(firstLeg, primary)), GHOST_BALL_DIAMETER)));
+    const g = physicalGhost(primary, firstLeg);
+    const a = norm(sub(g, from));
+    const u = norm(sub(firstLeg, primary));
+    const cut = (Math.acos(Math.max(-1, Math.min(1, a.x * u.x + a.y * u.y))) * 180) / Math.PI;
+    ghostPin = { x: gp.x, y: gp.y, show: cut > 12 && cut < 78 };
+  }
   return {
     id: prev.id,
     name: prev.name,
@@ -850,12 +969,14 @@ function assemble(prev: SotdShotMap, layout: Layout): SotdShotMap {
     landing_zones: [
       { ...roundPt(pocket), label: 'pocket' },
       {
-        ...(layout.cbRest ? roundPt(layout.cbRest) : estimateCbRest(prev.tip_zone, cue, primary, pocket)),
+        ...(layout.cbRest
+          ? roundPt(layout.cbRest)
+          : physicalCbRest(prev.tip_zone, from, primary, firstLeg, others)),
         label: 'cb_rest',
       },
     ],
     pocket_target: roundPt(pocket),
-    ...(layout.ghostBall ? { ghost_ball: layout.ghostBall } : {}),
+    ...(ghostPin ? { ghost_ball: ghostPin } : {}),
     coordinate_system: COORDINATE_SYSTEM,
     source: 'catalogue',
     ascii_table: renderAscii(cue, roundedBalls, pts, pocket),
@@ -967,6 +1088,11 @@ function main() {
       const report = validateSotdShotMap(map);
       if (!report.ok) {
         failures.push(formatGeomReport(map, report));
+      }
+      // Physics: real reflections, ghost-ball contact, enterable pockets, honest CB finish.
+      const route = auditSotdRoute(map);
+      if (route.status === 'fail' && !ROUTE_AUDIT_EXEMPT[map.id]) {
+        failures.push(formatRouteAudit(route));
       }
       next.push(map);
     } catch (e) {
