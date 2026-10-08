@@ -417,7 +417,7 @@ describe('SOTD maps catalogue', () => {
     }
   });
 
-  it('sotd-15 Jump Over the Troublemaker hops dashed over the blocker and lands before the OB', () => {
+  it('sotd-15 Jump Over the Troublemaker hops in one straight dashed line over the 7 and lands before the OB', () => {
     const m = getSotdMapById('sotd-15')!;
     expect(m.cue_ball_start).toEqual({ x: 68.7, y: 19.5 });
     // A real corner pocket (no implied rail-edge target any more).
@@ -429,37 +429,85 @@ describe('SOTD maps catalogue', () => {
     expect(m.ghost_ball).toBeUndefined();
     expect(m.intended_path).toEqual([
       { from: { x: 68.7, y: 19.5 }, to: { x: 72.6, y: 17.2 }, kind: 'ground', style: 'solid' },
-      { from: { x: 72.6, y: 17.2 }, to: { x: 75.9, y: 15 }, kind: 'airborne', style: 'dashed' },
-      { from: { x: 75.9, y: 15 }, to: { x: 79.3, y: 12.9 }, kind: 'airborne', style: 'dashed' },
+      { from: { x: 72.6, y: 17.2 }, to: { x: 79.3, y: 12.9 }, kind: 'airborne', style: 'dashed' },
       { from: { x: 79.3, y: 12.9 }, to: { x: 84, y: 10 }, kind: 'ground', style: 'solid' },
       { from: { x: 84, y: 10 }, to: { x: 100, y: 0 }, kind: 'object', style: 'solid' },
     ]);
     // The hop clears the blocker XY and the CB lands with room before the OB.
-    const land = m.intended_path[2].to;
+    const land = m.intended_path[1].to;
     expect(Math.hypot(land.x - 84, land.y - 10)).toBeGreaterThan(4);
     expect(validateSotdShotMap(m).ok).toBe(true);
     expect(auditSotdRoute(m).status).toBe('pass');
   });
 
-  it('sotd-32/45/50 hop a soft prop (no blocker ball drawn), dashed in line with the cue', () => {
-    for (const id of ['sotd-32', 'sotd-45', 'sotd-50'] as const) {
-      const m = getSotdMapById(id)!;
-      // Catalogue text: a soft prop / low obstacle, not a ball.
-      expect({ id, blockers: m.object_ball_positions.filter((b) => b.role === 'blocker').length }).toEqual({
-        id,
-        blockers: 0,
-      });
-      const air = m.intended_path.filter((s) => s.kind === 'airborne' || s.style === 'dashed');
-      expect({ id, n: air.length }).toEqual({ id, n: 1 });
-      expect(air[0].style).toBe('dashed');
+  it('every jump shot draws ONE straight dashed hop, takeoff → landing, directly over each jumped ball', () => {
+    const jumps = listSotdMaps().filter((m) => m.category === 'jump');
+    expect(jumps.map((m) => m.id).sort()).toEqual(['sotd-15', 'sotd-32', 'sotd-45', 'sotd-50']);
+    const jumped: Record<string, number[]> = { 'sotd-15': [7], 'sotd-32': [5], 'sotd-45': [5, 6], 'sotd-50': [7] };
+    for (const m of jumps) {
+      const blockers = m.object_ball_positions.filter((b) => b.role === 'blocker');
+      expect({ id: m.id, jumped: blockers.map((b) => b.ballId) }).toEqual({ id: m.id, jumped: jumped[m.id] });
+      const idx = m.intended_path.map((s, i) => (s.kind === 'airborne' || s.style === 'dashed' ? i : -1)).filter((i) => i >= 0);
+      // One airborne segment, dashed; every other cue segment is solid (rolling).
+      expect({ id: m.id, air: idx.length }).toEqual({ id: m.id, air: 1 });
+      const air = m.intended_path[idx[0]];
+      expect(air).toMatchObject({ kind: 'airborne', style: 'dashed' });
+      for (const s of m.intended_path) if (s !== air) expect({ id: m.id, style: s.style }).toEqual({ id: m.id, style: 'solid' });
+      // As the crow flies: the hop passes directly over each jumped ball.
+      for (const b of blockers) {
+        const ab = { x: air.to.x - air.from.x, y: air.to.y - air.from.y };
+        const t = ((b.x - air.from.x) * ab.x + (b.y - air.from.y) * ab.y) / (ab.x * ab.x + ab.y * ab.y);
+        const off = Math.hypot(air.from.x + ab.x * t - b.x, air.from.y + ab.y * t - b.y);
+        expect({ id: m.id, ball: b.ballId, between: t > 0 && t < 1, over: off <= 0.6 }).toEqual({
+          id: m.id,
+          ball: b.ballId,
+          between: true,
+          over: true,
+        });
+      }
       // Take-off continues the cue's ground line (no tent).
       const g0 = m.intended_path[0];
       const h0 = Math.atan2(g0.to.y - g0.from.y, g0.to.x - g0.from.x);
-      const h1 = Math.atan2(air[0].to.y - air[0].from.y, air[0].to.x - air[0].from.x);
+      const h1 = Math.atan2(air.to.y - air.from.y, air.to.x - air.from.x);
       expect(Math.abs(((h1 - h0 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI)).toBeLessThan(0.05);
       expect(validateSotdShotMap(m).ok).toBe(true);
       expect(auditSotdRoute(m).status).toBe('pass');
     }
+  });
+
+  it('rejects a hop split at the jumped ball and a straight hop that misses it', () => {
+    const base = {
+      id: 'jump-split',
+      name: 'Split hop',
+      category: 'jump',
+      tip_zone: 'center',
+      cue_ball_start: { x: 24, y: 25.5 },
+      object_ball_positions: [
+        { ballId: 1, x: 70, y: 25.2, role: 'object' as const },
+        { ballId: 7, x: 45, y: 25.2, role: 'blocker' as const },
+      ],
+      pocket_target: { x: 100, y: 25 },
+    };
+    const split = {
+      ...base,
+      intended_path: [
+        { from: { x: 24, y: 25.5 }, to: { x: 39, y: 25.4 }, style: 'solid' as const, kind: 'ground' as const },
+        { from: { x: 39, y: 25.4 }, to: { x: 45, y: 25.2 }, style: 'dashed' as const, kind: 'airborne' as const },
+        { from: { x: 45, y: 25.2 }, to: { x: 51, y: 25.3 }, style: 'dashed' as const, kind: 'airborne' as const },
+        { from: { x: 51, y: 25.3 }, to: { x: 70, y: 25.2 }, style: 'solid' as const, kind: 'ground' as const },
+        { from: { x: 70, y: 25.2 }, to: { x: 100, y: 25 }, style: 'solid' as const, kind: 'object' as const },
+      ],
+    };
+    expect(validateSotdShotMap(split).issues.map((i) => i.code)).toContain('jump_airborne_single');
+    expect(auditSotdRoute(split).issues.map((i) => i.code)).toContain('jump_air_not_straight');
+    const miss = {
+      ...base,
+      id: 'jump-miss',
+      object_ball_positions: [base.object_ball_positions[0], { ballId: 7, x: 45, y: 27.6, role: 'blocker' as const }],
+      intended_path: [split.intended_path[0], { ...split.intended_path[1], to: { x: 51, y: 25.3 } }, ...split.intended_path.slice(3)],
+    };
+    expect(validateSotdShotMap(miss).issues.map((i) => i.code)).toContain('jump_airborne_single');
+    expect(auditSotdRoute(miss).issues.map((i) => i.code)).toContain('jump_misses_blocker');
   });
 
   it('rejects a dashed airborne tent off the blocker line', () => {
@@ -497,8 +545,7 @@ describe('SOTD maps catalogue', () => {
       ],
       intended_path: [
         { from: { x: 24, y: 25.5 }, to: { x: 39, y: 25.4 }, style: 'solid', kind: 'ground' },
-        { from: { x: 39, y: 25.4 }, to: { x: 45, y: 25.2 }, style: 'dashed', kind: 'airborne' },
-        { from: { x: 45, y: 25.2 }, to: { x: 51, y: 25.3 }, style: 'dashed', kind: 'airborne' },
+        { from: { x: 39, y: 25.4 }, to: { x: 51, y: 25.3 }, style: 'dashed', kind: 'airborne' },
         { from: { x: 51, y: 25.3 }, to: { x: 70, y: 25.2 }, style: 'solid', kind: 'ground' },
         { from: { x: 70, y: 25.2 }, to: { x: 100, y: 25 }, style: 'solid', kind: 'object' },
       ],
@@ -577,20 +624,20 @@ describe('SOTD maps catalogue', () => {
     }
   });
 
-  it('sotd-09 hits the 1 first, then caroms off it into the 9 for the corner (matches the text)', () => {
+  it('sotd-09 Carom Off the 9: hits the 9 first, then caroms off it into the 1 for the corner (matches the title and text)', () => {
     const m = getSotdMapById('sotd-09')!;
     const one = m.object_ball_positions.find((b) => b.ballId === 1)!;
     const nine = m.object_ball_positions.find((b) => b.ballId === 9)!;
     expect(one.role).toBe('object');
     expect(nine.role).toBe('object');
-    // Hidden pin on the CB's real line so the SPA does not draw a full hit on the 1.
+    // Hidden pin on the CB's real line so the SPA does not draw a full hit on the 9.
     expect(m.ghost_ball?.show).toBe(false);
-    expect(deriveSotdRoute(m)!.prim.ballId).toBe(1);
-    const [toOne, carom, pot] = m.intended_path;
-    expect(Math.hypot(toOne.to.x - one.x, toOne.to.y - one.y)).toBeCloseTo(2.25, 0);
+    expect(deriveSotdRoute(m)!.prim.ballId).toBe(9);
+    const [toNine, carom, pot] = m.intended_path;
+    expect(Math.hypot(toNine.to.x - nine.x, toNine.to.y - nine.y)).toBeCloseTo(2.25, 0);
     expect(carom.kind).toBe('cue_after');
-    expect(Math.hypot(carom.to.x - nine.x, carom.to.y - nine.y)).toBeCloseTo(2.25, 0);
-    const a = { x: toOne.to.x - toOne.from.x, y: toOne.to.y - toOne.from.y };
+    expect(Math.hypot(carom.to.x - one.x, carom.to.y - one.y)).toBeCloseTo(2.25, 0);
+    const a = { x: toNine.to.x - toNine.from.x, y: toNine.to.y - toNine.from.y };
     const b = { x: carom.to.x - carom.from.x, y: carom.to.y - carom.from.y };
     const bend =
       (Math.acos((a.x * b.x + a.y * b.y) / (Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y))) * 180) / Math.PI;
@@ -598,8 +645,8 @@ describe('SOTD maps catalogue', () => {
     expect(pot.kind).toBe('object');
     expect(pot.to).toEqual({ x: 100, y: 0 });
     expect(m.pocket_target).toEqual({ x: 100, y: 0 });
-    // The 1 is drawn as a faded context path, not the scoring ball.
-    expect(m.extra_object_paths?.[0]).toMatchObject({ ballId: 1, faded: true });
+    // The 9 is drawn as a faded context path, not the scoring ball.
+    expect(m.extra_object_paths?.[0]).toMatchObject({ ballId: 9, faded: true });
     expect(m.intended_path.some((s) => s.kind === 'airborne' || s.style === 'dashed')).toBe(false);
     expect(validateSotdShotMap(m).ok).toBe(true);
     expect(auditSotdRoute(m).status).toBe('pass');

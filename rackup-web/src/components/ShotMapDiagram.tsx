@@ -370,7 +370,8 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             />
           )}
 
-          {/* 3) CB post-contact — always drawn */}
+          {/* 3) CB post-contact — always drawn. On a jump shot the airborne hop is the ONLY
+              dashed line, so the post-contact roll is solid (thin + faded) there. */}
           <PathWithArrow
             pts={geo.cueAfter}
             d={pathD(geo.cueAfter)}
@@ -378,7 +379,7 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
             width={0.72}
             sx={sx}
             sy={sy}
-            solid={false}
+            solid={geo.cueAirborne.length >= 2}
           />
           {geo.cueAfter.length >= 2 && (
             <circle
@@ -443,6 +444,25 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
               <TrainingMarker key={`m-${mk.n}`} marker={mk} sx={sx} sy={sy} r={ballR * 0.85} />
             ))}
         </g>
+
+          {/* Position convention: head = break end, left/right as you stand at the head facing the foot */}
+          <g
+            aria-hidden="true"
+            fill="rgba(245,240,230,0.55)"
+            fontSize={RAIL * 0.26}
+            fontWeight={600}
+            letterSpacing={0.18}
+            textAnchor="middle"
+            dominantBaseline="central"
+            style={{ pointerEvents: 'none', userSelect: 'none' }}
+          >
+            <text x={sx(25)} y={RAIL * 0.24}>LEFT LONG RAIL</text>
+            <text x={sx(75)} y={RAIL * 0.24}>LEFT LONG RAIL</text>
+            <text x={sx(25)} y={VB_H - RAIL * 0.24}>RIGHT LONG RAIL</text>
+            <text x={sx(75)} y={VB_H - RAIL * 0.24}>RIGHT LONG RAIL</text>
+            <text x={RAIL * 0.24} y={VB_H / 2} transform={`rotate(-90 ${RAIL * 0.24} ${VB_H / 2})`}>HEAD</text>
+            <text x={VB_W - RAIL * 0.24} y={VB_H / 2} transform={`rotate(90 ${VB_W - RAIL * 0.24} ${VB_H / 2})`}>FOOT</text>
+          </g>
       </svg>
       </div>
       <p

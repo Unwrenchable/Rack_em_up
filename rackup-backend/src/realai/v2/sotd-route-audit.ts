@@ -237,6 +237,10 @@ type Derived = {
   ghostDrawn: Pt;
   hasAir: boolean;
   air: Pt[];
+  /** Raw airborne segments in the map (must be exactly 1: a single straight hop). */
+  airSegs: number;
+  /** Separate airborne runs in the map (must be exactly 1). */
+  airRuns: number;
   clothCurve: boolean;
   ctrl: Pt | null;
   /** Jump-curve: renderer control of the post-landing swerve (null = straight leg). */
@@ -294,6 +298,8 @@ function derive(m: SotdRouteMap): Derived {
   let landCtrl: Pt | null = null;
   let afterLanding: Pt[] = [];
   let air: Pt[] = [];
+  let airSegs = 0;
+  let airRuns = 0;
   let approach: Pt[];
   if (hasAir) {
     const run: Seg[] = [];
@@ -310,19 +316,11 @@ function derive(m: SotdRouteMap): Derived {
         seen = true;
       } else if (seen) break;
     }
+    airSegs = aSegs.length;
+    airRuns = segs.filter((s, i) => isAir(s) && (i === 0 || !isAir(segs[i - 1]))).length;
     air = pathPoints(aSegs);
-    if (air.length >= 2) {
-      const a0 = air[0];
-      const a1 = air[air.length - 1];
-      if (!blocker) air = [a0, a1];
-      else {
-        const o = P(blocker);
-        const q = [a0];
-        if (dist(a0, o) > 0.4) q.push(o);
-        if (dist(a1, o) > 0.4 && dist(a1, a0) > 0.4) q.push(a1);
-        air = q;
-      }
-    }
+    // The hop is drawn as the crow flies: one straight line takeoff → landing.
+    if (air.length >= 2) air = [air[0], air[air.length - 1]];
     if (approach.length < 2) approach = dedupe([start, air[0] ?? contact]);
     if (air.length >= 2) {
       // Post-landing swerve: the drawn quadratic passes through the via farthest from the
@@ -385,7 +383,7 @@ function derive(m: SotdRouteMap): Derived {
   }
   return {
     cat, pts, start, pocket, prim, pp, contactIdx, combo, isCombo, isCarom, pocketObj, aim,
-    ghostDrawn, hasAir, air, clothCurve, ctrl, landCtrl, afterLanding, approach, objPath, cueAfter, blocker,
+    ghostDrawn, hasAir, air, airSegs, airRuns, clothCurve, ctrl, landCtrl, afterLanding, approach, objPath, cueAfter, blocker,
   };
 }
 
@@ -658,9 +656,15 @@ export function auditSotdRoute(m: SotdRouteMap): RouteAudit {
         }
         if (spin.side === 0) rep.fail('curve_no_spin', 'post-landing swerve drawn but no side spin declared');
       }
-      if (g.blocker) {
-        const b = P(g.blocker);
-        if (segDist(b, g.air[0], g.air[g.air.length - 1]) > 2) rep.fail('jump_misses_blocker', `airborne hop does not pass over blocker #${g.blocker.ballId}`);
+      // One straight dashed hop, takeoff → landing, directly over every jumped ball.
+      if (g.airSegs !== 1 || g.airRuns !== 1) {
+        rep.fail('jump_air_not_straight', `airborne hop is ${g.airSegs} segment(s) in ${g.airRuns} run(s); it must be ONE straight takeoff → landing line`);
+      }
+      const jumped = balls.filter((b) => b.role === 'blocker');
+      if (!jumped.length) rep.fail('jump_no_ball', 'jump shot with no jumped ball drawn under the hop');
+      for (const jb of jumped) {
+        const off = segDist(P(jb), g.air[0], g.air[g.air.length - 1]);
+        if (off > 0.6) rep.fail('jump_misses_blocker', `airborne hop passes ${off.toFixed(1)} in off jumped ball #${jb.ballId}; it must fly directly over it`);
       }
     }
   } else if (g.clothCurve && g.ctrl) {

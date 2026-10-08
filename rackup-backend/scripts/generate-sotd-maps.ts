@@ -170,6 +170,13 @@ function cutCue(ob: Pt, toward: Pt, cutDeg: number, gap: number, sign: 1 | -1 = 
   return clampOnTable(sub(physicalGhost(ob, toward), scale(incoming, gap)));
 }
 
+/** Cue on the vertical line `x` set for an exact cut (behind the physical ghost). */
+function cutCueAtX(ob: Pt, toward: Pt, cutDeg: number, sign: 1 | -1, x: number): Pt {
+  const a = rotate(norm(sub(toward, ob)), sign * cutDeg);
+  const g = physicalGhost(ob, toward);
+  return sub(g, scale(a, (g.x - x) / a.x));
+}
+
 function midpoint(a: Pt, b: Pt): Pt {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
@@ -274,25 +281,33 @@ const LAYOUTS: Record<string, Layout> = {
     cueGap: 12.5,
   },
   'sotd-03': {
-    // OB on foot spot, CB one diamond away, straight; CB comes back 1–2 diamonds.
+    // OB on foot spot, CB one diamond away, straight; CB draws straight back two diamonds.
     kind: 'line',
     pocket: 'foot-near',
     balls: [{ ballId: 1, x: FOOT_SPOT.x, y: FOOT_SPOT.y, role: 'object' }],
     cueGap: 12.5,
-    finishLen: 18,
+    finishLen: 25,
   },
   'sotd-04': (() => {
     // Lead ball pocketed with a nearly straight follow shot from behind the head string; the
     // natural-roll CB rolls on into balls 2 and 3 (a dead-straight follow would chase the OB).
     const pocket = POCKETS['foot-far'];
-    const lead = { x: 76, y: 36 };
+    const lead = { x: 75, y: 37.5 };
     const u = norm(sub(pocket, lead));
     const a = rotate(u, -12);
     const g = sub(lead, scale(u, D));
     const roll = cbDeflect(a, u, 1);
-    const b2 = add(g, scale(roll, 11));
+    // 2-ball one diamond from the 1 on the roll-on line (solve the roll length).
+    let lo = 4;
+    let hi = 30;
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (dist(add(g, scale(roll, mid)), lead) < 12.5) lo = mid;
+      else hi = mid;
+    }
+    const b2 = add(g, scale(roll, (lo + hi) / 2));
     const b3 = add(b2, scale(roll, D + 0.05));
-    const cue = sub(lead, scale(a, (lead.x - 24.5) / a.x));
+    const cue = sub(g, scale(a, (g.x - 25) / a.x));
     return {
       kind: 'line' as const,
       pocket: 'foot-far' as const,
@@ -313,7 +328,7 @@ const LAYOUTS: Record<string, Layout> = {
     cutDeg: 35,
     cutSign: 1,
     cueGap: 25,
-    balls: [{ ballId: 1, x: 90, y: 12, role: 'object' }],
+    balls: [{ ballId: 1, x: 87.5, y: 12.5, role: 'object' }],
   },
   'sotd-06': {
     // Same geometry as the inside-english cut, 30° cut, CB two diamonds out; left = outside.
@@ -322,23 +337,28 @@ const LAYOUTS: Record<string, Layout> = {
     cutDeg: 30,
     cutSign: 1,
     cueGap: 25,
-    balls: [{ ballId: 1, x: 90, y: 12, role: 'object' }],
+    balls: [{ ballId: 1, x: 87.5, y: 12.5, role: 'object' }],
   },
   'sotd-07': {
     // CB near the left (far-side) head corner; far long rail → near long rail → OB a diamond
     // and a half off the far foot corner.
     kind: 'kick',
     pocket: 'foot-far',
-    cue: { x: 14, y: 40 },
+    cue: { x: 12.5, y: 37.5 },
     rails: ['far', 'near'],
-    balls: [{ ballId: 1, x: 84, y: 38, role: 'object' }],
+    lockBalls: true,
+    balls: [
+      { ballId: 1, x: 81.25, y: 37.5, role: 'object' },
+      // 8-ball halfway between the CB and the 1: the reason for the kick.
+      { ballId: 8, x: 46.875, y: 37.5, role: 'blocker' },
+    ],
   },
   'sotd-08': (() => {
     // A on the foot spot, B on the spot line toward the corner, CB one diamond behind A.
     const pocket = 'foot-far' as const;
     const b1 = { x: FOOT_SPOT.x, y: FOOT_SPOT.y };
     const toward = norm(sub(POCKETS[pocket], b1));
-    const b2 = add(b1, scale(toward, 12));
+    const b2 = add(b1, scale(toward, 12.5));
     return {
       kind: 'line' as const,
       pocket,
@@ -353,9 +373,9 @@ const LAYOUTS: Record<string, Layout> = {
     // Text: CB hits the 1 first, the 1 moves aside, the CB caroms into the 9 near the corner
     // jaw and kisses it in. Half-ball hit with natural roll (30° rule) onto the 9's ghost.
     const pocket = POCKETS['foot-near'];
-    const b1 = { x: 70, y: 18 };
-    const b9 = { x: 95.2, y: 3.6 };
-    const sol = solveCarom(b1, b9, pocket, 30, 1, 1);
+    const b9 = { x: 68.75, y: 18.75 };
+    const b1 = { x: 95, y: 3.5 };
+    const sol = solveCarom(b9, b1, pocket, 30, 1, 1);
     const cue = sub(sol.g1, scale(sol.a, 30));
     return {
       kind: 'explicit' as const,
@@ -363,15 +383,15 @@ const LAYOUTS: Record<string, Layout> = {
       cue,
       lockBalls: true,
       balls: [
-        { ballId: 1, ...b1, role: 'object' as const },
         { ballId: 9, ...b9, role: 'object' as const },
+        { ballId: 1, ...b1, role: 'object' as const },
       ],
       via: [sol.g1, sol.g2],
       pathKinds: ['ground', 'cue_after', 'object'] as SotdPathKind[],
       // Pin the (hidden) ghost on the CB's real line: the half-ball contact on the 1.
       ghostBall: { ...roundPt(sol.g1), show: false },
-      cbRest: { x: 95.6, y: 6.6 },
-      extraPaths: [{ ballId: 1, pts: [b1, add(b1, scale(sol.u, 9))], faded: true }],
+      cbRest: { x: sol.g2.x + 2.2, y: sol.g2.y + 1.6 },
+      extraPaths: [{ ballId: 9, pts: [b9, add(b9, scale(sol.u, 9))], faded: true }],
     };
   })(),
   'sotd-10': {
@@ -380,37 +400,41 @@ const LAYOUTS: Record<string, Layout> = {
     pocket: 'foot-near',
     cutDeg: 55,
     cutSign: -1,
-    cueGap: 28,
+    cueGap: 25,
     lockBalls: true,
     balls: [{ ballId: 1, x: 75, y: FROZEN, role: 'object' }],
     finishLen: 6,
   },
-  'sotd-11': {
-    // Long straight-ish follow from the head string; OB toward the foot corner; the CB keeps
-    // rolling 2+ diamonds past contact (a 12° angle sends it toward the foot rail, not the pocket).
-    kind: 'cut',
-    pocket: 'foot-far',
-    cutDeg: 12,
-    cutSign: -1,
-    cueGap: 52.2,
-    balls: [{ ballId: 1, x: 74, y: 30, role: 'object' }],
-    finishLen: 25.5,
-  },
+  'sotd-11': (() => {
+    // Long follow: 1-ball on the foot string 1.5 diamonds from the left long rail, CB on the
+    // head string set for a 12° cut; the CB keeps rolling 2+ diamonds past contact.
+    const ob = { x: 75, y: 31.25 };
+    return {
+      kind: 'cut' as const,
+      pocket: 'foot-far' as const,
+      cutDeg: 12,
+      cutSign: -1 as const,
+      cue: cutCueAtX(ob, POCKETS['foot-far'], 12, -1, 25),
+      lockBalls: true,
+      balls: [{ ballId: 1, ...ob, role: 'object' as const }],
+      finishLen: 25.5,
+    };
+  })(),
   'sotd-12': {
     // OB near the foot, CB 2–2.5 diamonds away straight; power draw back past the centre string.
     kind: 'line',
     pocket: 'foot-near',
-    balls: [{ ballId: 1, x: 80, y: 15, role: 'object' }],
+    balls: [{ ballId: 1, x: 81.25, y: 12.5, role: 'object' }],
     cueGap: 28,
     finishLen: 38,
   },
   'sotd-13': {
-    // 9 slightly off centre; long rail → short rail → far corner.
+    // 9 on the center string one diamond off the right long rail; right long rail → foot rail → head-left corner.
     kind: 'bank',
     pocket: 'head-far',
     rails: ['near', 'foot'],
-    balls: [{ ballId: 9, x: 47, y: 17, role: 'object' }],
-    cueGap: 16,
+    balls: [{ ballId: 9, x: 50, y: 12.5, role: 'object' }],
+    cueGap: 18.75,
   },
   'sotd-14': (() => {
     // Straight-in OB to the corner; a blocker sits just off the CB's line; high-right swerve
@@ -531,7 +555,7 @@ Object.assign(LAYOUTS, {
     cutSign: 1,
     cueGap: 20,
     lockBalls: true,
-    balls: [{ ballId: 1, x: 70, y: 12.5, role: 'object' }],
+    balls: [{ ballId: 1, x: 68.75, y: 12.5, role: 'object' }],
   },
   'sotd-20': {
     // Long straight stop: CB just past the head string, OB on the foot string, into the corner.
@@ -559,7 +583,11 @@ Object.assign(LAYOUTS, {
     cue: { x: 20, y: 14 },
     rails: ['far'],
     lockBalls: true,
-    balls: [{ ballId: 1, x: 52.8, y: 2.6, role: 'object' }],
+    balls: [
+      { ballId: 1, x: 52.8, y: 2.6, role: 'object' },
+      // 5-ball halfway between the CB and the 1 blocks the direct nick: the reason to kick.
+      { ballId: 5, x: 36.4, y: 8.3, role: 'blocker' },
+    ],
     finishLen: 5,
   },
   'sotd-23': (() => {
@@ -631,7 +659,7 @@ Object.assign(LAYOUTS, {
     pocket: 'foot-far',
     rails: ['near'],
     cueGap: 16,
-    balls: [{ ballId: 1, x: 50, y: 24, role: 'object' }],
+    balls: [{ ballId: 1, x: 50, y: 25, role: 'object' }],
   },
   'sotd-28': (() => {
     // Safety: 8 in the centre, your ball free. Thin stun touch barely moves your ball; the CB
@@ -709,19 +737,26 @@ Object.assign(LAYOUTS, {
     };
   })(),
   'sotd-32': (() => {
-    // Small hop over a chalk cube / paper ring (no ball), short pot in the near corner, draw back.
+    // Jump-Cut Over the 5: the 5 sits on the line to a 30° cut on the 1 (OB goes right into the
+    // foot-right corner); jump the 5, land 7 inches before the ghost, cut the 1 in.
     const pocket = POCKETS['foot-near'];
-    const ob = { x: 88, y: 10 };
+    const ob = { x: 87.5, y: 18.75 };
     const u = norm(sub(pocket, ob));
-    const cue = sub(ob, scale(u, 16));
+    const a = rotate(u, 30);
+    const g = physicalGhost(ob, pocket);
+    const cue = sub(g, scale(a, 20));
+    const blocker = add(cue, scale(a, 9));
     return {
       kind: 'jump' as const,
       pocket: 'foot-near' as const,
       cue,
       lockBalls: true,
-      jumpTakeoff: add(cue, scale(u, 4)),
-      jumpLanding: add(cue, scale(u, 9)),
-      balls: [{ ballId: 1, ...ob, role: 'object' as const }],
+      jumpTakeoff: sub(blocker, scale(a, 4)),
+      jumpLanding: add(blocker, scale(a, 4)),
+      balls: [
+        { ballId: 1, ...ob, role: 'object' as const },
+        { ballId: 5, ...blocker, role: 'blocker' as const },
+      ],
     };
   })(),
   'sotd-33': {
@@ -784,10 +819,11 @@ Object.assign(LAYOUTS, {
     balls: [{ ballId: 8, x: 62, y: 27, role: 'object' }],
   },
   'sotd-39': (() => {
-    // CB only: four called rails (far → foot → near → head), parking near the foot spot.
-    const cue = { x: 9, y: 46 };
-    const end = { x: 70, y: 28 };
-    const chain = railChain(cue, end, ['far', 'foot', 'near', 'head']);
+    // CB only: four called rails (left long → head → right long → foot), every contact on a
+    // diamond, finishing on the foot spot.
+    const cue = { x: 37.5, y: 43.75 };
+    const end = { ...FOOT_SPOT };
+    const chain = railChain(cue, end, ['far', 'head', 'near', 'foot']);
     if (!chain) throw new Error('sotd-39: no four-rail tour');
     return {
       kind: 'explicit' as const,
@@ -887,28 +923,36 @@ Object.assign(LAYOUTS, {
     balls: [{ ballId: 1, x: 2.7, y: 46.3, role: 'object' }],
   },
   'sotd-45': (() => {
-    // Hop over a towel roll / jump aid (no ball), OB just beyond, near corner.
+    // Elevator Jump Over Two Balls: the 5 and 6 frozen together on the line to the 1; a longer,
+    // higher hop clears both and lands before the 1 (straight into the foot-right corner).
     const pocket = POCKETS['foot-near'];
     const ob = { x: 86, y: 8 };
     const u = norm(sub(pocket, ob));
-    const cue = sub(ob, scale(u, 18));
+    const cue = sub(ob, scale(u, 22));
+    const b5 = add(cue, scale(u, 9));
+    const b6 = add(b5, scale(u, D + 0.06));
     return {
       kind: 'jump' as const,
       pocket: 'foot-near' as const,
       cue,
       lockBalls: true,
-      jumpTakeoff: add(cue, scale(u, 5)),
-      jumpLanding: add(cue, scale(u, 12)),
-      balls: [{ ballId: 1, ...ob, role: 'object' as const }],
+      jumpTakeoff: sub(b5, scale(u, 4)),
+      jumpLanding: add(b6, scale(u, 4)),
+      balls: [
+        { ballId: 1, ...ob, role: 'object' as const },
+        { ballId: 5, ...b5, role: 'blocker' as const },
+        { ballId: 6, ...b6, role: 'blocker' as const },
+      ],
     };
   })(),
   'sotd-46': {
-    // OB a ball off the long rail: rail → out → rail → corner (two rails before the pocket).
+    // Two-Rail Cross Bank: 1-ball three diamonds from the head rail, half a diamond off the right
+    // long rail; banks right long rail → left long rail → foot-right corner.
     kind: 'bank',
     pocket: 'foot-near',
     rails: ['near', 'far'],
-    balls: [{ ballId: 1, x: 12, y: 3.4, role: 'object' }],
-    cueGap: 13,
+    balls: [{ ballId: 1, x: 37.5, y: 6.25, role: 'object' }],
+    cueGap: 17.5,
     lockBalls: true,
   },
   'sotd-47': (() => {
@@ -934,7 +978,7 @@ Object.assign(LAYOUTS, {
     cutSign: -1,
     cueGap: 20,
     lockBalls: true,
-    balls: [{ ballId: 1, x: 90, y: 12, role: 'object' }],
+    balls: [{ ballId: 1, x: 87.5, y: 12.5, role: 'object' }],
     finishLen: 16,
   },
   'sotd-49': {
@@ -943,7 +987,7 @@ Object.assign(LAYOUTS, {
     pocket: 'foot-near',
     cutDeg: 75,
     cutSign: -1,
-    cueGap: 21,
+    cue: { x: 75, y: 18.75 },
     lockBalls: true,
     balls: [{ ballId: 1, x: 80, y: FROZEN, role: 'object' }],
     finishLen: 5,
@@ -973,7 +1017,11 @@ Object.assign(LAYOUTS, {
       jumpLanding: land,
       landSamples: sampleQuadratic(land, ctrl, ghost, 10).slice(1),
       landCtrl: ctrl,
-      balls: [{ ballId: 1, ...ob, role: 'object' as const }],
+      balls: [
+        { ballId: 1, ...ob, role: 'object' as const },
+        // The 7 sits halfway along the hop: the reason to jump.
+        { ballId: 7, ...sub(land, scale(dj, 3.5)), role: 'blocker' as const },
+      ],
     };
   })(),
   'sotd-51': (() => {
@@ -1134,15 +1182,16 @@ function buildPath(layout: Layout): {
       throw new Error('jump layout needs cue, takeoff and landing');
     }
     const cue = { ...layout.cue };
-    const blocker = balls.find((b) => b.role === 'blocker');
-    const pts: Pt[] = [cue, { ...layout.jumpTakeoff }];
-    const kinds: SotdPathKind[] = ['ground'];
-    if (blocker) {
-      pts.push({ x: blocker.x, y: blocker.y });
-      kinds.push('airborne');
+    // The hop is ONE straight airborne segment, takeoff → landing, as the crow flies; every
+    // jumped ball sits directly under it (no vertex over the ball, no bend in the air).
+    const takeoff = { ...layout.jumpTakeoff };
+    const landing = { ...layout.jumpLanding };
+    for (const b of balls.filter((x) => x.role === 'blocker')) {
+      const off = pointToSegmentDistance(b, takeoff, landing);
+      if (off > 0.3) throw new Error(`jump: blocker #${b.ballId} is ${off.toFixed(2)} off the takeoff–landing line`);
     }
-    pts.push({ ...layout.jumpLanding });
-    kinds.push('airborne');
+    const pts: Pt[] = [cue, takeoff, landing];
+    const kinds: SotdPathKind[] = ['ground', 'airborne'];
     for (const s of layout.landSamples ?? []) {
       pts.push({ ...s });
       kinds.push('ground');

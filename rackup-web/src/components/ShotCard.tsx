@@ -12,6 +12,18 @@ import {
   type TableSize,
 } from '../lib/shot-map-geometry';
 
+/** Same convention as SHOT_POSITION_CONVENTION in the backend catalogue (shot-catalog.ts). */
+const POSITION_CONVENTION: readonly string[] = [
+  'Head = the break end; foot = the racking end.',
+  'Left and right are as you stand at the head rail facing the foot (left long rail, right long rail).',
+  'Pockets: head-left, head-right, foot-left, foot-right corners; left and right side pockets.',
+  'Head string, center string, foot string and long string; head spot, center spot, foot spot.',
+  'Distances are to the ball’s centre; 1 diamond = 12.5 inches on a 9-foot table.',
+  'Frozen = touching. Half a ball off the rail = centre 2.25 inches from the cushion.',
+  'Route lines read CB → rails → balls → pocket, in the order they are touched.',
+  'Jumps: one straight dashed hop from takeoff to landing, directly over the jumped ball.',
+];
+
 const TIP_SHORT: Record<string, string> = {
   center: 'Center (stun)',
   '12-high': 'High (follow)',
@@ -216,6 +228,14 @@ export function ShotCard({
               <li key={line}>{line}</li>
             ))}
           </ul>
+          <details className="muted" style={{ marginTop: 6, fontSize: '0.8rem' }}>
+            <summary>How to read positions</summary>
+            <ul className="shot-list">
+              {POSITION_CONVENTION.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </details>
         </div>
 
         <div>

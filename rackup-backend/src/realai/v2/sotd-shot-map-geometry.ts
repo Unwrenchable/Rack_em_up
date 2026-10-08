@@ -654,6 +654,24 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
       );
     }
     const airSegs = segs.filter((s) => segmentIsAirborne(s));
+    if (airSegs.length > 1) {
+      issues.push(
+        issue(
+          'jump_airborne_single',
+          `airborne hop has ${airSegs.length} segments — draw ONE straight dashed line from takeoff to landing, as the crow flies`,
+        ),
+      );
+    }
+    if (airSegs.length === 1) {
+      for (const b of (map.object_ball_positions ?? []).filter((x) => x.role === 'blocker')) {
+        const off = pointToSegmentDistance(b, airSegs[0].from, airSegs[0].to);
+        if (off > 0.6) {
+          issues.push(
+            issue('jump_airborne_single', `straight hop passes ${off.toFixed(1)} off jumped ball #${b.ballId} — it must fly directly over it`),
+          );
+        }
+      }
+    }
     if (airSegs.length) {
       const takeoff = airSegs[0].from;
       const landing = airSegs[airSegs.length - 1].to;

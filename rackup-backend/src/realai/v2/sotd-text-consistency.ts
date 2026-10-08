@@ -10,8 +10,15 @@
  *  - tip words vs the stroke: tip zone ↔ english ↔ tipDetail words, draw / follow / stop
  *    finish, inside / outside english vs the drawn cut side, running / reverse vs the rail
  *  - cut words ("30–40° cut", "50°+", "¾ hit", "thin", "straight" / "straight-ish")
- *  - distances and places ("one diamond back", "foot spot", "behind the head string",
- *    "frozen on the rail", "near a rail"), blockers vs soft props, "CB only"
+ *  - placements in the position convention (see SHOT_POSITION_CONVENTION in shot-catalog.ts):
+ *    "1-ball: on the foot spot", "Cue ball: one diamond from the right long rail",
+ *    "frozen to the left long rail", "half a ball off the right long rail", "halfway between
+ *    the cue ball and the 1", "2 inches past the head string", "frozen to the 2" …
+ *  - the "Route:" setup line (CB → rails → balls → pocket) against the drawn route, and the
+ *    pocket field naming the exact drawn pocket ("foot-left corner", "right side pocket")
+ *  - finishes ("finish within half a diamond of the foot spot", "passes within … of the head spot")
+ *  - no vague words (near, about, almost, roughly, slightly, ~, -ish …) in any field, no
+ *    unexplained props: every ball the map draws is named by number, no non-ball obstacles
  *  - every shot has a one-sentence `what` and `why`
  *
  * It is deliberately literal: a phrase it does not understand is ignored, a phrase it does
@@ -39,7 +46,12 @@ export type ConsistencyShot = {
   tipZone: string;
   tipDetail: string;
   english: string;
+  elevation?: string;
+  speedDetail?: string;
+  bridge?: string;
   steps: string[];
+  tips?: string[];
+  commonMistakes?: string[];
   successLooksLike: string;
 };
 
@@ -50,6 +62,32 @@ const D = BALL_DIAMETER;
 const DIAMOND = 12.5;
 const FOOT_SPOT: Pt = { x: 75, y: 25 };
 const HEAD_SPOT: Pt = { x: 25, y: 25 };
+const CENTER_SPOT: Pt = { x: 50, y: 25 };
+const SPOTS: Record<string, Pt> = { foot: FOOT_SPOT, head: HEAD_SPOT, center: CENTER_SPOT };
+const STRING_X: Record<string, number> = { head: 25, center: 50, foot: 75 };
+
+/** Precise pocket names (position convention) ↔ generator pocket ids. */
+export const SOTD_POCKET_NAMES: Record<string, string> = {
+  'head-near': 'head-right corner',
+  'head-far': 'head-left corner',
+  'side-near': 'right side pocket',
+  'side-far': 'left side pocket',
+  'foot-near': 'foot-right corner',
+  'foot-far': 'foot-left corner',
+};
+/** Precise rail names: near (y=0) = right long rail, far (y=50) = left long rail. */
+export const SOTD_RAIL_NAMES: Record<string, string> = {
+  near: 'right long rail',
+  far: 'left long rail',
+  head: 'head rail',
+  foot: 'foot rail',
+};
+
+/** Vague placement / instruction words the catalogue must not use. */
+export const SOTD_VAGUE_WORDS =
+  /\b(near|nearly|nearby|almost|about|approximately|approx|roughly|somewhere|close to|a bit|a few|slight|slightly|kind of|sort of)\b|~|\b\w+-ish\b|\bprops?\b/i;
+/** Non-ball obstacles: a diagram only ever shows balls, so the text may not lean on these. */
+const NON_BALL_PROPS = /chalk cube|towel|jump aid|jump trainer|paper ring|donut|imaginary|soft (low )?obstacle|low (soft )?obstacle|rack ghost/i;
 
 const sub = (a: Pt, b: Pt): Pt => ({ x: a.x - b.x, y: a.y - b.y });
 const dot = (a: Pt, b: Pt) => a.x * b.x + a.y * b.y;
@@ -110,6 +148,47 @@ export function checkShotTextConsistency(shot: ConsistencyShot, map: SotdRouteMa
     else if (/[.!?]\s+\S/.test(val.trim()) || val.length > 170) bad('what_why', `"${key}" should be one short sentence`);
   }
 
+  // ── vague words / props (every text field) ────────────────────────────────
+  const fields: Array<[string, string]> = [
+    ['name', shot.name],
+    ['tagline', shot.tagline],
+    ['what', shot.what ?? ''],
+    ['why', shot.why ?? ''],
+    ['table', shot.table],
+    ...shot.setup.map((x, i) => [`setup[${i}]`, x] as [string, string]),
+    ['objectBall', shot.objectBall],
+    ['pocket', shot.pocket],
+    ['tipDetail', shot.tipDetail],
+    ['english', shot.english],
+    ['elevation', shot.elevation ?? ''],
+    ['speedDetail', shot.speedDetail ?? ''],
+    ['bridge', shot.bridge ?? ''],
+    ...shot.steps.map((x, i) => [`steps[${i}]`, x] as [string, string]),
+    ...(shot.tips ?? []).map((x, i) => [`tips[${i}]`, x] as [string, string]),
+    ...(shot.commonMistakes ?? []).map((x, i) => [`commonMistakes[${i}]`, x] as [string, string]),
+    ['successLooksLike', shot.successLooksLike],
+  ];
+  for (const [key, val] of fields) {
+    const v = val.match(SOTD_VAGUE_WORDS);
+    if (v) bad('vague', `${key} uses the vague word "${v[0]}"`);
+    const p = val.match(NON_BALL_PROPS);
+    if (p) bad('prop', `${key} uses a non-ball obstacle ("${p[0]}"); diagrams only show balls`);
+    if (/\b(coin|marker)\b/i.test(val) && (map.shot_goal ?? 'pocket') !== 'spot') bad('prop', `${key} uses a marker but the map has no spot goal`);
+  }
+  const fullText = fields.map(([, v]) => v).join(' | ');
+  for (const b of map.object_ball_positions ?? []) {
+    if (!namedBalls(fullText).includes(b.ballId)) bad('prop', `map draws the ${b.ballId}-ball (${b.role ?? 'object'}) but the text never names it`);
+  }
+  if (!/^None\b/.test(shot.objectBall.trim()) && !/\b\d{1,2}-ball\b/.test(shot.objectBall)) {
+    bad('object_ball', `objectBall "${shot.objectBall}" must name the ball by number (e.g. "1-ball") or start with "None"`);
+  }
+
+  // ── placements / route / finish (position convention) ────────────────────
+  checkPlacements(shot, map, bad);
+  checkRouteLine(shot, map, bad);
+  checkFinish(shot, map, bad);
+  checkPocketName(shot, map, bad);
+
   // ── category / tip ↔ english ──────────────────────────────────────────────
   if ((map.category || '').toLowerCase() !== shot.category) bad('category', `map category ${map.category} ≠ catalogue ${shot.category}`);
   if (map.tip_zone !== shot.tipZone) bad('tip_zone', `map tip ${map.tip_zone} ≠ catalogue ${shot.tipZone}`);
@@ -161,8 +240,6 @@ export function checkShotTextConsistency(shot: ConsistencyShot, map: SotdRouteMa
   if (goal === 'path') {
     const hits = railHits(pathRoute).length;
     for (const w of railWords) if (hits < w.min || hits > w.max) bad('rail_count', `text says ${w.text} but the CB tour touches ${hits}`);
-    const end = pathRoute[pathRoute.length - 1];
-    if (/near the foot spot/i.test(all) && dist(end, FOOT_SPOT) > 8) bad('place', 'tour should end near the foot spot');
     return { id: shot.id, ok: issues.length === 0, issues };
   }
 
@@ -187,22 +264,7 @@ export function checkShotTextConsistency(shot: ConsistencyShot, map: SotdRouteMa
   const noPocket = /^(none|n\/a)\b/.test(pk);
   const optional = /optional|if available/.test(pk);
   if (noPocket && goal === 'pocket') bad('pocket', `text says "${shot.pocket}" but the map pots a ball`);
-  if (!noPocket && !optional && goal !== 'pocket' && !/both corners/.test(pk)) bad('pocket', `text calls a pocket ("${shot.pocket}") but the map has no pot`);
-  if (goal === 'pocket') {
-    const id = nearestPocketId(g.pocket).id;
-    if (/\bside\b/.test(pk) && !id.startsWith('side')) bad('pocket', `text says side pocket; map pots in ${id}`);
-    if (/\bcorner\b/.test(pk) && !/side/.test(pk) && !id.startsWith('head') && !id.startsWith('foot')) bad('pocket', `text says corner; map pots in ${id}`);
-    if (/\bfoot corner\b/.test(pk) && !id.startsWith('foot')) bad('pocket', `text says foot corner; map pots in ${id}`);
-  }
-  if (/both corners/.test(pk)) {
-    const corners = (map.extra_object_paths ?? []).filter((x) => {
-      const end = x.pts[x.pts.length - 1];
-      const n = nearestPocketId({ x: Number(end.x), y: Number(end.y) });
-      return n.d < 1 && !n.id.startsWith('side');
-    });
-    if (corners.length < 2) bad('pocket', 'text says both corners but the map does not send two balls to corners');
-  }
-
+  if (!noPocket && !optional && goal !== 'pocket' && !/both (foot )?corners|\bthe \d{1,2} in the\b/.test(pk)) bad('pocket', `text calls a pocket ("${shot.pocket}") but the map has no pot`);
   // ── rails ─────────────────────────────────────────────────────────────────
   const cbRails = railHits(g.pts.slice(0, g.contactIdx + 1)).length;
   const obRails = railHits(g.objPath).length;
@@ -272,56 +334,314 @@ export function checkShotTextConsistency(shot: ConsistencyShot, map: SotdRouteMa
   // curve / swerve direction words
   if (/right bend|bends? right|bend right|curves? right/i.test(all + (shot.what ?? '')) && !tp.right) bad('curve', 'text says the CB bends right but the tip has no right english');
 
-  // ── places / distances / frozen ───────────────────────────────────────────
-  const diam = setupText.match(/CB (?:is )?(one|two|1|2)(?:[–-](\d(?:\.\d)?))? diamonds? (?:back|away|out|behind)/i) ??
-    setupText.match(/CB on the extended line, (\d) diamonds? behind/i);
-  if (diam) {
-    const lo = (NUM[diam[1].toLowerCase()] ?? Number(diam[1])) * DIAMOND;
-    const hi = (diam[2] ? Number(diam[2]) : NUM[diam[1].toLowerCase()] ?? Number(diam[1])) * DIAMOND;
-    const d = dist(cue, prim);
-    if (d < lo - 3 || d > hi + 4) bad('distance', `text says ${diam[0]} but the CB is ${(d / DIAMOND).toFixed(1)} diamonds from the OB`);
-  }
-  if (/\bon (the )?foot spot\b|placed on foot spot|replaced on foot spot/i.test(setupText) && dist(prim, FOOT_SPOT) > 1.5) {
-    bad('place', 'text puts the OB on the foot spot');
-  }
-  if (/near the foot spot/i.test(setupText) && dist(prim, FOOT_SPOT) > 12) bad('place', 'text puts the balls near the foot spot');
-  if (/behind the head string|in the kitchen(?! or)|kitchen mark/i.test(setupText) && !/kitchen or/i.test(setupText) && cue.x > 25.5) {
-    bad('place', 'text puts the CB behind the head string');
-  }
-  if (/just past (the )?head string/i.test(setupText) && (cue.x < 25 || cue.x > 33)) bad('place', 'text puts the CB just past the head string');
-  if (/CB near head string/i.test(setupText) && Math.abs(cue.x - 25) > 5) bad('place', 'text puts the CB near the head string');
-  if (/CB near head rail/i.test(setupText) && cue.x > 20) bad('place', 'text puts the CB near the head rail');
-  if (/CB (near rail|within a few inches of a rail)/i.test(setupText) && cushionGap(cue) > 6) bad('place', 'text puts the CB near a rail');
-  if (/CB: center table|CB center table/i.test(setupText) && Math.abs(cue.y - 25) > 3) bad('place', 'text puts the CB in the middle of the table');
-  if (/near the head spot/i.test(setupText) && Math.min(...pathRoute.slice(0, -1).map((p, i) => segDist(HEAD_SPOT, p, pathRoute[i + 1]))) > 6) {
-    bad('place', 'text says the CB tour returns near the head spot');
-  }
-  if (/\bOB frozen (on|mid)|\bOB frozen or nearly frozen/i.test(setupText) && cushionGap(prim) > 1.3) {
-    bad('frozen', 'text freezes the OB on a rail');
-  }
-  if (/B frozen on rail/i.test(setupText)) {
-    const b = balls.find((x) => x !== prim && (!x.role || x.role === 'object'));
-    if (!b || cushionGap(b) > 1.3) bad('frozen', 'text freezes ball B on the rail');
-    else if (dist(b, prim) > D + 0.2 && /A frozen to B/i.test(setupText)) bad('frozen', 'text freezes A to B');
-  }
-  if (/CB (almost touching|nearly frozen to) OB/i.test(setupText) && dist(cue, prim) > D + 0.6) bad('frozen', 'text puts the CB almost touching the OB');
-  if (/OB near (the )?foot rail/i.test(setupText) && 100 - prim.x > 12.5) bad('place', 'text puts the OB near the foot rail');
-  if (/OB (one|a) diamond (above|off) the side|OB a diamond off the side rail/i.test(setupText) && Math.abs(Math.min(prim.y, 50 - prim.y) - DIAMOND) > 3) {
-    bad('place', 'text puts the OB a diamond off the side rail');
-  }
-
   // ── blockers vs soft props ────────────────────────────────────────────────
   const blockers = balls.filter((b) => b.role === 'blocker');
-  const softProp = /chalk cube|towel|jump aid|paper ring|soft low obstacle|low soft obstacle|soft obstacle|imaginary blocker/i.test(setupText);
-  const wantsBlocker = /blocker|blocking|angle blocked|snookered/i.test(setupText) && !softProp;
-  if (softProp && blockers.length && !/or real ball/i.test(setupText)) bad('blocker', 'text uses a soft prop (no ball) but the map draws a blocker ball');
+  const wantsBlocker = /\bblocker\b|\bblocking\b|\bblocks\b|angle blocked|snookered/i.test(setupText);
   if (wantsBlocker && !blockers.length) bad('blocker', 'text has a ball blocking the line but the map shows none');
-  if (/two blockers|two object balls almost blocking/i.test(setupText) && blockers.length < 2) bad('blocker', 'text has two blockers');
-  if (blockers.length && !/block|obstacle|snooker|gate|troublemaker|offline/i.test(all)) bad('blocker', 'map draws a blocker the text never mentions');
-  const props = balls.filter((b) => b.role === 'prop');
-  if (props.length && !/\b(balls|mirror|stack|cluster|three|8)\b/i.test(spec)) bad('prop', `map draws extra ball(s) ${props.map((b) => '#' + b.ballId).join(', ')} the text never mentions`);
+  if (/two blockers/i.test(setupText) && blockers.length < 2) bad('blocker', 'text has two blockers');
+  if (blockers.length && !/block|snooker|gate|jump|swerve|curve|kick|massé|masse/i.test(all)) bad('blocker', 'map draws a blocker the text never mentions');
 
   return { id: shot.id, ok: issues.length === 0, issues };
+}
+
+// ── position convention helpers ─────────────────────────────────────────────
+type Bad = (code: string, message: string) => void;
+
+const NUM_RE = '(half a|an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\\d+(?:\\.\\d+)?)';
+const UNIT_RE = '(diamonds?|inch(?:es)?|in)\\b';
+const RAIL_RE = '(?:the )?(left long|right long|head|foot) rail';
+const BALL_RE = '(?:the )?(cue ball|CB|\\d{1,2}(?:-ball)?)\\b';
+const POCKET_RE = '(?:the )?((?:head|foot)-(?:left|right) corner|(?:left|right) side pocket)';
+const WORD_NUM: Record<string, number> = {
+  'half a': 0.5, a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+  seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+const toNum = (t: string) => WORD_NUM[t.toLowerCase()] ?? Number(t);
+const toInches = (n: string, unit: string) => (/^d/i.test(unit) ? toNum(n) * DIAMOND : toNum(n));
+const tolFor = (unit: string) => (/^d/i.test(unit) ? 0.2 * DIAMOND : 1);
+
+function railDist(p: Pt, rail: string): number {
+  const r = rail.toLowerCase();
+  if (r.startsWith('left')) return 50 - p.y;
+  if (r.startsWith('right')) return p.y;
+  if (r.startsWith('head')) return p.x;
+  return 100 - p.x;
+}
+
+function pocketPt(name: string): Pt | null {
+  const id = Object.entries(SOTD_POCKET_NAMES).find(([, n]) => n === name.toLowerCase())?.[0];
+  return id ? POCKETS[id as keyof typeof POCKETS] : null;
+}
+
+function pocketNameAt(p: Pt): string {
+  return SOTD_POCKET_NAMES[nearestPocketId(p).id] ?? nearestPocketId(p).id;
+}
+
+function routePoints(map: SotdRouteMap): Pt[] {
+  const pts: Pt[] = [];
+  for (const s of map.intended_path ?? []) {
+    if (!pts.length) pts.push({ x: Number(s.from.x), y: Number(s.from.y) });
+    pts.push({ x: Number(s.to.x), y: Number(s.to.y) });
+  }
+  return pts;
+}
+
+function cbRestOf(map: SotdRouteMap): Pt | null {
+  const rest = (map.landing_zones ?? []).find((z) => /cb|rest|cue/i.test(z.label));
+  return rest ? { x: Number(rest.x), y: Number(rest.y) } : null;
+}
+
+/** Resolve "the cue ball" / "the 1" / "the 1-ball" to a drawn position. */
+function ballPt(map: SotdRouteMap, ref: string): Pt | null {
+  const r = ref.toLowerCase();
+  if (r === 'cue ball' || r === 'cb') return { x: Number(map.cue_ball_start.x), y: Number(map.cue_ball_start.y) };
+  const n = Number(r.replace(/-ball$/, ''));
+  const b = (map.object_ball_positions ?? []).find((x) => x.ballId === n);
+  return b ? { x: Number(b.x), y: Number(b.y) } : null;
+}
+
+const SUBJECT_RE = /^(Cue ball|CB|(\d{1,2})-ball|Marker)\s*:\s*(.+)$/i;
+
+/** "Cue ball: …" / "1-ball: …" / "Marker: …" setup lines vs the drawn positions. */
+function checkPlacements(shot: ConsistencyShot, map: SotdRouteMap, bad: Bad) {
+  for (const line of shot.setup) {
+    const m = line.trim().match(SUBJECT_RE);
+    if (!m) continue;
+    const who = m[1];
+    let P: Pt | null;
+    if (/^marker$/i.test(who)) {
+      P = map.shot_goal === 'spot' ? { x: Number(map.pocket_target.x), y: Number(map.pocket_target.y) } : null;
+      if (!P) {
+        bad('place', 'text places a marker but the map has no spot goal');
+        continue;
+      }
+    } else {
+      P = ballPt(map, who);
+      if (!P) {
+        bad('place', `text places the ${who} but the map has no such ball`);
+        continue;
+      }
+    }
+    const clauses = m[3]
+      .replace(/\.$/, '')
+      .split(/;|,| and (?=(?:on|frozen|half|halfway|behind|in|\d|one|two|three|four|a|an)\b)/i)
+      .map((c) => c.trim())
+      .filter(Boolean);
+    for (const cl of clauses) checkClause(map, who, P, cl, bad);
+  }
+}
+
+function checkClause(map: SotdRouteMap, who: string, P: Pt, cl: string, bad: Bad) {
+  const say = (msg: string) => bad('place', `${who}: "${cl}" — ${msg}`);
+  let read = false;
+  const hit = (re: RegExp) => {
+    const r = cl.match(re);
+    if (r) read = true;
+    return r;
+  };
+  let m: RegExpMatchArray | null;
+  const f1 = (n: number) => n.toFixed(1);
+  if ((m = hit(/\bon the (foot|head|center) spot\b/i))) {
+    const d = dist(P, SPOTS[m[1].toLowerCase()]);
+    if (d > 1.5) say(`drawn ${f1(d)} in from the ${m[1]} spot`);
+  }
+  if ((m = hit(/\bon the (head|foot|center) string\b/i))) {
+    const d = Math.abs(P.x - STRING_X[m[1].toLowerCase()]);
+    if (d > 1) say(`drawn ${f1(d)} in off the ${m[1]} string`);
+  }
+  if (hit(/\bon the long string\b/i) && Math.abs(P.y - 25) > 1) say(`drawn ${f1(Math.abs(P.y - 25))} in off the long string`);
+  if (hit(/\bbehind the head string\b|\bin the kitchen\b/i) && P.x > 25.5) say('drawn past the head string');
+  if ((m = hit(new RegExp(`\\bfrozen to ${RAIL_RE}`, 'i')))) {
+    const d = railDist(P, m[1]);
+    if (d > 1.3) say(`drawn ${f1(d - BALL_DIAMETER / 2)} in off that rail`);
+  }
+  if ((m = hit(new RegExp(`\\bhalf a ball off ${RAIL_RE}`, 'i')))) {
+    const d = railDist(P, m[1]);
+    if (d < 2.0 || d > 2.6) say(`ball centre drawn ${f1(d)} in from that rail (half a ball off = 2.25)`);
+  }
+  if ((m = hit(new RegExp(`\\b${NUM_RE} ${UNIT_RE} (?:out )?from ${RAIL_RE}`, 'i')))) {
+    const want = toInches(m[1], m[2]);
+    const d = railDist(P, m[3]);
+    if (Math.abs(d - want) > tolFor(m[2])) say(`drawn ${f1(d)} in (${(d / DIAMOND).toFixed(2)} diamonds) from that rail`);
+  }
+  if ((m = hit(new RegExp(`\\b${NUM_RE} ${UNIT_RE} (?:from|behind|away from|beyond|past) ${BALL_RE}`, 'i')))) {
+    const B = ballPt(map, m[3]);
+    if (!B) say(`the map has no ${m[3]}`);
+    else {
+      const want = toInches(m[1], m[2]);
+      const d = dist(P, B);
+      if (Math.abs(d - want) > tolFor(m[2])) say(`drawn ${f1(d)} in (${(d / DIAMOND).toFixed(2)} diamonds) centre to centre`);
+    }
+  }
+  if ((m = hit(new RegExp(`\\b${NUM_RE} ${UNIT_RE} from ${POCKET_RE}`, 'i')))) {
+    const pk = pocketPt(m[3]);
+    const want = toInches(m[1], m[2]);
+    const d = pk ? dist(P, pk) : NaN;
+    if (!(Math.abs(d - want) <= tolFor(m[2]))) say(`drawn ${f1(d)} in (${(d / DIAMOND).toFixed(2)} diamonds) from that pocket`);
+  }
+  if ((m = hit(new RegExp(`\\b${NUM_RE} ${UNIT_RE} past the (head|center|foot) string`, 'i')))) {
+    const want = toInches(m[1], m[2]);
+    const d = P.x - STRING_X[m[3].toLowerCase()];
+    if (Math.abs(d - want) > tolFor(m[2])) say(`drawn ${f1(d)} in past that string (toward the foot)`);
+  }
+  if ((m = hit(new RegExp(`\\b${NUM_RE} ${UNIT_RE} toward the head from the (head|center|foot) string`, 'i')))) {
+    const want = toInches(m[1], m[2]);
+    const d = STRING_X[m[3].toLowerCase()] - P.x;
+    if (Math.abs(d - want) > tolFor(m[2])) say(`drawn ${f1(d)} in toward the head from that string`);
+  }
+  if ((m = hit(new RegExp(`\\b${NUM_RE} ${UNIT_RE} from the long string`, 'i')))) {
+    const want = toInches(m[1], m[2]);
+    const d = Math.abs(P.y - 25);
+    if (Math.abs(d - want) > tolFor(m[2])) say(`drawn ${f1(d)} in from the long string`);
+  }
+  if ((m = hit(new RegExp(`\\bhalfway between ${BALL_RE} and ${BALL_RE}`, 'i')))) {
+    const A = ballPt(map, m[1]);
+    const B = ballPt(map, m[2]);
+    if (!A || !B) say('names a ball the map does not have');
+    else {
+      const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+      if (dist(P, mid) > 2.5) say(`drawn ${f1(dist(P, mid))} in from the midpoint`);
+    }
+  }
+  if ((m = hit(new RegExp(`\\bfrozen to ${BALL_RE}`, 'i')))) {
+    const B = ballPt(map, m[1]);
+    const d = B ? dist(P, B) : NaN;
+    if (!(d >= BALL_DIAMETER - 0.05 && d <= BALL_DIAMETER + 0.2)) say(`centres drawn ${f1(d)} in apart (frozen = ${BALL_DIAMETER})`);
+  }
+  if ((m = hit(new RegExp(`\\b(\\d+(?:\\.\\d+)?)-inch gap (?:to|from) ${BALL_RE}`, 'i')))) {
+    const B = ballPt(map, m[2]);
+    const gap = B ? dist(P, B) - BALL_DIAMETER : NaN;
+    if (!(Math.abs(gap - Number(m[1])) <= 0.2)) say(`drawn gap ${gap.toFixed(2)} in`);
+  }
+  if ((m = hit(new RegExp(`\\bon the line from ${BALL_RE} (?:to|into) ${POCKET_RE}`, 'i')))) {
+    const A = ballPt(map, m[1]);
+    const pk = pocketPt(m[2]);
+    const d = A && pk ? segDist(P, A, pk) : NaN;
+    if (!(d <= 1.2)) say(`drawn ${f1(d)} in off that line`);
+  }
+  if ((m = hit(new RegExp(`\\b${NUM_RE} ${UNIT_RE} off the (?:direct|straight) line`, 'i')))) {
+    const cue = { x: Number(map.cue_ball_start.x), y: Number(map.cue_ball_start.y) };
+    const ob = (map.object_ball_positions ?? []).find((b) => !b.role || b.role === 'object');
+    const want = toInches(m[1], m[2]);
+    const d = ob ? segDist(P, cue, { x: Number(ob.x), y: Number(ob.y) }) : NaN;
+    if (!(Math.abs(d - want) <= tolFor(m[2]))) say(`drawn ${f1(d)} in off the cue ball → object ball line`);
+  }
+  // A clause that gives a measurement or relation must be one this checker can read.
+  if (!read && (new RegExp(`\\b${NUM_RE} ${UNIT_RE}`, 'i').test(cl) || /\b(halfway|frozen|half a ball)\b|-inch gap/i.test(cl))) {
+    bad('place_unread', `${who}: "${cl}" gives a placement the convention checker cannot read`);
+  }
+}
+
+type RouteTok = string;
+function railNamesOf(pts: Pt[]): string[] {
+  return railHits(pts).map((p) => SOTD_RAIL_NAMES[sotdRailAt(p) as string]);
+}
+
+/** The "Route:" line (CB → rails → balls → rails → pocket) against the drawn route. */
+function checkRouteLine(shot: ConsistencyShot, map: SotdRouteMap, bad: Bad) {
+  const line = shot.setup.find((x) => /^Route:/i.test(x.trim()));
+  const goal = map.shot_goal ?? 'pocket';
+  let expected: RouteTok[];
+  let cbRails: string[] = [];
+  if (goal === 'path') {
+    expected = ['CB', ...railNamesOf(routePoints(map))];
+    cbRails = expected.slice(1);
+  } else {
+    const g = deriveSotdRoute(map);
+    if (!g) return;
+    cbRails = railNamesOf(g.pts.slice(0, g.contactIdx + 1));
+    const ballsHit = (g.isCombo || g.isCarom ? g.combo : [g.prim]).map((b) => `${b.ballId}-ball`);
+    const obRails = railNamesOf(g.objPath);
+    expected = ['CB', ...cbRails, ...ballsHit, ...obRails];
+    if (goal === 'pocket') expected.push(pocketNameAt(g.pocket));
+    if (!line && (cbRails.length || obRails.length)) {
+      bad('route_missing', `diagram uses rails (${expected.join(' → ')}) but the setup has no "Route:" line`);
+      return;
+    }
+  }
+  if (!line) {
+    if (goal === 'path') bad('route_missing', `CB tour (${expected.join(' → ')}) needs a "Route:" line`);
+    return;
+  }
+  const toks = line
+    .trim()
+    .replace(/^Route:\s*/i, '')
+    .replace(/\.$/, '')
+    .split(/\s*→\s*/)
+    .map((t) => t.trim().replace(/^the /i, ''));
+  const norm: RouteTok[] = [];
+  for (const t of toks) {
+    if (/^(CB|cue ball)$/i.test(t)) norm.push('CB');
+    else if (/^(left long|right long|head|foot) rail$/i.test(t)) norm.push(t.toLowerCase());
+    else if (/^\d{1,2}-ball$/i.test(t)) norm.push(t.toLowerCase());
+    else if (pocketPt(t)) norm.push(t.toLowerCase());
+    else {
+      bad('route', `Route token "${t}" is not CB, a named rail, an N-ball or a precise pocket`);
+      return;
+    }
+  }
+  let want = expected;
+  if (norm[0] !== 'CB') {
+    if (cbRails.length) {
+      bad('route', `Route starts at the object ball but the CB touches ${cbRails.join(', ')} first`);
+      return;
+    }
+    want = expected.slice(1);
+  }
+  if (norm.join(' → ') !== want.join(' → ')) bad('route', `text Route "${norm.join(' → ')}" ≠ drawn "${want.join(' → ')}"`);
+}
+
+/** "Finish: within … of the foot spot" / "passes within … of the head spot". */
+function checkFinish(shot: ConsistencyShot, map: SotdRouteMap, bad: Bad) {
+  const goal = map.shot_goal ?? 'pocket';
+  const route = routePoints(map);
+  const texts = [...shot.setup, ...shot.steps, shot.successLooksLike];
+  for (const t of texts) {
+    let m = t.match(new RegExp(`(?:^Finish:|\\b(?:CB|cue ball)\\b)[^.|;]*?\\bwithin ${NUM_RE} ${UNIT_RE} of the (foot|head|center) spot`, 'i'));
+    if (m && !/passes within/i.test(m[0])) {
+      const end = goal === 'path' ? route[route.length - 1] : cbRestOf(map);
+      const want = toInches(m[1], m[2]);
+      const d = end ? dist(end, SPOTS[m[3].toLowerCase()]) : NaN;
+      if (!(d <= want + 0.05)) bad('finish', `text finishes within ${m[1]} ${m[2]} of the ${m[3]} spot; the drawn finish is ${d.toFixed(1)} in away`);
+    }
+    m = t.match(new RegExp(`passes within ${NUM_RE} ${UNIT_RE} of the (foot|head|center) spot`, 'i'));
+    if (m) {
+      const want = toInches(m[1], m[2]);
+      const sp = SPOTS[m[3].toLowerCase()];
+      const d = Math.min(...route.slice(0, -1).map((p, i) => segDist(sp, p, route[i + 1])));
+      if (!(d <= want + 0.05)) bad('finish', `text says the CB passes within ${m[1]} ${m[2]} of the ${m[3]} spot; drawn closest pass ${d.toFixed(1)} in`);
+    }
+  }
+}
+
+/** The pocket field names the exact drawn pocket in the position convention. */
+function checkPocketName(shot: ConsistencyShot, map: SotdRouteMap, bad: Bad) {
+  const goal = map.shot_goal ?? 'pocket';
+  const pk = shot.pocket.trim();
+  const names = [...pk.matchAll(new RegExp(POCKET_RE, 'gi'))].map((m) => m[1].toLowerCase());
+  if (goal === 'pocket') {
+    const drawn = pocketNameAt({ x: Number(map.pocket_target.x), y: Number(map.pocket_target.y) });
+    if (!names.length) bad('pocket_name', `pocket "${pk}" must name the exact pocket (drawn: ${drawn})`);
+    else if (names[0] !== drawn) bad('pocket_name', `text pocket ${names[0]} ≠ drawn ${drawn}`);
+    return;
+  }
+  if (/^None\b/.test(pk)) return;
+  if (goal === 'spot') {
+    const calls = [...pk.matchAll(new RegExp(`the (\\d{1,2})(?:-ball)? in ${POCKET_RE}`, 'gi'))];
+    if (!calls.length) {
+      bad('pocket_name', `spot-goal pocket field must start with "None" or call "the N in the <pocket>" (got "${pk}")`);
+      return;
+    }
+    for (const c of calls) {
+      const n = Number(c[1]);
+      const x = (map.extra_object_paths ?? []).find((e) => e.ballId === n);
+      const end = x ? x.pts[x.pts.length - 1] : null;
+      const at = end ? pocketNameAt({ x: Number(end.x), y: Number(end.y) }) : null;
+      if (at !== c[2].toLowerCase()) bad('pocket_name', `text sends the ${n} to the ${c[2]}; drawn: ${at ?? 'no path'}`);
+    }
+    return;
+  }
+  bad('pocket_name', `path goal: pocket field must start with "None" (got "${pk}")`);
 }
 
 type RailWord = { text: string; min: number; max: number };

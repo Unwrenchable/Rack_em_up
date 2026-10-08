@@ -278,22 +278,16 @@ export function sampleQuadratic(
 }
 
 /**
- * Drop off-axis jump apexes. Dashed hop is a straight (or through-ball) line
- * over the blocker XY — not a tent that reads as a cloth direction change.
+ * The jump hop is drawn as the crow flies: ONE straight dashed line from takeoff to
+ * landing, passing directly over the jumped ball(s). No vertex over the ball, no tent
+ * apex, no curve in the air (the blocker argument is kept for call-site compatibility).
  */
 export function flattenJumpAirborne(
   air: SotdPoint[],
-  blocker: SotdPoint | undefined,
+  _blocker?: SotdPoint,
 ): SotdPoint[] {
   if (air.length < 2) return air;
-  const a = air[0];
-  const b = air[air.length - 1];
-  if (!blocker) return dist(a, b) < 0.4 ? air : [a, b];
-  const over = { x: blocker.x, y: blocker.y };
-  const pts = [a];
-  if (dist(a, over) > 0.4) pts.push(over);
-  if (dist(b, over) > 0.4 && dist(b, a) > 0.4) pts.push(b);
-  return pts.length >= 2 ? pts : [a, b];
+  return [air[0], air[air.length - 1]];
 }
 
 /**
