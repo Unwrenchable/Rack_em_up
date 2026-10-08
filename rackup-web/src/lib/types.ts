@@ -251,6 +251,10 @@ export type CatalogShot = {
   id: string;
   name: string;
   tagline: string;
+  /** One sentence, player language: what the shot does on the table. */
+  what?: string;
+  /** One sentence, player language: what it is for in a real game. */
+  why?: string;
   difficulty: 'Easy' | 'Medium' | 'Hard' | 'Insane';
   category: string;
   table: string;
@@ -307,6 +311,17 @@ export type SotdPathSegment = {
   kind?: SotdPathKind;
 };
 
+/** pocket = pot a ball (default); spot = send a ball to a cloth target; path = CB-only route. */
+export type SotdShotGoal = 'pocket' | 'spot' | 'path';
+
+/** Secondary object-ball travel (wing balls, carom first ball, prop bank). */
+export type SotdExtraObjectPath = {
+  ballId: number;
+  pts: SotdPoint[];
+  /** Drawn faded: context only, not the ball you are scoring with. */
+  faded?: boolean;
+};
+
 export type SotdShotMap = {
   id: string;
   name: string;
@@ -331,6 +346,9 @@ export type SotdShotMap = {
   ghost_ball?: SotdGhostBall;
   /** Rare pin — omit so SPA uses midpoint(ghost, OB). */
   contact_point?: SotdPoint;
+  /** Omit → 'pocket'. */
+  shot_goal?: SotdShotGoal;
+  extra_object_paths?: SotdExtraObjectPath[];
   coordinate_system: { x: string; y: string; units: string };
   source: 'catalogue' | 'realai';
   ascii_table: string;

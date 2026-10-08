@@ -17,20 +17,18 @@ const codes = (m: SotdRouteMap) =>
     .map((i) => i.code);
 
 describe('SOTD route physics audit', () => {
-  it('every non-exempt catalogue route passes (no impossible contacts, bounces or CB finishes)', () => {
+  it('every catalogue route passes (no impossible contacts, bounces or CB finishes)', () => {
     const failing = listSotdMaps()
       .map((m) => auditSotdRoute(m))
-      .filter((r) => r.status === 'fail' && !ROUTE_AUDIT_EXEMPT[r.id])
+      .filter((r) => r.status === 'fail')
       .map(formatRouteAudit);
     expect(failing).toEqual([]);
   });
 
-  it('exemptions are few, documented and still real maps', () => {
-    const ids = Object.keys(ROUTE_AUDIT_EXEMPT);
-    expect(ids.length).toBeLessThanOrEqual(3);
-    for (const id of ids) {
-      expect(getSotdMapById(id)).toBeDefined();
-      expect(ROUTE_AUDIT_EXEMPT[id].length).toBeGreaterThan(20);
+  it('has no audit exemptions (sotd-15 and sotd-25 are physical now)', () => {
+    expect(Object.keys(ROUTE_AUDIT_EXEMPT)).toEqual([]);
+    for (const id of ['sotd-15', 'sotd-25']) {
+      expect(auditSotdRoute(getSotdMapById(id)!).status).toBe('pass');
     }
   });
 

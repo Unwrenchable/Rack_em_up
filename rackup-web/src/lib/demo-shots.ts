@@ -11,6 +11,8 @@ export const DEMO_SHOT_OF_DAY: ShotOfTheDay = {
     id: 'sotd-41',
     name: 'Butterfly Spread',
     tagline: 'Massey-style wing: two outer balls fly to opposite corners',
+    what: 'Hit the center ball full so the two wing balls fly into opposite corners.',
+    why: 'A crowd-pleasing exhibition shot that rewards a perfectly centered hit.',
     difficulty: 'Hard',
     category: 'novelty',
     table: 'Three-ball butterfly on the foot spot',

@@ -101,6 +101,20 @@ export function ShotCard({
         <h2 className="h2" style={{ fontSize: '1.45rem' }}>
           {shot.name}
         </h2>
+        {(shot.what || shot.why) && (
+          <div className="stack" style={{ gap: 4, marginTop: 8, fontSize: '0.95rem', lineHeight: 1.45 }}>
+            {shot.what && (
+              <p style={{ margin: 0 }}>
+                <strong>What it does:</strong> {shot.what}
+              </p>
+            )}
+            {shot.why && (
+              <p style={{ margin: 0 }}>
+                <strong>What it&rsquo;s for:</strong> {shot.why}
+              </p>
+            )}
+          </div>
+        )}
         <p
           style={{
             marginTop: 8,

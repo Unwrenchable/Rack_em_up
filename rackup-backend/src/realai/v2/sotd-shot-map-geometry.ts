@@ -21,6 +21,17 @@ export type SotdGeomBall = SotdGeomPoint & {
   role?: string;
 };
 
+/**
+ * What the drawn route is for:
+ * - pocket (default): the object ball ends in `pocket_target`
+ * - spot: no pot — the object ball stops on a called spot (`pocket_target` = that spot), e.g. safeties
+ * - path: cue-ball-only path drill (no object balls); `pocket_target` = the called end zone
+ */
+export type SotdShotGoal = 'pocket' | 'spot' | 'path';
+
+/** Extra object-ball run started by the same stroke (butterfly wings, a split pack, a mirror setup). */
+export type SotdExtraObjectPath = { ballId: number; pts: SotdGeomPoint[]; faded?: boolean };
+
 /** Minimal map shape the validator understands. */
 export type SotdGeomMap = {
   id: string;
@@ -30,6 +41,8 @@ export type SotdGeomMap = {
   object_ball_positions: SotdGeomBall[];
   intended_path: SotdGeomSegment[];
   pocket_target: SotdGeomPoint;
+  shot_goal?: SotdShotGoal;
+  extra_object_paths?: SotdExtraObjectPath[];
 };
 
 export const TABLE_LENGTH = 100;
@@ -444,8 +457,9 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
     );
   }
 
+  const goal: SotdShotGoal = map.shot_goal ?? 'pocket';
   if (!map.object_ball_positions?.length) {
-    issues.push(issue('no_object_balls', 'at least one object ball is required'));
+    if (goal !== 'path') issues.push(issue('no_object_balls', 'at least one object ball is required'));
   } else {
     map.object_ball_positions.forEach((b, i) => {
       if (!isOnTable(b, 1.2)) {
@@ -462,6 +476,10 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
   const pk = pocket ? nearestPocket(pocket) : null;
   if (!pocket) {
     issues.push(issue('pocket_missing', 'pocket_target is required'));
+  } else if (goal !== 'pocket') {
+    if (!isOnTable(pocket, 1.2)) {
+      issues.push(issue('target_off_table', `${goal} target (${pocket.x},${pocket.y}) is not on the cloth`));
+    }
   } else if (!pk || (pk.dist > POCKET_NEAR && !(cat === 'jump' && isClothEdgeTarget(pocket)))) {
     issues.push(
       issue(
@@ -522,6 +540,8 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
 
   const bounceIdx: number[] = [];
   for (let i = 1; i < pts.length - 1; i++) {
+    // A vertex on a ball centre is a ball contact (e.g. a rail-frozen OB), not a cushion bounce.
+    if ((map.object_ball_positions ?? []).some((b) => dist(b, pts[i]) <= 0.5)) continue;
     const rail = classifyRail(pts[i], 2.2);
     if (!rail) continue;
     if (nearestPocket(pts[i]).dist < 5) continue;
@@ -566,7 +586,7 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
     }
   }
   if (needsKick) {
-    const before = bounceIdx.filter((i) => i <= contactIdx);
+    const before = goal === 'path' ? bounceIdx : bounceIdx.filter((i) => i <= contactIdx);
     if (!before.length) {
       issues.push(
         issue('kick_needs_rail', 'kick shots need a cushion bounce before the object ball'),
@@ -748,6 +768,22 @@ export function validateSotdShotMap(map: SotdGeomMap): SotdGeomReport {
           ),
         );
       }
+    }
+  }
+
+  for (const extra of map.extra_object_paths ?? []) {
+    const ball = (map.object_ball_positions ?? []).find((b) => b.ballId === extra.ballId);
+    const first = extra.pts?.[0];
+    const last = extra.pts?.[extra.pts.length - 1];
+    if (!ball || !first || !last || extra.pts.length < 2) {
+      issues.push(issue('extra_path_invalid', `extra object path for #${extra.ballId} needs the ball and 2+ points`));
+      continue;
+    }
+    if (dist(first, ball) > 0.6) {
+      issues.push(issue('extra_path_invalid', `extra object path for #${extra.ballId} must start at that ball`));
+    }
+    if (nearestPocket(last).dist > POCKET_NEAR && !isOnTable(last, 1.2)) {
+      issues.push(issue('extra_path_invalid', `extra object path for #${extra.ballId} ends off the cloth`));
     }
   }
 

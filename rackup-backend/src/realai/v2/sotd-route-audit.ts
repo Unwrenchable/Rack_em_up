@@ -16,6 +16,9 @@
  *     (natural-roll 30° rule), back with draw; never through the OB line or to the wrong side
  *  6. style — jump hop over the blocker, massé bends toward its spin side, combos line up,
  *     category matches the drawn story, no stacked layers
+ *  7. goals — a "spot" shot parks the OB on a target on the cloth (no pocket), a "path" shot
+ *     is a CB-only tour; extra object paths (cluster split, butterfly wings, mirror bank)
+ *     get the same route/pocket checks as the main object path
  *
  * Coordinates: cloth 100 × 50 (inches on a 9-ft table), x head→foot, y near→far.
  * The box-side reference implementation is audit.py (same thresholds).
@@ -42,6 +45,8 @@ export type SotdRouteMap = {
   landing_zones?: Array<Pt & { label: string }>;
   pocket_target: Pt;
   ghost_ball?: Pt & { show?: boolean };
+  shot_goal?: 'pocket' | 'spot' | 'path';
+  extra_object_paths?: Array<{ ballId: number; pts: Pt[]; faded?: boolean }>;
 };
 
 export type RouteIssue = { code: string; severity: 'fail' | 'warn'; message: string };
@@ -71,13 +76,12 @@ export const ROUTE_LIMITS = {
   kinkFail: 28,
 };
 
-/** Shots whose teaching intent is ambiguous — reviewed by a human, not auto-fixed. */
-export const ROUTE_AUDIT_EXEMPT: Record<string, string> = {
-  'sotd-15':
-    'Jump drill deliberately aims the OB at the foot-rail centre (cloth-edge target, pinned by v2-routes smoke test); not a pocket.',
-  'sotd-25':
-    'Double-kiss escape is drawn as a stylised OB rail rebound + second kiss (pinned by v2-routes smoke test); needs a human redesign.',
-};
+/**
+ * Shots whose teaching intent is ambiguous — reviewed by a human, not auto-fixed.
+ * Empty: sotd-15 (jump into a real pocket) and sotd-25 (thin free off a frozen rail ball)
+ * were redesigned and now pass the audit like every other shot.
+ */
+export const ROUTE_AUDIT_EXEMPT: Record<string, string> = {};
 
 // ── vectors ──────────────────────────────────────────────────────────────
 const sub = (a: Pt, b: Pt): Pt => ({ x: a.x - b.x, y: a.y - b.y });
@@ -105,8 +109,15 @@ function segDist(p: Pt, a: Pt, b: Pt): number {
   return dist(p, add(a, mul(ab, t)));
 }
 
-type RailId = 'near' | 'far' | 'head' | 'foot';
+export type RailId = 'near' | 'far' | 'head' | 'foot';
 const RAIL_N: Record<RailId, Pt> = { near: { x: 0, y: 1 }, far: { x: 0, y: -1 }, head: { x: 1, y: 0 }, foot: { x: -1, y: 0 } };
+/** Distance from a ball centre to each cushion nose line. */
+const railGap = (p: Pt): Array<[RailId, number]> => [
+  ['near', p.y],
+  ['far', W - p.y],
+  ['head', p.x],
+  ['foot', L - p.x],
+];
 
 function railOf(p: Pt, pad = 0.35): RailId | null {
   const c: Array<[RailId, number]> = [
@@ -209,6 +220,7 @@ function comboBalls(m: SotdRouteMap, pts: Pt[], pad = 3.4): Ball[] {
     .map((x) => x.b);
 }
 
+export type DerivedRoute = Derived;
 type Derived = {
   cat: string;
   pts: Pt[];
@@ -227,11 +239,22 @@ type Derived = {
   air: Pt[];
   clothCurve: boolean;
   ctrl: Pt | null;
+  /** Jump-curve: renderer control of the post-landing swerve (null = straight leg). */
+  landCtrl: Pt | null;
+  /** Ground leg from the landing to the drawn ghost (straight or quadratic). */
+  afterLanding: Pt[];
   approach: Pt[];
   objPath: Pt[];
   cueAfter: Pt[];
   blocker?: Ball;
 };
+
+/** What rackup-web draws for a map (exported for renders and the text check). */
+/** Route derivation used by the audit. Null for path goals (no object ball to derive from). */
+export function deriveSotdRoute(m: SotdRouteMap): Derived | null {
+  if (m.shot_goal === 'path' || !(m.object_ball_positions ?? []).length) return null;
+  return derive(m);
+}
 
 function derive(m: SotdRouteMap): Derived {
   const cat = (m.category || '').toLowerCase();
@@ -268,6 +291,8 @@ function derive(m: SotdRouteMap): Derived {
   );
   const clothCurve = (cat === 'masse' || cat === 'curve') && !railFirst && !hasAir && (!!blocker || vias.length > 0);
   let ctrl: Pt | null = null;
+  let landCtrl: Pt | null = null;
+  let afterLanding: Pt[] = [];
   let air: Pt[] = [];
   let approach: Pt[];
   if (hasAir) {
@@ -299,6 +324,31 @@ function derive(m: SotdRouteMap): Derived {
       }
     }
     if (approach.length < 2) approach = dedupe([start, air[0] ?? contact]);
+    if (air.length >= 2) {
+      // Post-landing swerve: the drawn quadratic passes through the via farthest from the
+      // landing→ghost chord (its t = ½ point), so control = 2·via − ½(landing + ghost).
+      const land = air[air.length - 1];
+      let landIdx = 0;
+      pts.forEach((p, i) => {
+        if (i <= contactIdx && dist(p, land) < 0.5) landIdx = i;
+      });
+      const lv = pts.filter(
+        (p, i) => i > landIdx && i < contactIdx && dist(p, land) > 2 && dist(p, pp) > 4 && !nearRail(p, 2.4),
+      );
+      let vm: Pt | null = null;
+      let far = 0;
+      for (const v of lv) {
+        const d = segDist(v, land, ghostDrawn);
+        if (d > far) {
+          far = d;
+          vm = v;
+        }
+      }
+      if (vm && far > 0.5) {
+        landCtrl = sub(mul(vm, 2), mul(add(land, ghostDrawn), 0.5));
+        afterLanding = quad(land, landCtrl, ghostDrawn);
+      } else afterLanding = [land, ghostDrawn];
+    }
   } else if (clothCurve) {
     ctrl = curveControl(start, ghostDrawn, vias, blocker ? P(blocker) : undefined);
     approach = quad(start, ctrl, ghostDrawn);
@@ -335,7 +385,7 @@ function derive(m: SotdRouteMap): Derived {
   }
   return {
     cat, pts, start, pocket, prim, pp, contactIdx, combo, isCombo, isCarom, pocketObj, aim,
-    ghostDrawn, hasAir, air, clothCurve, ctrl, approach, objPath, cueAfter, blocker,
+    ghostDrawn, hasAir, air, clothCurve, ctrl, landCtrl, afterLanding, approach, objPath, cueAfter, blocker,
   };
 }
 
@@ -397,6 +447,8 @@ function checkRoute(rep: Rep, label: string, route: Pt[], tol: number, others: B
     for (const ob of others) {
       if (skip && ob === skip) continue;
       if (dist(ob, a) < 0.5 || dist(ob, b) < 0.5) continue;
+      // A ball touching the start from behind cannot block a ball rolling away from it.
+      if (i === 0 && dist(ob, a) < D + 0.3 && dot(sub(ob, a), sub(b, a)) <= 0) continue;
       const d = segDist(ob, a, b);
       if (d < D - 0.01) rep.fail('through_ball', `${label} segment ${fmt(a)}→${fmt(b)} passes through ball #${ob.ballId} (centre gap ${d.toFixed(2)})`);
       else if (d < D + 0.25) rep.warn('ball_tight', `${label} segment ${fmt(a)}→${fmt(b)} grazes ball #${ob.ballId}`);
@@ -464,15 +516,60 @@ function afterDirection(rep: Rep, label: string, a: Pt, u: Pt, rd: Pt, spin: Spi
   else if (s < wlo || s > whi) rep.warn('cb_after', desc);
 }
 
-export function auditSotdRoute(m: SotdRouteMap): RouteAudit {
-  const rep = new Rep();
-  const g = derive(m);
-  const spin = spinOf(m);
-  const balls = m.object_ball_positions;
-  const { start: cue, pp, pocket } = g;
-  const tol = spin.side ? ROUTE_LIMITS.reflectFailSpin : ROUTE_LIMITS.reflectFail;
+export type SotdContact = {
+  /** OB's first-leg direction (unit). */
+  u: Pt;
+  /** Physical ghost: CB centre at impact. */
+  ghost: Pt;
+  /** Point the CB travels from into the ghost (last cushion, curve control, cue…). */
+  from: Pt;
+  /** CB travel direction into the ghost (unit). */
+  a: Pt;
+  /** Cut angle (deg). */
+  cut: number;
+  /** +1 when the OB goes left of the CB's line (shooter's view), −1 right, 0 straight. */
+  obSide: number;
+  caromMiss: boolean;
+};
 
-  // 1 placement
+function contactOf(g: Derived): SotdContact {
+  const { pp, pocket, start: cue } = g;
+  let u = g.isCombo || g.isCarom ? norm(sub(g.aim, pp)) : norm(sub(g.objPath[1] ?? pocket, pp));
+  let ghost = sub(pp, mul(u, D));
+  const from = g.clothCurve && g.ctrl
+    ? g.ctrl
+    : g.hasAir
+      ? g.landCtrl ?? g.air[g.air.length - 1] ?? cue
+      : g.approach[g.approach.length - 2] ?? cue;
+  let a = norm(sub(ghost, from));
+  let caromMiss = false;
+  if (g.isCarom) {
+    const dd = norm(sub(g.ghostDrawn, from));
+    const off = Math.abs(cross(dd, sub(pp, from)));
+    if (off >= D) caromMiss = true;
+    else {
+      ghost = add(from, mul(dd, dot(sub(pp, from), dd) - Math.sqrt(D * D - off * off)));
+      u = norm(sub(pp, ghost));
+      a = dd;
+    }
+  }
+  const cut = ang(a, u);
+  const cr = cross(a, u);
+  return { u, ghost, from, a, cut, obSide: cut < 1 ? 0 : cr > 0 ? 1 : -1, caromMiss };
+}
+
+/** Contact geometry of what rackup-web draws (null for CB-only path shots). */
+export function sotdContact(m: SotdRouteMap): SotdContact | null {
+  if ((m.shot_goal ?? 'pocket') === 'path' || !m.object_ball_positions?.length) return null;
+  return contactOf(derive(m));
+}
+
+/** Cushion a point sits on (nose line or a ball centre frozen to it). */
+export function sotdRailAt(p: Pt): RailId | null {
+  return railOf(p);
+}
+
+function checkPlacement(rep: Rep, cue: Pt, balls: Ball[]) {
   const all: Array<[string, Pt]> = [['cue', cue], ...balls.map((b) => [`#${b.ballId}`, P(b)] as [string, Pt])];
   for (const [name, p] of all) {
     if (p.x < R - 0.01 || p.x > L - R + 0.01 || p.y < R - 0.01 || p.y > W - R + 0.01) rep.fail('placement', `${name} at ${fmt(p)} is not on the cloth`);
@@ -484,26 +581,64 @@ export function auditSotdRoute(m: SotdRouteMap): RouteAudit {
       if (dist(all[i][1], all[j][1]) < D - 0.05) rep.fail('overlap', `${all[i][0]} and ${all[j][0]} overlap`);
     }
   }
+}
+
+const onCloth = (p: Pt) => p.x >= R - 0.01 && p.x <= L - R + 0.01 && p.y >= R - 0.01 && p.y <= W - R + 0.01;
+
+function finish(m: SotdRouteMap, rep: Rep, cut: number | null): RouteAudit {
+  const fails = rep.issues.some((i) => i.severity === 'fail');
+  const warns = rep.issues.some((i) => i.severity === 'warn');
+  return { id: m.id, status: fails ? 'fail' : warns ? 'warn' : 'pass', issues: rep.issues, cutDeg: cut !== null && Number.isFinite(cut) ? cut : null };
+}
+
+/** CB-only tour (shot_goal 'path'): cushions, pockets, ball clearance and the end zone. */
+function auditPathGoal(m: SotdRouteMap): RouteAudit {
+  const rep = new Rep();
+  const spin = spinOf(m);
+  const tol = spin.side ? ROUTE_LIMITS.reflectFailSpin : ROUTE_LIMITS.reflectFail;
+  const balls = m.object_ball_positions ?? [];
+  const cue = P(m.cue_ball_start);
+  checkPlacement(rep, cue, balls);
+  const route = pathPoints(m.intended_path ?? []);
+  if (route.length < 2) {
+    rep.fail('path_empty', 'path shot has no CB route');
+    return finish(m, rep, null);
+  }
+  checkRoute(rep, 'cue tour', route, tol, balls);
+  const end = route[route.length - 1];
+  if (!onCloth(end)) rep.fail('end_zone', `tour ends off the cloth at ${fmt(end)}`);
+  if (dist(end, P(m.pocket_target)) > 1.5) rep.fail('end_zone', 'tour end and the called end zone disagree');
+  for (const [id, pk] of Object.entries(POCKETS)) {
+    if (dist(end, pk) < 4) rep.fail('end_zone', `tour ends in the ${id} pocket`);
+  }
+  const rails = route.slice(1, -1).filter((p) => railOf(p));
+  if ((m.category || '').toLowerCase() === 'kick' && !rails.length) rep.fail('tag_story', 'kick tour without a cushion');
+  return finish(m, rep, null);
+}
+
+export function auditSotdRoute(m: SotdRouteMap): RouteAudit {
+  const goal = m.shot_goal ?? 'pocket';
+  if (goal === 'path') return auditPathGoal(m);
+  const rep = new Rep();
+  const g = derive(m);
+  const spin = spinOf(m);
+  const balls = m.object_ball_positions;
+  const { start: cue, pp, pocket } = g;
+  const tol = spin.side ? ROUTE_LIMITS.reflectFailSpin : ROUTE_LIMITS.reflectFail;
+  const extras = m.extra_object_paths ?? [];
+  const moving = new Set(extras.map((e) => e.ballId));
+  const still = (b: Ball) => !moving.has(b.ballId);
+
+  // 1 placement
+  checkPlacement(rep, cue, balls);
 
   // 3 contact (physical ghost on the OB's first leg)
-  let u = g.isCombo || g.isCarom ? norm(sub(g.aim, pp)) : norm(sub(g.objPath[1] ?? pocket, pp));
-  let ghost = sub(pp, mul(u, D));
+  const c = contactOf(g);
+  const { u, ghost, from, a, cut } = c;
   if (!g.isCarom && ang(sub(pp, g.ghostDrawn), u) > 3) {
     rep.fail('ghost_wrong_line', `drawn ghost ${fmt(g.ghostDrawn)} is not on the OB's first leg — the drawn cue path ends on the wrong line`);
   }
-  const from = g.clothCurve && g.ctrl ? g.ctrl : g.hasAir ? g.air[g.air.length - 1] ?? cue : g.approach[g.approach.length - 2] ?? cue;
-  let a = norm(sub(ghost, from));
-  if (g.isCarom) {
-    const dd = norm(sub(g.ghostDrawn, from));
-    const off = Math.abs(cross(dd, sub(pp, from)));
-    if (off >= D) rep.fail('carom_miss', `drawn carom line misses #${g.prim.ballId}`);
-    else {
-      ghost = add(from, mul(dd, dot(sub(pp, from), dd) - Math.sqrt(D * D - off * off)));
-      u = norm(sub(pp, ghost));
-      a = dd;
-    }
-  }
-  const cut = ang(a, u);
+  if (c.caromMiss) rep.fail('carom_miss', `drawn carom line misses #${g.prim.ballId}`);
   if (cut >= 90) rep.fail('contact_side', `CB arrives from ${fmt(from)} on the far side of #${g.prim.ballId} (cut ${cut.toFixed(0)}°) — it would have to pass through the OB`);
   else if (cut > ROUTE_LIMITS.cutFail) rep.fail('cut_too_thin', `cut ${cut.toFixed(0)}° > ${ROUTE_LIMITS.cutFail}°`);
   else if (cut > ROUTE_LIMITS.cutWarn) rep.warn('cut_thin', `cut ${cut.toFixed(0)}°`);
@@ -513,7 +648,16 @@ export function auditSotdRoute(m: SotdRouteMap): RouteAudit {
     const ground = dedupe([...g.approach, ...(g.air.length ? [g.air[0]] : [])]);
     checkRoute(rep, 'cue path', ground, tol, balls);
     if (g.air.length) {
-      checkRoute(rep, 'cue path after landing', [g.air[g.air.length - 1], ghost], tol, balls.filter((b) => b !== g.prim));
+      const leg = g.landCtrl ? [...g.afterLanding, ghost] : [g.air[g.air.length - 1], ghost];
+      checkRoute(rep, 'cue path after landing', dedupe(leg, 0.3), tol, balls.filter((b) => b !== g.prim));
+      if (g.landCtrl) {
+        const land = g.air[g.air.length - 1];
+        const turn = cross(sub(g.landCtrl, land), sub(g.ghostDrawn, g.landCtrl)) > 0 ? 'left' : 'right';
+        if ((spin.side === 1 && turn !== 'right') || (spin.side === -1 && turn !== 'left')) {
+          rep.fail('curve_wrong_way', `post-landing swerve curves ${turn} but the declared english is ${spin.side === 1 ? 'right' : 'left'}`);
+        }
+        if (spin.side === 0) rep.fail('curve_no_spin', 'post-landing swerve drawn but no side spin declared');
+      }
       if (g.blocker) {
         const b = P(g.blocker);
         if (segDist(b, g.air[0], g.air[g.air.length - 1]) > 2) rep.fail('jump_misses_blocker', `airborne hop does not pass over blocker #${g.blocker.ballId}`);
@@ -552,9 +696,35 @@ export function auditSotdRoute(m: SotdRouteMap): RouteAudit {
       }
     }
   }
-  if (!g.isCarom) checkRoute(rep, 'object path', g.objPath, ROUTE_LIMITS.reflectFail, balls.filter((b) => b !== g.pocketObj));
+  if (!g.isCarom) checkRoute(rep, 'object path', g.objPath, ROUTE_LIMITS.reflectFail, balls.filter((b) => b !== g.pocketObj && still(b)));
   const entryFrom = g.objPath.length >= 2 ? g.objPath[g.objPath.length - 2] : pp;
-  pocketEntry(rep, entryFrom, pocket, g.objPath.length === 2 ? P(g.pocketObj) : entryFrom);
+  if (goal === 'spot') {
+    if (!onCloth(pocket)) rep.fail('target_off_cloth', `spot target ${fmt(pocket)} is not on the cloth`);
+    for (const [id, pk] of Object.entries(POCKETS)) {
+      if (dist(pocket, pk) < jawLen(id) + R) rep.fail('target_in_pocket', `spot target ${fmt(pocket)} sits in the ${id} pocket`);
+    }
+  } else {
+    pocketEntry(rep, entryFrom, pocket, g.objPath.length === 2 ? P(g.pocketObj) : entryFrom);
+  }
+
+  // 7 extra object paths (balls the shot moves on purpose)
+  for (const e of extras) {
+    const ball = balls.find((b) => b.ballId === e.ballId);
+    const route = (e.pts ?? []).map(P);
+    if (!ball || route.length < 2) {
+      rep.fail('extra_path', `extra path for #${e.ballId} needs that ball and two points`);
+      continue;
+    }
+    if (dist(route[0], ball) > 0.6) rep.fail('extra_path', `extra path for #${e.ballId} does not start at the ball`);
+    checkRoute(rep, `#${e.ballId} path`, route, ROUTE_LIMITS.reflectFail, balls.filter((b) => b !== ball && b !== g.prim && still(b)));
+    const end = route[route.length - 1];
+    if (nearestPocket(end).d < 1) {
+      const efrom = route[route.length - 2];
+      pocketEntry(rep, efrom, end, route.length === 2 ? P(ball) : efrom);
+    } else if (!onCloth(end)) {
+      rep.fail('extra_path', `#${e.ballId} path ends off the cloth at ${fmt(end)}`);
+    }
+  }
 
   // 5 cue after contact
   const ca = g.cueAfter;
@@ -566,7 +736,15 @@ export function auditSotdRoute(m: SotdRouteMap): RouteAudit {
   } else if (ca.length >= 2) {
     const rest = ca[ca.length - 1];
     if (dist(rest, ghost) > 2 || (cut < 6 && spin.stun)) {
-      afterDirection(rep, 'cue after contact', a, u, norm(sub(rest, ghost)), spin, cut, dist(rest, ghost));
+      const rd = norm(sub(rest, ghost));
+      // Contact against a cushion (frozen-rail cut): a CB heading into the rail rebounds at
+      // once, so a finish moving away from that rail may be the mirror of the model direction.
+      const cushion = railGap(ghost).find(([rail, d]) => d < R + 0.9 && dot(rd, RAIL_N[rail]) > 0);
+      const trial = new Rep();
+      afterDirection(trial, 'cue after contact', a, u, rd, spin, cut, dist(rest, ghost));
+      if (cushion && trial.issues.some((i) => i.severity === 'fail')) {
+        afterDirection(rep, 'cue after contact (off the cushion)', a, u, reflect(rd, RAIL_N[cushion[0]]), spin, cut, dist(rest, ghost));
+      } else rep.issues.push(...trial.issues);
     }
     for (const b of balls) {
       if (b !== g.prim && segDist(b, ca[0], rest) < D - 0.01) rep.fail('cb_after_through_ball', `cue-after line passes through ball #${b.ballId}`);
@@ -592,9 +770,7 @@ export function auditSotdRoute(m: SotdRouteMap): RouteAudit {
     }
   }
 
-  const fails = rep.issues.some((i) => i.severity === 'fail');
-  const warns = rep.issues.some((i) => i.severity === 'warn');
-  return { id: m.id, status: fails ? 'fail' : warns ? 'warn' : 'pass', issues: rep.issues, cutDeg: Number.isFinite(cut) ? cut : null };
+  return finish(m, rep, cut);
 }
 
 export function formatRouteAudit(r: RouteAudit): string {

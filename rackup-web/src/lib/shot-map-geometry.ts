@@ -1,4 +1,4 @@
-import type { SotdObjectBall, SotdPathSegment, SotdPoint, SotdShotMap } from './types';
+import type { SotdObjectBall, SotdPathSegment, SotdPoint, SotdShotGoal, SotdShotMap } from './types';
 import { buildTableGeometry, clothZoneLabel } from './table-geometry';
 
 export type { TableSize } from './table-geometry';
@@ -19,7 +19,17 @@ export type ComboLeg = {
   pts: SotdPoint[];
 };
 
+export type ExtraObjectPathGeometry = {
+  ballId: number;
+  pts: SotdPoint[];
+  faded: boolean;
+};
+
 export type DerivedShotGeometry = {
+  /** pocket (default) · spot = ball to a cloth target · path = cue-ball-only route. */
+  shotGoal: SotdShotGoal;
+  /** True for path goals: no object ball, no object path, no CB-after leg. */
+  pathOnly: boolean;
   primaryObject: SotdObjectBall;
   /** Ball that actually travels to the pocket (last combo ball, else primary). */
   pocketObject: SotdObjectBall;
@@ -30,6 +40,10 @@ export type DerivedShotGeometry = {
   cueAirborne: SotdPoint[];
   /** Cloth run after the hop (landing → ghost). Empty when there is no airborne split. */
   cueApproachAfter: SotdPoint[];
+  /** Quadratic control when the cloth run after a hop still swerves (jump-masse). */
+  cueAfterLandingControl: SotdPoint | null;
+  /** Secondary object-ball travel from the map (wing balls, carom first ball, prop banks). */
+  extraObjectPaths: ExtraObjectPathGeometry[];
   /**
    * Quadratic control for a cloth curve (massé / curve-around-blocker).
    * When set, draw CB approach as a smooth Q curve, not a kink polyline.
@@ -321,9 +335,14 @@ export function clothCurveControl(
  * Ghost is automatic (`OB − normalize(aim − OB)×4.4`); map pins are rare.
  */
 export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
-  const primary = pickPrimaryObject(map);
+  const shotGoal: SotdShotGoal = map.shot_goal ?? 'pocket';
   const segs = annotateJumpAirborne(map.intended_path ?? [], map);
   const fullPts = pathToPoints(segs);
+  const extraObjectPaths: ExtraObjectPathGeometry[] = (map.extra_object_paths ?? [])
+    .filter((e) => Array.isArray(e.pts) && e.pts.length >= 2)
+    .map((e) => ({ ballId: e.ballId, pts: e.pts.map((p) => ({ x: p.x, y: p.y })), faded: !!e.faded }));
+  if (shotGoal === 'path') return derivePathOnly(map, fullPts, extraObjectPaths);
+  const primary = pickPrimaryObject(map);
   const start = map.cue_ball_start;
   const pocket = map.pocket_target;
   const cat = (map.category || '').toLowerCase();
@@ -404,13 +423,31 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   let cueAirborne: SotdPoint[] = [];
   let cueApproachAfter: SotdPoint[] = [];
   let cueCurveControl: SotdPoint | null = null;
+  let cueAfterLandingControl: SotdPoint | null = null;
 
   if (hasAir) {
     cueApproach = dedupePoints(firstGroundRun(segs));
     cueAirborne = flattenJumpAirborne(airbornePolyline(segs), blocker);
     const afterLand = dedupePoints(groundAfterAirborne(segs));
     const land = cueAirborne[cueAirborne.length - 1] ?? afterLand[0] ?? start;
-    cueApproachAfter = dedupePoints([land, ghostBall]);
+    // Jump-masse: the cloth run after landing still bends. The map samples that
+    // curve; rebuild one quadratic through the farthest sample (exact at t = ½).
+    const landVias = afterLand.filter(
+      (p) => dist(p, land) > 2 && dist(p, primary) > 4 && dist(p, ghostBall) > 1 && !nearRail(p, 2.4),
+    );
+    const far = landVias.reduce<{ d: number; v: SotdPoint | null }>(
+      (best, v) => {
+        const d = pointToSegmentDistance(v, land, ghostBall);
+        return d > best.d ? { d, v } : best;
+      },
+      { d: 0, v: null },
+    );
+    if (far.v && far.d > 0.5) {
+      cueAfterLandingControl = sub(scale(far.v, 2), scale(add(land, ghostBall), 0.5));
+      cueApproachAfter = sampleQuadratic(land, cueAfterLandingControl, ghostBall, 24);
+    } else {
+      cueApproachAfter = dedupePoints([land, ghostBall]);
+    }
     if (cueApproach.length < 2) {
       cueApproach = dedupePoints([{ ...start }, cueAirborne[0] ?? contactPoint]);
     }
@@ -466,7 +503,9 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
 
   const inbound = isClothCurve && cueCurveControl
     ? sub(ghostBall, cueCurveControl)
-    : hasAir && cueAirborne.length
+    : cueAfterLandingControl
+      ? sub(ghostBall, cueAfterLandingControl)
+      : hasAir && cueAirborne.length
       ? sub(ghostBall, cueAirborne[cueAirborne.length - 1])
       : sub(primary, start);
   const cut = cutAngleDeg(inbound, sub(aimTarget, primary));
@@ -514,12 +553,16 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
   const cueFinishZone = clothZoneLabel(finish, buildTableGeometry('9ft'));
 
   return {
+    shotGoal,
+    pathOnly: false,
     primaryObject: primary,
     pocketObject,
     contactPoint,
     cueApproach,
     cueAirborne,
     cueApproachAfter,
+    cueAfterLandingControl,
+    extraObjectPaths,
     cueCurveControl,
     comboLegs,
     objectPath,
@@ -533,6 +576,50 @@ export function deriveShotGeometry(map: SotdShotMap): DerivedShotGeometry {
     cutAngleDeg: cut,
     markers,
     cueFinishZone,
+  };
+}
+
+/** Cue-ball-only route (rail patterns): the whole path is the drill; no object ball. */
+function derivePathOnly(
+  map: SotdShotMap,
+  fullPts: SotdPoint[],
+  extraObjectPaths: ExtraObjectPathGeometry[],
+): DerivedShotGeometry {
+  const start = map.cue_ball_start;
+  const route = dedupePoints(fullPts.length ? fullPts : [{ ...start }, { ...map.pocket_target }]);
+  const end = route[route.length - 1];
+  // Numbered rail contacts in travel order (1 = first cushion).
+  const markers: DrillMarker[] = route.slice(1, -1).map((p, i) => ({
+    n: i + 1,
+    x: p.x,
+    y: p.y,
+    shape: 'diamond',
+    role: 'rail',
+  }));
+  const placeholder: SotdObjectBall = { ballId: 0, x: end.x, y: end.y, role: 'prop' };
+  return {
+    shotGoal: 'path',
+    pathOnly: true,
+    primaryObject: placeholder,
+    pocketObject: placeholder,
+    contactPoint: { ...end },
+    cueApproach: route,
+    cueAirborne: [],
+    cueApproachAfter: [],
+    cueAfterLandingControl: null,
+    extraObjectPaths,
+    cueCurveControl: null,
+    comboLegs: [],
+    objectPath: [],
+    cueAfter: [],
+    ghostBall: null,
+    showGhost: false,
+    showTangent: false,
+    tangent: null,
+    railFirst: route.slice(1).some((p) => nearRail(p)),
+    cutAngleDeg: 0,
+    markers,
+    cueFinishZone: clothZoneLabel(end, buildTableGeometry('9ft')),
   };
 }
 

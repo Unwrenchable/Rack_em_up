@@ -213,17 +213,50 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
           </g>
         ))}
 
-        {/* Target pocket emphasis — claimed pocket_target, not a different corner */}
-        <circle
-          cx={sx(targetHighlight.x)}
-          cy={sy(targetHighlight.y)}
-          r={targetPk.mouthWidth * 0.42}
-          fill="none"
-          stroke="#5ad4a0"
-          strokeWidth={0.5}
-          opacity={0.9}
-          filter={`url(#glow-${uid})`}
-        />
+        {/* Target emphasis — claimed pocket_target; spot/path goals get a dashed cloth ring */}
+        {geo.shotGoal === 'pocket' ? (
+          <circle
+            cx={sx(targetHighlight.x)}
+            cy={sy(targetHighlight.y)}
+            r={targetPk.mouthWidth * 0.42}
+            fill="none"
+            stroke="#5ad4a0"
+            strokeWidth={0.5}
+            opacity={0.9}
+            filter={`url(#glow-${uid})`}
+          />
+        ) : (
+          <circle
+            cx={sx(targetHighlight.x)}
+            cy={sy(targetHighlight.y)}
+            r={ballR * 1.6}
+            fill="rgba(90,212,160,0.12)"
+            stroke="#5ad4a0"
+            strokeWidth={0.4}
+            strokeDasharray="0.9 0.7"
+            opacity={0.95}
+          />
+        )}
+        {/* Secondary balls' pockets (wing shots): thinner rings */}
+        {geo.extraObjectPaths
+          .filter((e) => !e.faded)
+          .map((e) => {
+            const end = e.pts[e.pts.length - 1];
+            const pk = nearestPocket(table, end);
+            if (Math.hypot(pk.center.x - end.x, pk.center.y - end.y) > 3) return null;
+            return (
+              <circle
+                key={`xr-${e.ballId}`}
+                cx={sx(pk.center.x)}
+                cy={sy(pk.center.y)}
+                r={pk.mouthWidth * 0.42}
+                fill="none"
+                stroke="#5ad4a0"
+                strokeWidth={0.3}
+                opacity={0.7}
+              />
+            );
+          })}
 
         <g clipPath={`url(#${clothClip})`}>
           {/* Ghost ball: auto-derived dashed CB for readable cuts */}
@@ -272,6 +305,21 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
               sy={sy}
               solid
             />
+          ))}
+
+          {/* Secondary object-ball travel (wing balls, carom first ball); faded = context only */}
+          {geo.extraObjectPaths.map((e) => (
+            <g key={`xp-${e.ballId}-${e.pts[0].x}-${e.pts[0].y}`} opacity={e.faded ? 0.45 : 1}>
+              <PathWithArrow
+                pts={e.pts}
+                d={pathD(e.pts)}
+                color={poolBallStyle(e.ballId).fill}
+                width={e.faded ? 0.7 : 0.9}
+                sx={sx}
+                sy={sy}
+                solid={!e.faded}
+              />
+            </g>
           ))}
 
           {/* Pocketing ball → pocket (colored, shows cut / bank) */}
@@ -362,12 +410,14 @@ export function ShotMapDiagram({ map, tableSize = '9ft', className, showMarkers 
               />
             );
           })}
-          <Ball
-            x={sx(geo.primaryObject.x)}
-            y={sy(geo.primaryObject.y)}
-            r={ballR}
-            ballId={geo.primaryObject.ballId}
-          />
+          {!geo.pathOnly && (
+            <Ball
+              x={sx(geo.primaryObject.x)}
+              y={sy(geo.primaryObject.y)}
+              r={ballR}
+              ballId={geo.primaryObject.ballId}
+            />
+          )}
 
           {/* Cue — always white, no letter */}
           <g>
