@@ -33,8 +33,8 @@ function buildConnection(): PgConnection {
 
   if (isProd && !useUrl) {
     throw new Error(
-      'DATABASE_URL must be a full postgres:// connection string on Render. ' +
-        'Do not set DB_HOST=base. Paste the Internal Database URL from the Postgres service.',
+      'DATABASE_URL must be a full postgres:// connection string in production. ' +
+        'Do not set DB_HOST=base. Set it on rackup-backend -> Environment in Render.',
     );
   }
 
@@ -46,7 +46,7 @@ function buildConnection(): PgConnection {
     const host = process.env.DB_HOST ?? 'localhost';
     if (host === 'base') {
       throw new Error(
-        'DB_HOST=base is invalid. Unset DB_HOST and set DATABASE_URL to the Render Internal Database URL.',
+        'DB_HOST=base is invalid. Unset DB_HOST and set DATABASE_URL to the full postgres:// URL.',
       );
     }
     return {
@@ -65,14 +65,14 @@ function buildConnection(): PgConnection {
   } catch {
     throw new Error(
       `DATABASE_URL is not a valid URL (${redactDatabaseUrl(rawUrl)}). ` +
-        'Use the Internal Database URL from the Render Postgres service.',
+        'Use the full postgres:// URL from your database provider.',
     );
   }
 
   if (!parsed.hostname || parsed.hostname === 'base') {
     throw new Error(
       `DATABASE_URL hostname is invalid (${parsed.hostname || 'empty'}). ` +
-        'Replace it with the Internal Database URL from the Render Postgres service.',
+        'Replace it with the full postgres:// URL from your database provider.',
     );
   }
 
@@ -80,7 +80,7 @@ function buildConnection(): PgConnection {
   if (!database) {
     throw new Error(
       'DATABASE_URL is missing a database name in the path. ' +
-        'Use the full Internal Database URL from Render.',
+        'Use the full postgres:// URL from your database provider.',
     );
   }
 
