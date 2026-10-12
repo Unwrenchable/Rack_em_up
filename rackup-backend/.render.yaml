@@ -2,6 +2,9 @@
 # Local DB/Redis stays in docker-compose.yml on your laptop.
 # After push: Render Dashboard -> Blueprints -> sync this file.
 
+# Postgres now lives off Render (roc-db-moot-knoll.sage.cloud.layerbase.dev).
+# rackup-backend no longer reads DATABASE_URL from this database. Keep this
+# block only until the cutover smoke passes and the Render DB is deleted.
 databases:
   - name: rackup-db
     postgresMajorVersion: "15"
@@ -34,10 +37,10 @@ services:
         value: production
       - key: PORT
         value: "8080"
+      # Full postgres:// URL for the external DB. Dashboard secret, never commit.
+      # sync: false so a Blueprint sync never repoints this at Render Postgres.
       - key: DATABASE_URL
-        fromDatabase:
-          name: rackup-db
-          property: connectionString
+        sync: false
       - key: REDIS_URL
         fromService:
           name: rackup-redis
