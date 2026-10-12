@@ -25,10 +25,10 @@
 # dist/). Existing files are served as-is; /* → /index.html is the fallback
 # for SPA routes that are not files.
 
-# Postgres is moving to Neon (2026-10-08). rackup-backend no longer reads
-# DATABASE_URL from this database (see envVars below). Keep this block only
-# until the Neon cutover smoke passes and the Render DB is deleted, then
-# remove it in a follow-up PR.
+# Postgres now lives off Render (roc-db-moot-knoll.sage.cloud.layerbase.dev).
+# rackup-backend no longer reads DATABASE_URL from this database (see envVars
+# below). Keep this block only until the cutover smoke passes and the Render
+# DB is deleted, then remove it in a follow-up PR.
 databases:
   - name: rackup-db
     postgresMajorVersion: "15"
@@ -61,7 +61,7 @@ services:
         value: production
       - key: PORT
         value: "8080"
-      # Neon pooled connection string (host contains -pooler, sslmode=require).
+      # Full postgres:// URL for roc-db-moot-knoll.sage.cloud.layerbase.dev.
       # Dashboard secret — set it on rackup-backend → Environment. Never commit it.
       # sync: false so a Blueprint sync never repoints this at Render Postgres.
       - key: DATABASE_URL
