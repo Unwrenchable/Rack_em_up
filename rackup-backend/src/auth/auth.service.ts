@@ -10,6 +10,7 @@ import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
 import { jwtAccessExpires, jwtRefreshExpires } from '../common/jwt-expires';
+import { jwtAccessSecret, jwtRefreshSecret } from '../config/auth-secrets';
 
 interface TokenPayload {
   sub: string;
@@ -82,12 +83,12 @@ export class AuthService {
     };
 
     const accessToken = await this.jwtService.signAsync(payload, {
-      secret: process.env.JWT_SECRET ?? 'dev_access_secret',
+      secret: jwtAccessSecret(),
       expiresIn: jwtAccessExpires(),
     });
 
     const refreshToken = await this.jwtService.signAsync(payload, {
-      secret: process.env.JWT_REFRESH_SECRET ?? 'dev_refresh_secret',
+      secret: jwtRefreshSecret(),
       expiresIn: jwtRefreshExpires(),
     });
 

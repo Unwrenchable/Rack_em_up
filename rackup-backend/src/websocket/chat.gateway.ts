@@ -18,6 +18,7 @@ import { SocialRealtimeService } from './social-realtime.service';
 import { ChatService } from '../chat/chat.service';
 import { FriendsService } from '../friends/friends.service';
 import { realaiModerate } from '../ai/realai-coach.client';
+import { jwtAccessSecret } from '../config/auth-secrets';
 
 type AuthedSocket = Socket & {
   data: {
@@ -67,7 +68,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     try {
       const payload = await this.jwtService.verifyAsync<{ sub: string; email?: string }>(token, {
-        secret: process.env.JWT_SECRET ?? 'dev_access_secret',
+        secret: jwtAccessSecret(),
       });
       const user = await this.usersService.findById(payload.sub);
       if (!user) {

@@ -22,6 +22,7 @@ import { DeviceSessionsService } from './services/device-sessions.service';
 import { EmailVerificationService } from './services/email-verification.service';
 import { PasswordResetService } from './services/password-reset.service';
 import { jwtAccessExpires } from '../../common/jwt-expires';
+import { jwtAccessSecret } from '../../config/auth-secrets';
 
 @Injectable()
 export class AuthV2Service {
@@ -88,7 +89,7 @@ export class AuthV2Service {
 
     const payload = this.buildAccessPayload(user);
     const accessToken = await this.jwtService.signAsync(payload, {
-      secret: process.env.JWT_SECRET ?? 'dev_access_secret',
+      secret: jwtAccessSecret(),
       expiresIn: jwtAccessExpires(),
     });
 
@@ -162,7 +163,7 @@ export class AuthV2Service {
     const payload = this.buildAccessPayload(user);
 
     const accessToken = await this.jwtService.signAsync(payload, {
-      secret: process.env.JWT_SECRET ?? 'dev_access_secret',
+      secret: jwtAccessSecret(),
       expiresIn: jwtAccessExpires(),
     });
 

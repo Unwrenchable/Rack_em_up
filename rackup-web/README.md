@@ -14,6 +14,8 @@ http://localhost:5173 → **Open demo**
 
 Backend optional: `cd ../rackup-backend && npm run start:dev`
 
+Required backend signing secrets (names only; set your own values, never commit them): `JWT_SECRET`, `JWT_REFRESH_SECRET`. See `rackup-backend/.env.example` and `rackup-backend/README.md`. Production refuses to start if either is missing.
+
 ## Features
 
 | Area | Routes |
