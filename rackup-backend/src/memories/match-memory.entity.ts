@@ -36,7 +36,10 @@ export class MatchMemory {
     name: 'highlight_video_urls',
     type: 'text',
     array: true,
-    default: () => 'ARRAY[]::text[]',
+    // '{}'::text[] is what Postgres stores for an empty text[]. TypeORM strips
+    // the cast when comparing defaults, so the entity expression must be '{}'
+    // (ARRAY[]::text[] never compares equal and synchronize cannot create ARRAY[]).
+    default: () => "'{}'",
   })
   highlightVideoUrls!: string[];
 

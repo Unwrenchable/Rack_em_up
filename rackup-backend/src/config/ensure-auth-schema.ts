@@ -2,10 +2,9 @@ import { Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 /**
- * Production DBs were created with synchronize off and migrations never wired
- * (migrations: [] / migrationsRun: false). Signup then 500s on missing
- * users/auth columns. If the core users table is missing or incomplete,
- * run a one-shot TypeORM synchronize so entities can create/alter safely.
+ * Dev/test safety net for a missing users table. Production never calls
+ * synchronize — NODE_ENV=production forces it off and migrationsRun applies
+ * pending migrations during DataSource init (before this runs).
  */
 export async function ensureAuthSchema(dataSource: DataSource): Promise<void> {
   const logger = new Logger('EnsureAuthSchema');
@@ -32,6 +31,16 @@ export async function ensureAuthSchema(dataSource: DataSource): Promise<void> {
   if (cols.size > 0 && missing.length === 0) {
     logger.log('users table schema looks complete');
     return;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    const detail = `have=${cols.size} missing=${missing.join(',') || 'entire table'}`;
+    logger.error(
+      `users schema incomplete (${detail}). Refusing TypeORM synchronize in production.`,
+    );
+    throw new Error(
+      `users schema incomplete in production (${detail}). synchronize is disabled; migrations must create the schema.`,
+    );
   }
 
   logger.warn(

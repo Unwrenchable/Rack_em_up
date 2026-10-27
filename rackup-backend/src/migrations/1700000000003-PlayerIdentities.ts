@@ -4,6 +4,15 @@ export class PlayerIdentities1700000000003 implements MigrationInterface {
   name = 'PlayerIdentities1700000000003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const existing: Array<{ reg: string | null }> = await queryRunner.query(
+      `SELECT to_regclass('public.player_identities') AS reg`,
+    );
+    // Baseline (or synchronize) already created this table and its indexes.
+    // The names below are not the TypeORM-generated ones; creating them on
+    // an existing table would show up as schema drift.
+    if (existing[0]?.reg) {
+      return;
+    }
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "player_identities" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -54,7 +63,8 @@ export class PlayerIdentities1700000000003 implements MigrationInterface {
     `);
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP TABLE IF EXISTS "player_identities"`);
+  public async down(): Promise<void> {
+    // Non-destructive. player_identities may have been created by synchronize
+    // or the baseline and may hold data. Revert only unrecords this migration.
   }
 }

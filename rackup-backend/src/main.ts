@@ -13,6 +13,7 @@ import * as path from 'path';
 import { DataSource } from 'typeorm';
 import { AppModule } from './app.module';
 import { ensureAuthSchema } from './config/ensure-auth-schema';
+import { resolveSynchronize } from './config/schema-sync';
 import { WebsocketAdapter } from './websocket/websocket.adapter';
 
 function safeDbHint(): string {
@@ -85,7 +86,7 @@ async function bootstrap(): Promise<void> {
     `db=${safeDbHint()} REDIS=${process.env.REDIS_URL ? 'set' : 'unset'}`,
   );
   logger.log(
-    `synchronize=${process.env.TYPEORM_SYNC ?? '(dev default)'} NODE_ENV=${process.env.NODE_ENV ?? 'undefined'}`,
+    `synchronize=${resolveSynchronize()} NODE_ENV=${process.env.NODE_ENV ?? 'undefined'}`,
   );
 }
 
