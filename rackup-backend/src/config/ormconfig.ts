@@ -1,11 +1,19 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { DataSource, DataSourceOptions } from 'typeorm';
+import { DataSourceOptions } from 'typeorm';
+import {
+  entityGlob,
+  migrationGlob,
+  resolveMigrationsRun,
+  resolveSynchronize,
+} from './schema-sync';
 
 const isProd = process.env.NODE_ENV === 'production';
 
-const synchronize =
-  process.env.TYPEORM_SYNC === 'true' ||
-  (!isProd && process.env.TYPEORM_SYNC !== 'false');
+// Production never synchronizes, even if TYPEORM_SYNC=true.
+const synchronize = resolveSynchronize();
+const migrationsRun = resolveMigrationsRun();
+const migrations = [migrationGlob(__dirname, __filename)];
+const entities = [entityGlob(__dirname, __filename)];
 
 type PgConnection =
   | { url: string; ssl: false | { rejectUnauthorized: false } }
@@ -124,16 +132,18 @@ export const ormConfig: TypeOrmModuleOptions = {
     // Prefer IPv4 on some Render paths where IPv6 terminates oddly.
     family: 4,
   },
-  migrations: [],
-  migrationsRun: false,
+  // dist/migrations/*.js after nest build; src/migrations/*.ts under ts-node.
+  migrations,
+  migrationsRun,
 };
 
 export const dataSourceOptions: DataSourceOptions = {
   type: 'postgres',
   ...connection,
-  entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  migrations: [],
+  entities,
+  migrations,
   synchronize: false,
+  migrationsRun: false,
   extra: {
     max: 20,
     connectionTimeoutMillis: 15_000,
@@ -141,6 +151,3 @@ export const dataSourceOptions: DataSourceOptions = {
     family: 4,
   },
 };
-
-const dataSource = new DataSource(dataSourceOptions);
-export default dataSource;

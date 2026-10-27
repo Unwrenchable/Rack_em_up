@@ -35,6 +35,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # TYPEORM_SYNC is intentionally not set. Production code forces
+      # synchronize=false even if the dashboard still has TYPEORM_SYNC=true.
+      # Dashboard env vars are not changed by this file. Do not add TYPEORM_SYNC=true.
       - key: PORT
         value: "8080"
       # Full postgres:// URL for the external DB. Dashboard secret, never commit.
