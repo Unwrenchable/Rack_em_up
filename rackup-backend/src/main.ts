@@ -15,6 +15,7 @@ import { AppModule } from './app.module';
 import { ensureAuthSchema } from './config/ensure-auth-schema';
 import { resolveSynchronize } from './config/schema-sync';
 import { WebsocketAdapter } from './websocket/websocket.adapter';
+import { assertSigningSecrets } from './config/auth-secrets';
 
 function safeDbHint(): string {
   const raw = (process.env.DATABASE_URL ?? '').trim();
@@ -31,6 +32,14 @@ function safeDbHint(): string {
 }
 
 async function bootstrap(): Promise<void> {
+  try {
+    assertSigningSecrets();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    new Logger('Bootstrap').error(message);
+    process.exit(1);
+  }
+
   const server = express();
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,

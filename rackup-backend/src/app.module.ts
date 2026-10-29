@@ -37,6 +37,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
 import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
 import { RocModule } from './roc/roc.module';
 import { RatingsModule } from './ratings/ratings.module';
+import { jwtAccessSecret } from './config/auth-secrets';
 
 @Module({
   imports: [
@@ -48,8 +49,10 @@ import { RatingsModule } from './ratings/ratings.module';
         limit: 120,
       },
     ]),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET ?? 'dev_access_secret',
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: jwtAccessSecret(),
+      }),
     }),
     ObjectStorageModule,
     IdBridgeModule,
